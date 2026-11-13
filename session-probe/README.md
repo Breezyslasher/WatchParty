@@ -156,7 +156,7 @@ video from outside yet.
 |---|---|---|---|---|---|---|
 | Vita_plex (`org.VitaPlex.app`) | phone | ✓ | ✓ (0.5 s) | ✓ | ✓ (0.0 s) | details page only (link) |
 | Disney+ (`com.disney.disneyplus`) | phone | ✓ | ✓ | ✓ | ✓ | — |
-| Disney+ (`com.disney.disneyplus`) | Sony Android TV 9 (32-bit) | ✓ | ✓ (0.0 s) | ✓ | ✓ (0.4 s drift) | ✓ `/play/<id>` link |
+| Disney+ (`com.disney.disneyplus`) | Sony Android TV 9 (32-bit) | ✓ | ✓ (0.0 s; adb `seek` 5:04 → 1:00:00 landed, playing at 1:00:07) | ✓ | ✓ (0.4 s drift) | ✓ `/play/<id>` link |
 
 So on that TV a Disney+ watch party can be fully automatic: send everyone the
 `/play/<id>` link, wait until each media session reports playing, seek them
