@@ -40,7 +40,10 @@ adb install -r WatchPartyTV.apk
 If installing fails, `adb install` prints the reason — on the Sony TV it was
 a full disk (`Requested internal only, but not enough space`).
 
-Then grant access to what's playing, once (TVs hide this setting):
+Then grant access to what's playing, once. Watch Party shows a **Grant access** button
+when the TV has a settings screen for it (many Android 11+ / Google TV devices); press it
+and switch Watch Party on. Many TVs hide that screen (the Sony Android TV 9 has none) —
+then use adb:
 
 ```
 adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.SessionAccessService

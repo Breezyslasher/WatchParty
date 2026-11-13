@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private lateinit var joinButton: Button
     private lateinit var statusView: TextView
     private lateinit var accessView: TextView
+    private lateinit var grantButton: Button
     private lateinit var shareNote: TextView
     private lateinit var nowPlayingView: TextView
 
@@ -61,6 +62,8 @@ class MainActivity : Activity() {
 
         accessView = label("", 15f).apply { typeface = Typeface.MONOSPACE }
         root.addView(accessView)
+        grantButton = button("Grant access") { openAccessScreen() }
+        root.addView(grantButton)
 
         root.addView(label("Relay", 15f))
         relayField = field("relay.example.com or 192.168.1.5:8765", prefs.getString("relay", "") ?: "")
@@ -254,12 +257,50 @@ class MainActivity : Activity() {
         val granted = TextUtils.split(enabled, ":").any { ComponentName.unflattenFromString(it) == component }
         if (granted) {
             accessView.visibility = View.GONE
+            grantButton.visibility = View.GONE
+            return
+        }
+        accessView.visibility = View.VISIBLE
+        val c = component.flattenToString()
+        val adb = if (Build.VERSION.SDK_INT >= 28) "adb shell cmd notification allow_listener $c"
+        else "adb shell settings put secure enabled_notification_listeners $c"
+        val screen = accessScreen(component)
+        if (screen != null) {
+            grantButton.visibility = View.VISIBLE
+            accessView.text = "One-time setup — Watch Party needs access to what's playing. " +
+                "Press Grant access and turn on Watch Party. If the switch is greyed out " +
+                "or missing, run this from a computer instead:\n$adb"
         } else {
-            accessView.visibility = View.VISIBLE
-            val c = component.flattenToString()
-            accessView.text = "One-time setup — Watch Party needs access to what's playing. From a computer:\n" +
-                if (Build.VERSION.SDK_INT >= 28) "adb shell cmd notification allow_listener $c"
-                else "adb shell settings put secure enabled_notification_listeners $c"
+            grantButton.visibility = View.GONE
+            accessView.text = "One-time setup — Watch Party needs access to what's playing. " +
+                "This TV has no settings screen for it, so run this from a computer:\n$adb"
+        }
+    }
+
+    /**
+     * The system screen where notification access is switched on, if this TV
+     * has one (many TVs hide it): Android 11+'s page for just this app, else
+     * the list of all apps.
+     */
+    private fun accessScreen(component: ComponentName): Intent? {
+        val candidates = mutableListOf<Intent>()
+        if (Build.VERSION.SDK_INT >= 30) {
+            candidates += Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+        }
+        candidates += Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+        return candidates.firstOrNull { it.resolveActivity(packageManager) != null }
+    }
+
+    private fun openAccessScreen() {
+        val screen = accessScreen(ComponentName(this, SessionAccessService::class.java)) ?: return
+        try {
+            startActivity(screen)
+        } catch (e: Exception) {
+            accessView.text = "Couldn't open the settings screen (${e.javaClass.simpleName}). " +
+                "Use the adb command instead:\nadb shell cmd notification allow_listener " +
+                ComponentName(this, SessionAccessService::class.java).flattenToString()
+            grantButton.visibility = View.GONE
         }
     }
 
