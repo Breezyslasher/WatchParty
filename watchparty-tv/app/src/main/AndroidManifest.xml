@@ -5,6 +5,9 @@
     <!-- keeps the room connection alive while you watch in another app -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- optional, granted with adb: lets "Share what's playing" find Disney+
+         title ids (adb shell pm grant dev.watchparty.tv android.permission.READ_LOGS) -->
+    <uses-permission android:name="android.permission.READ_LOGS" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

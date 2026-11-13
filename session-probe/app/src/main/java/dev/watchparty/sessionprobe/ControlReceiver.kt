@@ -76,7 +76,82 @@ class ControlReceiver : BroadcastReceiver() {
                 controls.seekTo(to)
                 "$where: skip ${by}s ${fmt(now)} -> ${fmt(to)}"
             }
-            else -> "error: unknown cmd '$cmd' (status, play, pause, seek, skip)"
+            "meta" -> describeEverything(c)
+            else -> "error: unknown cmd '$cmd' (status, play, pause, seek, skip, meta)"
+        }
+    }
+
+    /**
+     * Everything the app publishes about what's playing — to find out which
+     * apps expose a content id a watch party could rebuild a link from.
+     * Also written to logcat line by line (adb logcat -s SessionProbe).
+     */
+    private fun describeEverything(c: android.media.session.MediaController): String {
+        val out = StringBuilder("${c.packageName}\n")
+        val md = c.metadata
+        if (md == null) {
+            out.append("  metadata: none\n")
+        } else {
+            for (key in md.keySet().sorted()) {
+                val text = md.getText(key)
+                val value = when {
+                    text != null -> "\"$text\""
+                    md.getBitmap(key) != null -> md.getBitmap(key).let { "<image ${it.width}x${it.height}>" }
+                    md.getRating(key) != null -> "rating ${md.getRating(key)}"
+                    else -> md.getLong(key).toString()
+                }
+                out.append("  metadata ").append(key).append(" = ").append(value).append('\n')
+            }
+            val d = md.description
+            out.append("  description.mediaId = ").append(d.mediaId).append('\n')
+            if (android.os.Build.VERSION.SDK_INT >= 23) {
+                out.append("  description.mediaUri = ").append(d.mediaUri).append('\n')
+            }
+            appendBundle(out, "description.extras", d.extras)
+        }
+        val s = c.playbackState
+        if (s != null) {
+            out.append("  state.activeQueueItemId = ").append(s.activeQueueItemId).append('\n')
+            if (android.os.Build.VERSION.SDK_INT >= 22) appendBundle(out, "state.extras", s.extras)
+            for (a in s.customActions) {
+                out.append("  state.customAction ").append(a.action).append(" \"").append(a.name).append("\"\n")
+            }
+        }
+        appendBundle(out, "session.extras", c.extras)
+        out.append("  queueTitle = ").append(c.queueTitle).append('\n')
+        val queue = c.queue
+        if (queue != null) {
+            out.append("  queue: ").append(queue.size).append(" items\n")
+            for (q in queue.take(5)) {
+                out.append("    #").append(q.queueId).append(" mediaId=").append(q.description.mediaId)
+                    .append(if (android.os.Build.VERSION.SDK_INT >= 23) " uri=${q.description.mediaUri}" else "")
+                    .append(" title=\"").append(q.description.title).append("\"\n")
+            }
+        }
+        out.append("  sessionActivity = ").append(c.sessionActivity?.creatorPackage).append('\n')
+        val text = out.toString()
+        for (line in TextUtils.split(text, "\n")) if (line.isNotEmpty()) Log.i("SessionProbe", "meta: $line")
+        return text
+    }
+
+    /** Another app's extras can hold its own classes, which can't be decoded
+     *  here — report that instead of failing the whole dump. */
+    private fun appendBundle(out: StringBuilder, name: String, b: android.os.Bundle?) {
+        try {
+            if (b == null || b.isEmpty) {
+                out.append("  ").append(name).append(": none\n")
+                return
+            }
+            for (key in b.keySet().sorted()) {
+                val value = try {
+                    @Suppress("DEPRECATION") b.get(key).toString()
+                } catch (e: Exception) {
+                    "<unreadable: ${e.javaClass.simpleName}>"
+                }
+                out.append("  ").append(name).append(' ').append(key).append(" = ").append(value).append('\n')
+            }
+        } catch (e: Exception) {
+            out.append("  ").append(name).append(": <unreadable: ").append(e.javaClass.simpleName).append(">\n")
         }
     }
 }

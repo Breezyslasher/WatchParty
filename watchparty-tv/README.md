@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.3, not yet run on a TV.** The sync logic, link handling and
+**Status: 0.4.** Joins rooms and announces titles on a Sony Android TV 9; starting titles from the app and syncing are still being tested. The sync logic, link handling and
 relay client are unit-tested (the relay tests against the real relay), and
 every app link below was confirmed by hand on the TV with adb.
 
@@ -62,6 +62,27 @@ adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.Se
 Kodi members can be in the same room; they skip app links ("can't be played
 on this device"), and the TV app skips Kodi files.
 
+## Share what's playing (no link needed)
+
+Watch something in another app, come back to Watch Party and press
+**Share what I was watching**. It remembers what you last played (TV apps
+stop when you leave them) and asks to share it at that position:
+
+- **Disney+** — starts automatically on every TV *if* you opened the title's
+  page before playing it. Disney+'s log records that page's id, which is what
+  `/play/<id>` needs (confirmed for Iron Man and Thunderbolts*). Needs log
+  access, once:
+  ```
+  adb shell pm grant dev.watchparty.tv android.permission.READ_LOGS
+  ```
+- **Other apps that publish a title** (Disney+ without the log, others to be
+  confirmed) — every TV opens that app and shows "Pick *title* and press
+  Play"; sync takes over once it plays.
+- **Apple TV** publishes no title at all (only the duration) — paste its link.
+
+What each app publishes was checked with Session Probe's `meta` command:
+Apple TV gives only the duration; Disney+ gives title and duration, no id.
+
 ## Which link to share
 
 Share the address from the app's **website while the title is playing** —
@@ -107,6 +128,7 @@ app. Then check the app can be controlled: Session Probe's
 - `SyncCore.kt` — all sync decisions, no Android code (unit-tested).
 - `RelayClient.kt` — the relay protocol v3 (join/poll/command/leave, clock offset).
 - `MediaLink.kt` — link normalization (only confirmed formats are rewritten).
+- `NowPlaying.kt` — "Share what's playing": Disney+ ids from its log, title-only items otherwise.
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.
 - `MainActivity.kt` — join/leave, status, "Start for everyone".
 - `SessionAccessService.kt` — empty notification listener (unlocks media sessions).

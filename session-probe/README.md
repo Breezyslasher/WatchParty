@@ -111,6 +111,7 @@ adb shell am broadcast -n dev.watchparty.sessionprobe/.ControlReceiver --es cmd 
 | `seek` | `--es to 1:05:30` (or `65:30`, or seconds) | jumps to that time |
 | `skip` | `--es by 600` (or `-30`) | jumps forward/back by seconds |
 | `pause` / `play` | — | pause / resume |
+| `meta` | — | dumps everything the app publishes about what's playing (metadata, ids, extras, queue) |
 
 It acts on whatever is playing; add `--es pkg com.disney.disneyplus` to pick
 an app. The reply is printed on the `Broadcast completed: … data="…"` line and

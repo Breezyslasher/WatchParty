@@ -48,10 +48,15 @@ class SyncService : Service() {
             private set
         @Volatile private var instance: SyncService? = null
 
+        /** What this TV last had playing in another app, for "Share what's
+         *  playing" — remembered because TV apps stop when you leave them. */
+        @Volatile var lastPlayed: NowPlaying.Played? = null
+            private set
+
         /** Announce a link to the room (from the main screen). */
-        fun share(link: String, label: String, pkg: String): Boolean {
+        fun share(link: String, label: String, pkg: String, positionSec: Double = 0.0): Boolean {
             val service = instance ?: return false
-            service.worker?.post { service.announce(link, label, pkg) }
+            service.worker?.post { service.announce(link, label, pkg, positionSec) }
             return true
         }
 
@@ -166,6 +171,7 @@ class SyncService : Service() {
                 controller = sessionFor(room)
                 local = localState(controller)
             }
+            rememberPlaying(local)
             val actions = core.tick(room, local, System.currentTimeMillis(), c.serverNowSec())
             for (a in actions) perform(a, controller, c)
             showRoom(room, local)
@@ -204,10 +210,17 @@ class SyncService : Service() {
         }
     }
 
-    private fun announce(link: String, label: String, pkg: String) {
+    private fun rememberPlaying(local: LocalState) {
+        val pkg = local.pkg ?: return
+        if (local.play != LocalPlay.PLAYING || local.positionMs < 0) return
+        val title = local.title?.takeIf { it.isNotBlank() } ?: return   // Apple TV publishes none
+        lastPlayed = NowPlaying.Played(pkg, title, local.positionMs, System.currentTimeMillis())
+    }
+
+    private fun announce(link: String, label: String, pkg: String, positionSec: Double) {
         val c = client ?: return
         try {
-            c.command("open", 0.0, RelayClient.appItem(link, label, pkg))
+            c.command("open", positionSec, RelayClient.appItem(link, label, pkg))
             note = "Started for everyone: $label"
         } catch (e: IOException) {
             note = "Couldn't share: ${e.message}"
@@ -219,6 +232,22 @@ class SyncService : Service() {
     /** Same as the adb test: VIEW the link in that app, in a fresh task,
      *  so an app that's already open doesn't swallow it. */
     private fun openLink(link: String, pkg: String) {
+        NowPlaying.titleOf(link)?.let { title ->
+            // title-only: open the app; the viewer picks the title, then we sync
+            val home = packageManager.getLeanbackLaunchIntentForPackage(pkg)
+                ?: packageManager.getLaunchIntentForPackage(pkg)
+            if (home == null) {
+                note = "${appName(pkg)} isn't installed"
+                return
+            }
+            try {
+                startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                note = "Pick \"$title\" in ${appName(pkg)} and press Play — sync takes over from there"
+            } catch (e: Exception) {
+                note = "Couldn't open ${appName(pkg)}: ${e.message}"
+            }
+            return
+        }
         val launch = MediaLink.launchFor(link, pkg)
         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(launch.uri))
             .setPackage(pkg)
