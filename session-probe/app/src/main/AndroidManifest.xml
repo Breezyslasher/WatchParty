@@ -46,5 +46,13 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- adb remote control (seek/skip/play/pause) that leaves the tested
+             app on screen. DUMP is held by adb's shell, not by normal apps,
+             so only adb can send these. -->
+        <receiver
+            android:name=".ControlReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 </manifest>

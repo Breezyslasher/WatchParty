@@ -95,13 +95,72 @@ RESULT com.disney.disneyplus: can open by: nothing · pause ✓ · seek ✓ · p
 | **can open by** | Whether another app can start a *specific* title inside it (media id, URI or search). "nothing" means everyone picks the title themselves, and the sync app only lines up the playback. |
 | **stopped: no media session** | The app doesn't publish a session (or dropped it). A sync app can't drive it. |
 
+## Remote control from adb
+
+Session Probe also takes commands from adb **without coming to the front**, so
+an app that stops when it leaves the screen keeps playing. It's the same call
+a watch party app would make to line everyone up:
+
+```
+adb shell am broadcast -n dev.watchparty.sessionprobe/.ControlReceiver --es cmd seek --es to 1:00:00
+```
+
+| Command | Extras | Does |
+|---|---|---|
+| `status` | — | prints the app, title, state and position |
+| `seek` | `--es to 1:05:30` (or `65:30`, or seconds) | jumps to that time |
+| `skip` | `--es by 600` (or `-30`) | jumps forward/back by seconds |
+| `pause` / `play` | — | pause / resume |
+
+It acts on whatever is playing; add `--es pkg com.disney.disneyplus` to pick
+an app. The reply is printed on the `Broadcast completed: … data="…"` line and
+logged under `adb logcat -s SessionProbe`. The receiver is guarded by
+`android.permission.DUMP`, which adb's shell has and normal apps can't get.
+
+## Starting a title from outside (deep links)
+
+Media sessions can only control what's already playing. To *start* a title, a
+sync app sends the app a link — the same links a web page uses to open an app.
+
+Send them with the fresh-start flags `0x10008000` (new task + clear task).
+Without them, an app that's already open often gets the link and ignores it
+(`am start` warns "intent has been delivered to currently running top-most
+instance").
+
+```
+adb shell am start -W -f 0x10008000 -a android.intent.action.VIEW -d "LINK" com.disney.disneyplus
+```
+
+**Disney+** (confirmed on a Sony Android TV 9):
+
+| Link | Result |
+|---|---|
+| `https://www.disneyplus.com/play/<id>` | **starts playing** that title |
+| `https://www.disneyplus.com/browse/entity-<id>` | opens that title's page |
+
+Both use the same `<id>`: open the title on disneyplus.com and copy it from
+the address bar. The `?contextId=…` that the website adds isn't needed. The
+app registers `https://www.disneyplus.com/*` and `disneyplus://…` with no path
+restriction (`adb shell dumpsys package com.disney.disneyplus`), so routing
+happens inside the app. A cold start via a plain link after `am force-stop`
+landed on the TV home screen instead — use the flags.
+
+**Vita_plex**: `vitaplex://`, `plex://` and `app.plex.tv` links with
+`/library/metadata/<key>` open the item's details page; its media-session
+play-from-search / media-id only cover the music library. Nothing starts a
+video from outside yet.
+
 ## Results so far
 
-| App | Device | pause | seek | play | tracking | open by |
+| App | Device | pause | seek | play | tracking | start a title |
 |---|---|---|---|---|---|---|
-| Vita_plex (`org.VitaPlex.app`) | phone | ✓ | ✓ (0.5 s) | ✓ | ✓ (0.0 s) | media id, search |
+| Vita_plex (`org.VitaPlex.app`) | phone | ✓ | ✓ (0.5 s) | ✓ | ✓ (0.0 s) | details page only (link) |
 | Disney+ (`com.disney.disneyplus`) | phone | ✓ | ✓ | ✓ | ✓ | — |
-| Disney+ (`com.disney.disneyplus`) | Sony Android TV 9 (32-bit) | ✓ | ✓ (0.0 s) | ✓ | ✓ (0.4 s drift) | nothing |
+| Disney+ (`com.disney.disneyplus`) | Sony Android TV 9 (32-bit) | ✓ | ✓ (0.0 s) | ✓ | ✓ (0.4 s drift) | ✓ `/play/<id>` link |
+
+So on that TV a Disney+ watch party can be fully automatic: send everyone the
+`/play/<id>` link, wait until each media session reports playing, seek them
+all to the host's position, then keep correcting drift.
 
 ## Troubleshooting
 
@@ -118,6 +177,7 @@ RESULT com.disney.disneyplus: can open by: nothing · pause ✓ · seek ✓ · p
 ## What's in here
 
 - `MainActivity.kt` — the whole UI and the test sequence.
+- `ControlReceiver.kt` — the adb remote control (seek, skip, play, pause).
 - `ProbeListenerService.kt` — an empty notification listener. It exists only
   so the system grants media-session access; it reads no notifications.
 - No dependencies beyond the Android framework, no network permission.

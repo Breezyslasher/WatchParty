@@ -424,7 +424,7 @@ class MainActivity : Activity() {
  * Current position: the last reported one, advanced by elapsed time when
  * playing — the same extrapolation a sync app's drift correction relies on.
  */
-private fun positionOf(s: PlaybackState): Long {
+internal fun positionOf(s: PlaybackState): Long {
     if (s.position < 0) return -1
     if (s.state != PlaybackState.STATE_PLAYING || s.lastPositionUpdateTime <= 0) {
         return s.position
@@ -444,7 +444,7 @@ private fun grantCommand(component: String) =
     else
         "adb shell settings put secure enabled_notification_listeners $component"
 
-private fun fmt(ms: Long): String {
+internal fun fmt(ms: Long): String {
     if (ms < 0) return "?"
     val total = ms / 1000
     val h = total / 3600
@@ -456,7 +456,7 @@ private fun fmt(ms: Long): String {
 
 private fun secs(ms: Long) = String.format(Locale.US, "%+.1fs", ms / 1000.0)
 
-private fun stateName(state: Int) = when (state) {
+internal fun stateName(state: Int) = when (state) {
     PlaybackState.STATE_PLAYING -> "PLAYING"
     PlaybackState.STATE_PAUSED -> "PAUSED"
     PlaybackState.STATE_BUFFERING -> "BUFFERING"
