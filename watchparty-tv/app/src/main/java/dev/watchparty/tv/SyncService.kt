@@ -214,7 +214,7 @@ class SyncService : Service() {
         val pkg = local.pkg ?: return
         if (local.play != LocalPlay.PLAYING || local.positionMs < 0) return
         val title = local.title?.takeIf { it.isNotBlank() } ?: return   // Apple TV publishes none
-        lastPlayed = NowPlaying.Played(pkg, title, local.positionMs, System.currentTimeMillis())
+        lastPlayed = NowPlaying.Played(pkg, title, local.positionMs, System.currentTimeMillis(), local.durationMs)
     }
 
     private fun announce(link: String, label: String, pkg: String, positionSec: Double) {
@@ -299,6 +299,7 @@ class SyncService : Service() {
             positionMs = if (s != null) positionOf(s) else -1,
             play = play,
             title = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+            durationMs = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0 } ?: -1,
         )
     }
 

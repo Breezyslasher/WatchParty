@@ -1,5 +1,13 @@
 # Watch Party Setup
 
+> **Status: didn't fix the Chromecast with Google TV.** After a clean install
+> through Setup, its notification-access switch still wouldn't move. Android
+> TV's open-source Settings (`NotificationAccess.java`, Android 14) has no
+> restricted-settings check at all, so the block below isn't what Google TV's
+> own (closed) Settings is doing. Whether Setup helps anywhere else (e.g.
+> Android 13+ phones) hasn't been tested. For TVs, use the adb grant in
+> [watchparty-tv](../watchparty-tv).
+
 Installs [Watch Party for Android TV](../watchparty-tv) so its **notification
 access** switch works on Android 13+, without a computer.
 

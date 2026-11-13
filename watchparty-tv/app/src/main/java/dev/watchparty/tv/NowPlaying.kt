@@ -21,7 +21,8 @@ import java.util.regex.Pattern
 object NowPlaying {
 
     /** What the host last had playing (remembered by SyncService). */
-    data class Played(val pkg: String, val title: String, val positionMs: Long, val atMs: Long)
+    data class Played(val pkg: String, val title: String, val positionMs: Long, val atMs: Long,
+                      val durationMs: Long = -1)
 
     // The page request Disney+'s SDK logs when a title's page opens.
     private val DISNEY_ENTITY = Pattern.compile(
@@ -55,16 +56,18 @@ object NowPlaying {
     }
 
     /**
-     * What to share for [played]: a real link where the app's id is known,
-     * else a title-only link. [logLines] is recent logcat output (empty if
-     * this app can't read logs).
+     * What to share for [played]: a real link where one is known, else a
+     * title-only link. [logLines] is recent logcat output (empty if this app
+     * can't read logs); [justWatchLink] is JustWatch's link for the title in
+     * that app, if the lookup found one.
      */
-    fun shareFor(played: Played, logLines: List<String>): MediaLink.Shared {
+    fun shareFor(played: Played, logLines: List<String>, justWatchLink: String? = null): MediaLink.Shared {
         if (played.pkg == MediaLink.DISNEY_PACKAGE) {
             latestDisneyEntity(logLines)?.let {
                 return MediaLink.Shared("https://www.disneyplus.com/play/$it", played.pkg, played.title)
             }
         }
+        if (justWatchLink != null) return MediaLink.Shared(justWatchLink, played.pkg, played.title)
         return MediaLink.Shared(titleOnlyLink(played.pkg, played.title), played.pkg, played.title)
     }
 }

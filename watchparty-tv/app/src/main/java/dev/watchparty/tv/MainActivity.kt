@@ -173,7 +173,14 @@ class MainActivity : Activity() {
         shareNote.text = "Looking up \"${played.title}\"…"
         Thread {
             val logs = if (played.pkg == MediaLink.DISNEY_PACKAGE) recentLogLines() else emptyList()
-            val shared = NowPlaying.shareFor(played, logs)
+            val fromLog = played.pkg == MediaLink.DISNEY_PACKAGE && NowPlaying.latestDisneyEntity(logs) != null
+            val fromJustWatch = if (fromLog) null else try {
+                JustWatch.lookup(played.title, played.pkg, appName(played.pkg), played.durationMs,
+                    java.util.Locale.getDefault().country.ifEmpty { "US" })
+            } catch (e: Exception) {
+                null   // offline, or JustWatch changed — fall back to title-only
+            }
+            val shared = NowPlaying.shareFor(played, logs, fromJustWatch)
             runOnUiThread { confirmShare(played, shared) }
         }.start()
     }
@@ -269,11 +276,8 @@ class MainActivity : Activity() {
             grantButton.visibility = View.VISIBLE
             accessView.text = "One-time setup — Watch Party needs access to what's playing. " +
                 "Press Grant access and turn on Watch Party." +
-                (if (Build.VERSION.SDK_INT >= 33)
-                    "\nIf the switch won't move: Android blocks it for apps installed by file-transfer " +
-                        "apps (e.g. Send Files to TV). Reinstall with adb (adb install), or run this " +
-                        "from a computer:\n$adb"
-                else "\nIf the switch is missing, run this from a computer instead:\n$adb")
+                "\nIf the switch won't move (seen on a Chromecast with Google TV) or is missing, " +
+                "run this from a computer instead:\n$adb"
         } else {
             grantButton.visibility = View.GONE
             accessView.text = "One-time setup — Watch Party needs access to what's playing. " +

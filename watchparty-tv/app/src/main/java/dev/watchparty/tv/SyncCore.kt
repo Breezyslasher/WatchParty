@@ -49,6 +49,7 @@ data class LocalState(
     val positionMs: Long,   // -1 if the app doesn't report one
     val play: LocalPlay,
     val title: String?,
+    val durationMs: Long = -1,   // from the session's metadata, if it says
 )
 
 sealed class Action {

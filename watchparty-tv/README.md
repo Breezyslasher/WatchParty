@@ -42,10 +42,11 @@ a full disk (`Requested internal only, but not enough space`).
 
 Then grant access to what's playing, once. Watch Party shows a **Grant access** button
 when the TV has a settings screen for it (many Android 11+ / Google TV devices); press it
-and switch Watch Party on. On Android 13+ the switch is greyed out if the APK was
-installed by a file-transfer app such as Send Files to TV (Android's "restricted setting");
-installing with `adb install` (or Samsung's My Files on a phone) avoids that. Many TVs hide
-the screen entirely (the Sony Android TV 9 has none) — then use adb:
+and switch Watch Party on. On a Chromecast with Google TV (Android 14) the switch
+wouldn't move, even after a clean install through Watch Party Setup — Android TV's
+open-source Settings doesn't block it, so it's Google TV's own Settings; the cause is
+unknown. Many TVs hide the screen entirely (the Sony Android TV 9 has none). In both
+cases use adb (on Android 11+: Wireless debugging → `adb pair`, then `adb connect`):
 
 ```
 adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.SessionAccessService
@@ -80,9 +81,16 @@ stop when you leave them) and asks to share it at that position:
   ```
   adb shell pm grant dev.watchparty.tv android.permission.READ_LOGS
   ```
-- **Other apps that publish a title** (Disney+ without the log, others to be
-  confirmed) — every TV opens that app and shows "Pick *title* and press
-  Play"; sync takes over once it plays.
+- **Any app that publishes a title** — Watch Party asks JustWatch for that
+  title's Android TV link in that app, picking the film whose runtime matches
+  the session's duration. JustWatch's Android TV links match what started
+  titles on the Sony TV: Disney+ `/play/<id>`, HBO Max
+  `play.hbomax.com/video/watch/<id>`, Apple TV movie pages (plus
+  `?action=play`). Only the title is sent. Checked with
+  `tools/justwatch/jw.py`, which the *JustWatch link lookup* workflow in the
+  Actions tab runs.
+- **Not on JustWatch / no match** — every TV opens that app and shows
+  "Pick *title* and press Play"; sync takes over once it plays.
 - **Apple TV** publishes no title at all (only the duration) — paste its link.
 
 What each app publishes was checked with Session Probe's `meta` command:
@@ -133,7 +141,8 @@ app. Then check the app can be controlled: Session Probe's
 - `SyncCore.kt` — all sync decisions, no Android code (unit-tested).
 - `RelayClient.kt` — the relay protocol v3 (join/poll/command/leave, clock offset).
 - `MediaLink.kt` — link normalization (only confirmed formats are rewritten).
-- `NowPlaying.kt` — "Share what's playing": Disney+ ids from its log, title-only items otherwise.
+- `NowPlaying.kt` — "Share what's playing": Disney+ ids from its log, JustWatch, else title-only.
+- `JustWatch.kt` — title → Android TV deep link via JustWatch (runtime-matched).
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.
 - `MainActivity.kt` — join/leave, status, "Start for everyone".
 - `SessionAccessService.kt` — empty notification listener (unlocks media sessions).
