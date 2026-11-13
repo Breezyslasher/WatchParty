@@ -1,0 +1,38 @@
+name: JustWatch link lookup
+
+# Manually run: prints each streaming service's JustWatch link for some
+# titles (tools/justwatch/jw.py), to learn which link format each service
+# gets before Watch Party relies on it.
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: 'Titles, separated by "|"'
+        required: true
+        default: 'Thunderbolts*|Iron Man|Greyhound'
+      country:
+        description: 'Country code'
+        required: false
+        default: 'US'
+      kind:
+        description: 'MOVIE or SHOW'
+        required: false
+        default: 'MOVIE'
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Look up titles
+        env:
+          TITLES: ${{ inputs.titles }}
+          COUNTRY: ${{ inputs.country }}
+          KIND: ${{ inputs.kind }}
+        run: |
+          IFS='|' read -ra list <<< "$TITLES"
+          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" "${list[@]}"
