@@ -268,8 +268,12 @@ class MainActivity : Activity() {
         if (screen != null) {
             grantButton.visibility = View.VISIBLE
             accessView.text = "One-time setup — Watch Party needs access to what's playing. " +
-                "Press Grant access and turn on Watch Party. If the switch is greyed out " +
-                "or missing, run this from a computer instead:\n$adb"
+                "Press Grant access and turn on Watch Party." +
+                (if (Build.VERSION.SDK_INT >= 33)
+                    "\nIf the switch won't move: Android blocks it for apps installed by file-transfer " +
+                        "apps (e.g. Send Files to TV). Reinstall with adb (adb install), or run this " +
+                        "from a computer:\n$adb"
+                else "\nIf the switch is missing, run this from a computer instead:\n$adb")
         } else {
             grantButton.visibility = View.GONE
             accessView.text = "One-time setup — Watch Party needs access to what's playing. " +

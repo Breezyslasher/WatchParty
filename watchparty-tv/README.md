@@ -42,8 +42,10 @@ a full disk (`Requested internal only, but not enough space`).
 
 Then grant access to what's playing, once. Watch Party shows a **Grant access** button
 when the TV has a settings screen for it (many Android 11+ / Google TV devices); press it
-and switch Watch Party on. Many TVs hide that screen (the Sony Android TV 9 has none) —
-then use adb:
+and switch Watch Party on. On Android 13+ the switch is greyed out if the APK was
+installed by a file-transfer app such as Send Files to TV (Android's "restricted setting");
+installing with `adb install` (or Samsung's My Files on a phone) avoids that. Many TVs hide
+the screen entirely (the Sony Android TV 9 has none) — then use adb:
 
 ```
 adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.SessionAccessService
