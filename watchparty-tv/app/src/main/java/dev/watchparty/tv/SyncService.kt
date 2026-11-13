@@ -328,6 +328,7 @@ class SyncService : Service() {
     // ── foreground notification ─────────────────────────────────────────
 
     private fun goForeground(text: String) {
+        shownNotificationText = text
         val n = buildNotification(text)
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIFICATION_ID, n, 2 /* FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, API 29 */)
@@ -336,7 +337,13 @@ class SyncService : Service() {
         }
     }
 
+    private var shownNotificationText: String? = null
+
+    /** Only re-post when the text changes — posting every second made the
+     *  TV log ~900 notification updates a day for an unchanged line. */
     private fun updateNotification(text: String) {
+        if (text == shownNotificationText) return
+        shownNotificationText = text
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, buildNotification(text))
     }
