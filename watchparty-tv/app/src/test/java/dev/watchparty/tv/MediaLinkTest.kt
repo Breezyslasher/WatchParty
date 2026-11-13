@@ -24,6 +24,61 @@ class MediaLinkTest {
         assertEquals(play, MediaLink.normalize("  https://www.disneyplus.com/play/${id.uppercase()}  ")!!.link)
     }
 
+    @Test fun disneyLaunchesTheRoomLinkAsIs() {
+        assertEquals(MediaLink.Launch(play), MediaLink.launchFor(play, MediaLink.DISNEY_PACKAGE))
+    }
+
+    // the links below are the ones tested on a Sony Android TV 9
+
+    @Test fun starzPageAndPlayLinksBecomeThePlayLink() {
+        val playLink = "https://www.starz.com/us/en/play/72168"
+        assertEquals(playLink, MediaLink.normalize("https://www.starz.com/us/en/movies/72168")!!.link)
+        assertEquals(playLink, MediaLink.normalize(playLink)!!.link)
+        assertNull(MediaLink.normalize(playLink)!!.knownPackage)   // Android finds the app
+    }
+
+    @Test fun netflixTitleAndWatchLinksBecomeTheWatchLink() {
+        val watch = "https://www.netflix.com/watch/82700085"
+        assertEquals(watch, MediaLink.normalize("https://www.netflix.com/title/82700085")!!.link)
+        assertEquals(watch, MediaLink.normalize(
+            "https://www.netflix.com/watch/82700085?trackId=14277281&tctx=-97%2C-97%2C%2C%2C%2C%2C%2C%2C%2CVideo%3A82700085%2CdetailsPagePlayButton%2C"
+        )!!.link)
+    }
+
+    @Test fun netflixTvAppLaunchesTheWatchLinkWithSource30() {
+        val launch = MediaLink.launchFor("https://www.netflix.com/watch/82700085", MediaLink.NETFLIX_TV_PACKAGE)
+        assertEquals("https://www.netflix.com/watch/82700085", launch.uri)
+        assertEquals(mapOf("source" to "30"), launch.extras)
+        // another Netflix app (e.g. on a phone) gets the plain link
+        assertEquals(MediaLink.Launch("https://www.netflix.com/watch/82700085"),
+            MediaLink.launchFor("https://www.netflix.com/watch/82700085", "com.netflix.mediaclient"))
+    }
+
+    @Test fun hboWatchLinksMoveToTheDomainTheAppClaims() {
+        val s = MediaLink.normalize("https://www.hbomax.com/video/watch/e95435b2-2c89-4788-b711-b7f346f03da9")!!
+        assertEquals("https://play.hbomax.com/video/watch/e95435b2-2c89-4788-b711-b7f346f03da9", s.link)
+        assertEquals(MediaLink.HBO_PACKAGE, s.knownPackage)
+        val two = "e95435b2-2c89-4788-b711-b7f346f03da9/6ce5965d-cdb2-4f9c-b22b-ae7a091d95a8"
+        assertEquals("https://play.hbomax.com/video/watch/$two",
+            MediaLink.normalize("https://play.max.com/video/watch/$two?utm_source=x")!!.link)
+    }
+
+    @Test fun hboShowPagesAreNotRewritten() {
+        val show = "https://www.hbomax.com/show/6ce5965d-cdb2-4f9c-b22b-ae7a091d95a8?utm_source=universal_search"
+        assertEquals(show, MediaLink.normalize(show)!!.link)
+        assertNull(MediaLink.normalize(show)!!.knownPackage)
+    }
+
+    @Test fun crunchyrollKeepsACleanWebLinkAndOpensTheApp() {
+        val s = MediaLink.normalize(
+            "https://www.crunchyroll.com/watch/G9DU92MQK/one-piece-film-strong-world?irclickid=2kORXdV&utm_source=impact"
+        )!!
+        assertEquals("https://www.crunchyroll.com/watch/G9DU92MQK/one-piece-film-strong-world", s.link)
+        assertEquals(MediaLink.CRUNCHYROLL_PACKAGE, s.knownPackage)
+        assertEquals(MediaLink.Launch("crunchyroll://watch/G9DU92MQK"),
+            MediaLink.launchFor(s.link, MediaLink.CRUNCHYROLL_PACKAGE))
+    }
+
     @Test fun otherLinksPassThroughUnchanged() {
         val raw = "https://www.example-stream.com/watch/abc123?t=10"
         val s = MediaLink.normalize(raw)!!

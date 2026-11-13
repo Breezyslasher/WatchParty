@@ -4,8 +4,9 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: first version (0.1), not yet tested on a TV.** The sync logic and
-the relay client are unit-tested, including against the real relay.
+**Status: 0.2, not yet run on a TV.** The sync logic, link handling and
+relay client are unit-tested (the relay tests against the real relay), and
+every app link below was confirmed by hand on the TV with adb.
 
 ## How it works
 
@@ -66,13 +67,23 @@ on this device"), and the TV app skips Kodi files.
 Share the address from the app's **website while the title is playing** —
 that's the link most likely to start playback rather than just open a page.
 
-| App | Status | Link to share |
-|---|---|---|
-| Disney+ | ✓ starts playback (Sony Android TV 9) | `https://www.disneyplus.com/play/<id>` — page links `/browse/entity-<id>` are converted automatically |
-| Netflix | not tested yet | `https://www.netflix.com/watch/<id>` (same id as `/title/<id>`) |
-| Starz | not tested yet | `https://www.starz.com/us/en/play/<id>` (same id as `/movies/<id>`) |
-| Crunchyroll | not tested yet | `https://www.crunchyroll.com/watch/<id>/<name>` |
-| HBO Max | not tested yet | `https://www.hbomax.com/video/watch/<id>` — the show page has a *different* id, so copy the watch link |
+Tested on a Sony Android TV 9 (32-bit). The app converts what you paste, so
+page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
+
+| App | Package | Share | The TV launches | Result |
+|---|---|---|---|---|
+| Disney+ | `com.disney.disneyplus` | `disneyplus.com/play/<id>` or `/browse/entity-<id>` | `https://www.disneyplus.com/play/<id>` | ✓ starts playing |
+| Netflix | `com.netflix.ninja` | `netflix.com/watch/<id>` or `/title/<id>` | `https://www.netflix.com/watch/<id>` + extra `source=30` | ✓ starts playing after a few seconds |
+| HBO Max | `com.wbd.stream` | `hbomax.com/video/watch/<id>` | `https://play.hbomax.com/video/watch/<id>` (the app only claims `play.hbomax.com` / `play.max.com`) | ✓ opens the movie |
+| Starz | (found by Android) | `starz.com/us/en/play/<id>` or `/movies/<id>` | `https://www.starz.com/us/en/play/<id>` | ✓ starts playing |
+| Crunchyroll | `com.crunchyroll.crunchyroid` | `crunchyroll.com/watch/<id>/…` | `crunchyroll://watch/<id>` | opens the app only — the app claims no web links |
+
+HBO Max show pages use a *different* id from the watch link, so for HBO Max
+copy the link while it plays. Netflix needs the `source=30` extra: the same
+link without it only opened the app.
+
+Any other app's link is passed through unchanged. If it only opens the
+title's page, everyone presses Play and sync takes over.
 
 Other apps work the same way if they register their website's links. If a
 link only opens the title's page, everyone presses Play and sync takes over.

@@ -89,9 +89,10 @@ class MainActivity : Activity() {
 
         root.addView(label("Start something for everyone", 20f, bold = true))
         root.addView(label(
-            "Paste a link to a movie or episode — e.g. from the app's website. Every TV in " +
-                "the room opens it. Disney+ links start playing straight away; for other apps, " +
-                "if the link only opens the title's page, everyone presses Play and sync takes over.",
+            "Paste a link to a movie or episode from the app's website — ideally copied while it " +
+                "plays. Every TV in the room opens it. Disney+, Netflix, HBO Max and Starz links " +
+                "start playing on their own; for other apps (Crunchyroll opens just the app), " +
+                "everyone picks the title and presses Play, and sync takes over.",
             15f))
         linkField = field("https://www.disneyplus.com/play/…", "")
         root.addView(linkField)

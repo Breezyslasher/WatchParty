@@ -145,6 +145,19 @@ restriction (`adb shell dumpsys package com.disney.disneyplus`), so routing
 happens inside the app. A cold start via a plain link after `am force-stop`
 landed on the TV home screen instead — use the flags.
 
+**Netflix, HBO Max, Starz, Crunchyroll** (same TV, same flags):
+
+| App | Link that worked | Result |
+|---|---|---|
+| Netflix (`com.netflix.ninja`) | `https://www.netflix.com/watch/<id>` with `-e source 30` | starts playing after a few seconds; without `source` it only opened the app |
+| HBO Max (`com.wbd.stream`) | `https://play.hbomax.com/video/watch/<id>` | opens the movie; `www.hbomax.com` links aren't claimed by the app ("no app can perform this action") |
+| Starz | `https://www.starz.com/us/en/play/<id>` | starts playing |
+| Crunchyroll (`com.crunchyroll.crunchyroid`) | `crunchyroll://watch/<id>` | opens the app only; it claims no web links |
+
+Use `adb shell dumpsys package <pkg> | grep -E "Scheme:|Authority:|Path:"`
+to see which links an app accepts — that's how the HBO Max domain and the
+Netflix `/watch` path were found.
+
 **Vita_plex**: `vitaplex://`, `plex://` and `app.plex.tv` links with
 `/library/metadata/<key>` open the item's details page; its media-session
 play-from-search / media-id only cover the music library. Nothing starts a

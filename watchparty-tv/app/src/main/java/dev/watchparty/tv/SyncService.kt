@@ -219,9 +219,11 @@ class SyncService : Service() {
     /** Same as the adb test: VIEW the link in that app, in a fresh task,
      *  so an app that's already open doesn't swallow it. */
     private fun openLink(link: String, pkg: String) {
-        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link))
+        val launch = MediaLink.launchFor(link, pkg)
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(launch.uri))
             .setPackage(pkg)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        for ((key, value) in launch.extras) intent.putExtra(key, value)
         try {
             startActivity(intent)
             note = "Opening in ${appName(pkg)}…"
