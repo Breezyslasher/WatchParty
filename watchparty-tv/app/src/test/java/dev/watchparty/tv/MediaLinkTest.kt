@@ -79,6 +79,22 @@ class MediaLinkTest {
             MediaLink.launchFor(s.link, MediaLink.CRUNCHYROLL_PACKAGE))
     }
 
+    @Test fun appleTvMovieLinksGetActionPlayAndLoseTracking() {
+        val s = MediaLink.normalize(
+            "https://tv.apple.com/us/movie/greyhound/umc.cmc.o5z5ztufuu3uv8lx7m0jcega?at=1000l3V2&ct=app_tvplus&itscg=30200&itsct=justwatch_tv"
+        )!!
+        assertEquals("https://tv.apple.com/us/movie/greyhound/umc.cmc.o5z5ztufuu3uv8lx7m0jcega?action=play", s.link)
+        assertEquals(MediaLink.APPLE_TV_PACKAGE, s.knownPackage)
+        // already has action=play: unchanged
+        assertEquals(s.link, MediaLink.normalize(s.link)!!.link)
+        assertEquals(MediaLink.Launch(s.link), MediaLink.launchFor(s.link, MediaLink.APPLE_TV_PACKAGE))
+    }
+
+    @Test fun appleTvShowLinksAreNotRewritten() {
+        val show = "https://tv.apple.com/us/show/severance/umc.cmc.1srk2goyh2q2zdxcx605w8vtx"
+        assertEquals(show, MediaLink.normalize(show)!!.link)
+    }
+
     @Test fun otherLinksPassThroughUnchanged() {
         val raw = "https://www.example-stream.com/watch/abc123?t=10"
         val s = MediaLink.normalize(raw)!!

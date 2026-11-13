@@ -145,7 +145,7 @@ restriction (`adb shell dumpsys package com.disney.disneyplus`), so routing
 happens inside the app. A cold start via a plain link after `am force-stop`
 landed on the TV home screen instead — use the flags.
 
-**Netflix, HBO Max, Starz, Crunchyroll** (same TV, same flags):
+**Netflix, HBO Max, Starz, Crunchyroll, Apple TV** (same TV, same flags):
 
 | App | Link that worked | Result |
 |---|---|---|
@@ -153,6 +153,7 @@ landed on the TV home screen instead — use the flags.
 | HBO Max (`com.wbd.stream`) | `https://play.hbomax.com/video/watch/<id>` | opens the movie; `www.hbomax.com` links aren't claimed by the app ("no app can perform this action") |
 | Starz | `https://www.starz.com/us/en/play/<id>` | starts playing |
 | Crunchyroll (`com.crunchyroll.crunchyroid`) | `crunchyroll://watch/<id>` | opens the app only; it claims no web links |
+| Apple TV (`com.apple.atve.androidtv.appletv`) | `https://tv.apple.com/us/movie/<name>/<id>?action=play` | starts playing after picking a profile; without `?action=play` it opens the movie page |
 
 Use `adb shell dumpsys package <pkg> | grep -E "Scheme:|Authority:|Path:"`
 to see which links an app accepts — that's how the HBO Max domain and the

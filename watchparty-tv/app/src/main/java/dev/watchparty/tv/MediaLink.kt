@@ -20,6 +20,7 @@ object MediaLink {
     const val NETFLIX_TV_PACKAGE = "com.netflix.ninja"
     const val HBO_PACKAGE = "com.wbd.stream"
     const val CRUNCHYROLL_PACKAGE = "com.crunchyroll.crunchyroid"
+    const val APPLE_TV_PACKAGE = "com.apple.atve.androidtv.appletv"
 
     /** What to share with the room. [knownPackage] is null when the app
      *  should be found by asking Android who opens [link]. */
@@ -45,6 +46,10 @@ object MediaLink {
     // opens the app but not the episode. Keep the web link clean.
     private val CRUNCHYROLL = p("^https?://(?:www\\.)?crunchyroll\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?watch/([A-Z0-9]+)(/[^?#]*)?$Q")
 
+    // Apple TV: the app claims all of tv.apple.com. A movie page link opens the
+    // page; the same link with ?action=play starts it (after the profile picker).
+    private val APPLE_MOVIE = p("^https?://tv\\.apple\\.com/([a-z]{2})/movie/([^/?#]+)/(umc\\.[A-Za-z0-9.]+)$Q")
+
     private fun p(regex: String): Pattern = Pattern.compile(regex)
 
     private fun Pattern.match(text: String): Matcher? = matcher(text).takeIf { it.matches() }
@@ -64,6 +69,10 @@ object MediaLink {
         }
         HBO.match(text)?.let {
             return Shared("https://play.hbomax.com/video/watch/${it.group(1)!!.lowercase()}", HBO_PACKAGE, "HBO Max title")
+        }
+        APPLE_MOVIE.match(text)?.let {
+            return Shared("https://tv.apple.com/${it.group(1)}/movie/${it.group(2)}/${it.group(3)}?action=play",
+                APPLE_TV_PACKAGE, "Apple TV movie")
         }
         CRUNCHYROLL.match(text)?.let {
             return Shared("https://www.crunchyroll.com/watch/${it.group(1)}${it.group(2) ?: ""}", CRUNCHYROLL_PACKAGE,
