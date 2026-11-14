@@ -59,13 +59,66 @@ def post(query, variables):
 
 STREAMING = {"FLATRATE", "FREE", "ADS", "FAST"}
 
+INTROSPECT = """{ platform: __type(name: "Platform") { enumValues { name } }
+  offer: __type(name: "Offer") { fields { name args { name } } } }"""
+
+PER_PLATFORM = """query P($id: ID!, $c: Country!, $p: Platform!) {
+  node(id: $id) { ... on MovieOrShowOrSeasonOrEpisode {
+    offers(country: $c, platform: $p) {
+      monetizationType standardWebURL deeplinkURL(platform: $p)
+      package { clearName technicalName }
+    }
+  } }
+}"""
+
+
+def introspect():
+    data = post(INTROSPECT, {})
+    if data.get("errors"):
+        print("introspection:", data["errors"][0].get("message"))
+        return []
+    plats = [v["name"] for v in (data["data"]["platform"] or {}).get("enumValues") or []]
+    print("Platform values:", ", ".join(plats))
+    for f in (data["data"]["offer"] or {}).get("fields") or []:
+        if "link" in f["name"].lower() or "url" in f["name"].lower():
+            print(f"Offer field: {f['name']}({', '.join(a['name'] for a in f['args'])})")
+    return plats
+
+
+def per_platform(node_id, country, platforms):
+    for plat in platforms:
+        data = post(PER_PLATFORM, {"id": node_id, "c": country, "p": plat})
+        if data.get("errors"):
+            print(f"   [{plat}] error: {data['errors'][0].get('message', '')[:140]}")
+            continue
+        offers = ((data.get("data") or {}).get("node") or {}).get("offers") or []
+        seen = set()
+        shown = 0
+        for o in offers:
+            if o["monetizationType"] not in STREAMING:
+                continue
+            key = (o["package"]["technicalName"], o.get("deeplinkURL"))
+            if key in seen:
+                continue
+            seen.add(key)
+            shown += 1
+            print(f"   [{plat}] {o['package']['clearName']:<24} deeplink={o.get('deeplinkURL')}")
+        if not shown:
+            print(f"   [{plat}] (no streaming offers)")
+
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("titles", nargs="+")
     ap.add_argument("--country", default="US")
     ap.add_argument("--kind", default="MOVIE", choices=["MOVIE", "SHOW"])
+    ap.add_argument("--platforms", default="",
+                    help='comma list, or "all" to try every Platform value the API reports')
     args = ap.parse_args()
+
+    platforms = [p for p in args.platforms.split(",") if p]
+    if platforms == ["all"]:
+        platforms = introspect()
 
     for title in args.titles:
         print(f"\n### search: {title!r} ({args.kind}, {args.country})")
@@ -94,6 +147,9 @@ def main():
                 seen.add(key)
                 print(f"   WEB  {o['package']['clearName']:<26} [{o['package']['technicalName']}] "
                       f"{o['monetizationType']:<8} {o['standardWebURL']}")
+            if platforms:
+                per_platform(node["id"], args.country, platforms)
+                continue
             deep = post(DEEPLINKS, {"id": node["id"], "c": args.country})
             if deep.get("errors"):
                 print("   ANDROID_TV deeplinks: n/a —", deep["errors"][0].get("message", "")[:160])

@@ -18,6 +18,10 @@ on:
         description: 'MOVIE or SHOW'
         required: false
         default: 'MOVIE'
+      platforms:
+        description: 'Deeplink platforms, comma separated, or "all" (empty = WEB + ANDROID_TV)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -33,6 +37,7 @@ jobs:
           TITLES: ${{ inputs.titles }}
           COUNTRY: ${{ inputs.country }}
           KIND: ${{ inputs.kind }}
+          PLATFORMS: ${{ inputs.platforms }}
         run: |
           IFS='|' read -ra list <<< "$TITLES"
-          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" "${list[@]}"
+          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" "${list[@]}"
