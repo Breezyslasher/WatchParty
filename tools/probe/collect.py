@@ -199,14 +199,19 @@ ID_PATTERNS = [
     re.compile(r"umc\.cmc\.[a-z0-9]+", re.I),                                         # Apple TV
     re.compile(r"amzn1\.dv\.gti\.[0-9a-f-]+", re.I),                                  # Amazon
     re.compile(r"(?<=asin=)[A-Z0-9]{10}"),                                            # Amazon
-    re.compile(r"(?<=[/=])[0-9]{5,}(?=[/?#&;]|$)"),                                   # numeric (Netflix, Starz, Tubi)
+    re.compile(r"(?<=/)[0-9]{5,}(?=[/?#]|$)"),                                        # numeric path ids (Netflix, Starz, Tubi)
     re.compile(r"(?<=/watch/)[A-Z0-9]{8,}(?=[/?#]|$)"),                               # Crunchyroll
     re.compile(r"(?<=[?&]v=)[A-Za-z0-9_-]{11}"),                                      # YouTube
 ]
 
 
 def ids_in(url):
+    """Content ids in a link. Only the path and the id-carrying parameters
+    (v=, asin=, gti=) count — tracking values like itscg=30200 are not ids."""
     found = []
+    path, _, query = url.partition("?")
+    keep = "&".join(kv for kv in re.split(r"[&#;]", query) if kv.split("=")[0] in ("v", "asin", "gti"))
+    url = path + ("?" + keep if keep else "")
     for p in ID_PATTERNS:
         for m in p.findall(url):
             if m not in found:
@@ -222,12 +227,25 @@ def find_ids(ids_by_service, captured):
             for source, text in captured.items():
                 for line in text.splitlines():
                     if i.lower() in line.lower():
-                        hits.setdefault(i, []).append((source, svc, redact(line.strip())[:300]))
+                        where = source
+                        if source == "activity_intents" and "flg=0x10008000" in line:
+                            where = "own_launch"   # a link we sent with the fresh-start flags
+                        hits.setdefault(i, []).append((where, svc, redact(line.strip())[:300]))
                         break
     return hits
 
 
 # ── a capture, end to end ───────────────────────────────────────────────
+
+def probe_title(meta_reply):
+    """Exact TITLE / DISPLAY_SUBTITLE / ARTIST from Session Probe's meta, if installed."""
+    out = {}
+    for key in ("TITLE", "DISPLAY_SUBTITLE", "ARTIST", "ALBUM", "DISPLAY_TITLE"):
+        m = re.search(r'metadata android\.media\.metadata\.' + key + r' = \\?"(.*?)\\?"(?:\\n|\n|$)', meta_reply)
+        if m:
+            out[key] = m.group(1)
+    return out
+
 
 def run_capture(session, args):
     pkg, title = session["package"], session.get("title")
@@ -235,18 +253,30 @@ def run_capture(session, args):
     print(f"  letting it load for {args.settle}s …")
     time.sleep(args.settle)
     captured = {k: redact(v) for k, v in capture(pkg).items()}
+    exact = probe_title(captured["probe_meta"])
+    if exact.get("TITLE") or exact.get("DISPLAY_TITLE"):
+        title = exact.get("TITLE") or exact.get("DISPLAY_TITLE")
+    # episodes: the session's title is often the episode, the show is elsewhere
+    show = next((v.strip() for v in (exact.get("DISPLAY_SUBTITLE"), exact.get("ARTIST"), exact.get("ALBUM"),
+                                     session.get("subtitle")) if v and v.strip() and v.strip() != "null,"), None)
 
-    ids_by_service = {}
+    ids_by_service, jw_links, searched = {}, [], []
     jw_error = None
-    if title:
+    for name in [n for n in (title, show) if n and n not in ("null", "null,")]:
         try:
-            for svc, url in justwatch_links(title, args.country):
-                ids_by_service.setdefault(svc, [])
-                for i in ids_in(url):
-                    if i not in ids_by_service[svc]:
-                        ids_by_service[svc].append(i)
+            links = justwatch_links(name, args.country)
         except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
             jw_error = str(e)
+            continue
+        searched.append(name)
+        for svc, url in links:
+            jw_links.append({"searched": name, "service": svc, "url": redact(url)})
+            ids_by_service.setdefault(svc, [])
+            for i in ids_in(url):
+                if i not in ids_by_service[svc]:
+                    ids_by_service[svc].append(i)
+        if links:
+            break   # the title matched; no need to try the show name
     hits = find_ids(ids_by_service, captured)
 
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -256,8 +286,9 @@ def run_capture(session, args):
         with open(os.path.join(folder, f"{name}.txt"), "w") as f:
             f.write(text)
     report = {
-        "package": pkg, "title": title, "subtitle": session.get("subtitle"),
-        "justwatch_ids": ids_by_service, "justwatch_error": jw_error,
+        "package": pkg, "title": title, "show": show, "probe_metadata": exact,
+        "justwatch_searched": searched, "justwatch_ids": ids_by_service,
+        "justwatch_links": jw_links, "justwatch_error": jw_error,
         "found": {i: [{"source": s, "service": svc, "line": l} for s, svc, l in v] for i, v in hits.items()},
         "log_lines": len(captured["app_log"].splitlines()),
     }
@@ -286,8 +317,10 @@ def summary(reports):
     print("\n" + "=" * 78)
     print(f"{'app':<36} {'title':<24} id exposed in")
     for r in reports:
-        sources = sorted({h["source"] for v in r["found"].values() for h in v})
-        verdict = ", ".join(sources) if sources else ("no title" if not r["title"] else
+        sources = sorted({h["source"] for v in r["found"].values() for h in v if h["source"] != "own_launch"})
+        own = any(h["source"] == "own_launch" for v in r["found"].values() for h in v)
+        verdict = ", ".join(sources) if sources else ("our own launch (JustWatch id ✓)" if own else
+                                                       "no title" if not r["title"] else
                                                        "JustWatch: no match" if not r["justwatch_ids"] else "nowhere")
         print(f"{r['package'][:35]:<36} {(r['title'] or '-')[:23]:<24} {verdict}")
 
