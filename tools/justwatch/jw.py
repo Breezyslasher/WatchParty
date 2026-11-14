@@ -72,11 +72,19 @@ PER_PLATFORM = """query P($id: ID!, $c: Country!, $p: Platform!) {
 }"""
 
 
+# Platform values the API accepted (US, 2026-11-14). Introspection is
+# disabled, so "all" uses these; names it rejected: TV_OS, TIZEN, TIZEN_OS,
+# WEB_OS, SAMSUNG, SAMSUNG_TV, LG, LG_TV, VIZIO, VIDAA, CHROMECAST, APPLE_TV,
+# FIRE_OS, IPHONE, IPAD, MAC_OS, WINDOWS, PS4, PS5, XBOX_ONE.
+KNOWN_PLATFORMS = ["WEB", "ANDROID", "IOS", "ANDROID_TV", "FIRE_TV", "TVOS",
+                   "ROKU_OS", "WEBOS", "XBOX", "PLAYSTATION"]
+
+
 def introspect():
     data = post(INTROSPECT, {})
     if data.get("errors"):
-        print("introspection:", data["errors"][0].get("message"))
-        return []
+        print("introspection:", data["errors"][0].get("message"), "- using", ", ".join(KNOWN_PLATFORMS))
+        return KNOWN_PLATFORMS
     plats = [v["name"] for v in (data["data"]["platform"] or {}).get("enumValues") or []]
     print("Platform values:", ", ".join(plats))
     for f in (data["data"]["offer"] or {}).get("fields") or []:
