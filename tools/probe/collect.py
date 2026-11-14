@@ -243,7 +243,7 @@ def probe_title(meta_reply):
     for key in ("TITLE", "DISPLAY_SUBTITLE", "ARTIST", "ALBUM", "DISPLAY_TITLE"):
         m = re.search(r'metadata android\.media\.metadata\.' + key + r' = \\?"(.*?)\\?"(?:\\n|\n|$)', meta_reply)
         if m:
-            out[key] = m.group(1)
+            out[key] = m.group(1).rstrip('\\"')   # adb may show the quotes escaped
     return out
 
 
