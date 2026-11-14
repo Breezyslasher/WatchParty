@@ -73,11 +73,14 @@ PER_PLATFORM = """query P($id: ID!, $c: Country!, $p: Platform!) {
 
 
 # Platform values the API accepted (US, 2026-11-14). Introspection is
-# disabled, so "all" uses these; names it rejected: TV_OS, TIZEN, TIZEN_OS,
-# WEB_OS, SAMSUNG, SAMSUNG_TV, LG, LG_TV, VIZIO, VIDAA, CHROMECAST, APPLE_TV,
-# FIRE_OS, IPHONE, IPAD, MAC_OS, WINDOWS, PS4, PS5, XBOX_ONE.
+# disabled, so "all" uses these. Rejected: TV_OS, TIZEN, TIZEN_OS, WEB_OS,
+# SAMSUNG(_TV), LG(_TV), VIZIO, VIZIOOS, SMARTCAST, VIDAA, VIDAAOS, TITANOS,
+# FOXXUM, ZEASN, WHALEOS, CHROMECAST, CHROMECASTOS, GOOGLE_TV, GOOGLETV,
+# APPLE_TV, APPLETV, FIRE_OS, AMAZON_FIRE_TV, ROKU, IPHONE, IPAD, IPADOS,
+# MAC_OS, MACOS, WINDOWS, WINDOWS10, LINUX, KAIOS, MOBILE, TV, SMART_TV,
+# PS, PS4, PS5, PLAYSTATION4, XBOX_ONE, XBOXONE.
 KNOWN_PLATFORMS = ["WEB", "ANDROID", "IOS", "ANDROID_TV", "FIRE_TV", "TVOS",
-                   "ROKU_OS", "WEBOS", "XBOX", "PLAYSTATION"]
+                   "TIZENOS", "WEBOS", "ROKU_OS", "XBOX", "PLAYSTATION"]
 
 
 def introspect():
