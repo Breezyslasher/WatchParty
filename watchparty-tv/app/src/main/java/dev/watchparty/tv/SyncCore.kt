@@ -14,7 +14,10 @@ package dev.watchparty.tv
  *  - our own commands are suppressed for SUPPRESS_MS so their echo isn't
  *    mistaken for the user acting;
  *  - a change the user makes locally (pause, play, seek with the remote) is
- *    sent to the room so everyone follows.
+ *    sent to the room so everyone follows;
+ *  - a just-launched app is left alone (no play, pause or seek) until it has
+ *    played for STARTED_MS, or OPEN_GRACE_MS passes: seeking HBO Max's player
+ *    while it started (5 s in, the room ahead) closed it on a phone.
  */
 
 /** A party item as the relay stores it. Android items carry their link in
@@ -82,11 +85,14 @@ class SyncCore(
         const val SUPPRESS_MS = 4_000L          // ignore our own echo this long
         const val CORRECTION_COOLDOWN_MS = 4_000L
         const val OPEN_GRACE_MS = 20_000L       // let a launched app start up
+        const val STARTED_MS = 3_000L           // playing this long = it has started
         const val USER_SEEK_JUMP_SEC = 4.0      // local jump that counts as a seek
     }
 
     private var openedFile: String? = null
     private var openedAtMs = 0L
+    /** When the launched app was first seen playing (-1: not yet). */
+    private var playingSinceMs = -1L
     private var suppressUntilMs = 0L
     private var lastCorrectionMs = 0L
     private var notPlayableFile: String? = null
@@ -125,6 +131,7 @@ class SyncCore(
                 } else {
                     actions += Action.Open(item.file, pkg)
                     openedAtMs = nowMs
+                    playingSinceMs = -1L
                     suppressUntilMs = nowMs + SUPPRESS_MS
                 }
             } else if (notPlayableFile != item.file) {
@@ -140,6 +147,16 @@ class SyncCore(
         }
 
         val inGrace = nowMs - openedAtMs < OPEN_GRACE_MS
+        // still starting up: leave the app alone until it has played a few seconds
+        if (local.play == LocalPlay.PLAYING) {
+            if (playingSinceMs < 0) playingSinceMs = nowMs
+        } else if (inGrace) {
+            playingSinceMs = -1L
+        }
+        if (inGrace && (playingSinceMs < 0 || nowMs - playingSinceMs < STARTED_MS)) {
+            remember(local, nowMs)
+            return actions
+        }
         val suppressed = nowMs < suppressUntilMs
         val localSec = if (local.positionMs >= 0) local.positionMs / 1000.0 else -1.0
 

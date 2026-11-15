@@ -113,4 +113,26 @@ class SyncCoreTest {
         assertEquals(300.0, room(pos = 300.0, paused = true).expectedSec(5000.0), 0.0)
         assertEquals(110.0, room().expectedSec(1010.0), 1e-9)
     }
+
+    @Test fun aLaunchedAppIsLeftAloneWhileItStarts() {
+        val core = SyncCore()
+        assertEquals(listOf<Action>(Action.Open(link, disney)), core.tick(room(), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0))
+        // 5 s later the player appears at 0 while the room is at 105: no seek yet (HBO Max closed its player)
+        assertEquals(emptyList<Action>(), core.tick(room(), local(0.0), 5_000L, 1005.0))
+        // loading reports paused: no Play either
+        assertEquals(emptyList<Action>(), core.tick(room(), local(0.5, LocalPlay.PAUSED), 6_000L, 1006.0))
+        assertEquals(emptyList<Action>(), core.tick(room(), local(1.0), 7_000L, 1007.0))
+        assertEquals(emptyList<Action>(), core.tick(room(), local(2.0), 9_000L, 1009.0))
+        // playing for 3 s: started, so one seek to the room
+        assertEquals(listOf<Action>(Action.SeekTo(110_000)), core.tick(room(), local(3.0), 10_000L, 1010.0))
+    }
+
+    @Test fun anAppThatNeverPlaysIsFollowedAfterTheGrace() {
+        val core = SyncCore()
+        core.tick(room(), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0)
+        assertEquals(emptyList<Action>(), core.tick(room(), local(0.0, LocalPlay.PAUSED), 10_000L, 1010.0))
+        // past the grace, still paused while the room plays: resume it
+        assertTrue(core.tick(room(), local(0.0, LocalPlay.PAUSED), SyncCore.OPEN_GRACE_MS + 1_000, 1021.0)
+            .contains(Action.Play))
+    }
 }
