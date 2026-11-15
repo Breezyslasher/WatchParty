@@ -272,8 +272,8 @@ task. ✓ Confirmed with 0.9.19 on a Samsung phone (2026-11-15): HBO Max
 episodes start both when HBO Max was closed and when its player was open.
 Discovery+ (`com.discovery.discoveryplus.mobile`, the same Warner Bros.
 Discovery player and `play.discoveryplus.com/video/watch/<id>` links) failed
-the same way with the fresh task and gets the same treatment (not yet
-confirmed). Netflix needs the `source=30` extra: the same
+the same way with the fresh task and gets the same treatment. ✓ Episodes
+start with 0.9.21 (Samsung phone, 2026-11-15). Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
