@@ -233,7 +233,7 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 
 | App | Package | Share | The TV launches | Result |
 |---|---|---|---|---|
-| Disney+ | `com.disney.disneyplus` | `disneyplus.com/play/<id>` or `/browse/entity-<id>` | `https://www.disneyplus.com/play/<id>` | ✓ starts playing |
+| Disney+ | `com.disney.disneyplus` | `disneyplus.com/play/<id>` or `/browse/entity-<id>` | `https://www.disneyplus.com/play/<id>` | ✓ starts playing (Sony TV, again with 0.9.31 on 2026-11-15) |
 | Netflix | `com.netflix.ninja` | `netflix.com/watch/<id>` or `/title/<id>` | `https://www.netflix.com/watch/<id>` + extra `source=30` | ✓ movies and episodes start playing after a few seconds (Sony TV, 2026-11-15). Until 0.9.31 the other device looped its first seconds while the TV loaded: the TV's loading counted as buffering, which pauses the room |
 | HBO Max | `com.wbd.stream` | `hbomax.com/video/watch/<id>` | `https://play.hbomax.com/video/watch/<id>` (the app only claims `play.hbomax.com` / `play.max.com`) | ✓ opens the movie |
 | Starz | (found by Android) | `starz.com/us/en/play/<id>` or `/movies/<id>` | `https://www.starz.com/us/en/play/<id>` | ✓ starts playing |
