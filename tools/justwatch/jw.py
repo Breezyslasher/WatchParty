@@ -83,41 +83,53 @@ KNOWN_PLATFORMS = ["WEB", "ANDROID", "IOS", "ANDROID_TV", "FIRE_TV", "TVOS",
                    "TIZENOS", "WEBOS", "ROKU_OS", "XBOX", "PLAYSTATION"]
 
 
-# Episode links. JustWatch's schema isn't published (introspection is off),
-# so this is a best guess; GraphQL errors name any field that doesn't exist.
-EPISODES = """query E($id: ID!, $c: Country!, $l: Language!) {
+# Episode links, in two steps like Watch Party TV: a show's seasons, then one
+# season's episodes with their offers. JustWatch's schema isn't published
+# (introspection is off), so GraphQL errors are printed in full.
+SEASONS = """query S($id: ID!, $c: Country!, $l: Language!) {
   node(id: $id) { ... on Show {
-    seasons(sortDirection: ASC) {
+    seasons(sortDirection: ASC) { id content(country: $c, language: $l) { seasonNumber title } }
+  } }
+}"""
+
+SEASON_EPISODES = """query E($id: ID!, $c: Country!, $l: Language!) {
+  node(id: $id) { ... on Season {
+    episodes(sortDirection: ASC) {
       id
-      content(country: $c, language: $l) { seasonNumber title }
-      episodes(sortDirection: ASC) {
-        id
-        content(country: $c, language: $l) { episodeNumber title }
-        web: offers(country: $c, platform: WEB) {
-          monetizationType standardWebURL deeplinkURL(platform: WEB)
-          package { clearName technicalName }
-        }
-        atv: offers(country: $c, platform: ANDROID_TV) {
-          monetizationType deeplinkURL(platform: ANDROID_TV)
-          package { clearName technicalName }
-        }
+      content(country: $c, language: $l) { episodeNumber title }
+      web: offers(country: $c, platform: WEB) {
+        monetizationType standardWebURL deeplinkURL(platform: WEB)
+        package { clearName technicalName }
+      }
+      atv: offers(country: $c, platform: ANDROID_TV) {
+        monetizationType deeplinkURL(platform: ANDROID_TV)
+        package { clearName technicalName }
       }
     }
   } }
 }"""
 
 
-def episodes(node_id, country, max_seasons, max_episodes):
-    data = post(EPISODES, {"id": node_id, "c": country, "l": "en"})
+def _errors(data, what):
     if data.get("errors"):
         for err in data["errors"][:5]:
-            print("   episodes error:", err.get("message", "")[:400])
+            print(f"   {what} error:", err.get("message", "")[:400])
+        return True
+    return False
+
+
+def episodes(node_id, country, max_seasons, max_episodes):
+    data = post(SEASONS, {"id": node_id, "c": country, "l": "en"})
+    if _errors(data, "seasons"):
         return
     show = (data.get("data") or {}).get("node") or {}
     for season in (show.get("seasons") or [])[:max_seasons]:
         sc = season.get("content") or {}
         print(f"   -- season {sc.get('seasonNumber')} ({season.get('id')})")
-        for ep in (season.get("episodes") or [])[:max_episodes]:
+        eps = post(SEASON_EPISODES, {"id": season["id"], "c": country, "l": "en"})
+        if _errors(eps, "episodes"):
+            continue
+        for ep in (((eps.get("data") or {}).get("node") or {}).get("episodes") or [])[:max_episodes]:
             ec = ep.get("content") or {}
             print(f"      E{ec.get('episodeNumber')} {ec.get('title')!r} ({ep.get('id')})")
             seen = set()
