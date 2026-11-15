@@ -25,7 +25,7 @@ object JustWatch {
     private val STREAMING = setOf("FLATRATE", "FREE", "ADS", "FAST")
 
     data class Title(val id: String, val objectType: String, val title: String, val year: Int, val tmdbId: String?,
-                     val poster: String? = null)
+                     val poster: String? = null, val imdbId: String? = null)
 
     /** A title page from JustWatch, for titles found without Yamtrack. [score]
      *  is TMDB's ([scoreSource] "tmdb"), else IMDb's; [runtime] in minutes.
@@ -83,7 +83,7 @@ object JustWatch {
     private val SEARCH = """query S(${'$'}f: TitleFilter!, ${'$'}c: Country!, ${'$'}l: Language!, ${'$'}first: Int!) {
       popularTitles(country: ${'$'}c, filter: ${'$'}f, first: ${'$'}first, sortBy: POPULAR, sortRandomSeed: 0) {
         edges { node { id objectType
-          content(country: ${'$'}c, language: ${'$'}l) { title originalReleaseYear externalIds { tmdbId } } } }
+          content(country: ${'$'}c, language: ${'$'}l) { title originalReleaseYear externalIds { tmdbId imdbId } } } }
       }
     }"""
 
@@ -118,7 +118,7 @@ object JustWatch {
      *  them from the live API (2026-11-15). Posters: images.justwatch.com +
      *  "/poster/<id>/{profile}/<slug>.{format}" with s166…s718, jpg or webp. */
     private val TITLE_FIELDS = """id objectType
-          content(country: ${'$'}c, language: ${'$'}l) { title originalReleaseYear posterUrl externalIds { tmdbId } }"""
+          content(country: ${'$'}c, language: ${'$'}l) { title originalReleaseYear posterUrl externalIds { tmdbId imdbId } }"""
 
     private val SEARCH_TITLES = """query S(${'$'}f: TitleFilter!, ${'$'}c: Country!, ${'$'}l: Language!, ${'$'}first: Int!) {
       popularTitles(country: ${'$'}c, filter: ${'$'}f, first: ${'$'}first, sortBy: POPULAR, sortRandomSeed: 0) {
@@ -149,13 +149,15 @@ object JustWatch {
     fun page(titleId: String, country: String): Page? =
         parsePage(post(PAGE, JSONObject().put("id", titleId).put("c", country).put("l", "en")))
 
-    /** The JustWatch title for a Yamtrack item: by TMDB id when there is one,
-     *  else by exact title. [objectType] is "MOVIE" or "SHOW". */
-    fun findTitle(title: String, tmdbId: String?, objectType: String, country: String): Title? {
+    /** The JustWatch title for a Yamtrack or Kodi item: by TMDB id when there
+     *  is one, else IMDb id, else exact title (and year). [objectType] is
+     *  "MOVIE" or "SHOW". */
+    fun findTitle(title: String, tmdbId: String?, objectType: String, country: String,
+                  imdbId: String? = null, year: Int? = null): Title? {
         val response = post(SEARCH, JSONObject()
             .put("f", JSONObject().put("searchQuery", title).put("objectTypes", JSONArray().put(objectType)))
             .put("c", country).put("l", "en").put("first", 10))
-        return pickTitle(parseTitles(response), title, tmdbId)
+        return pickTitle(parseTitles(response), title, tmdbId, imdbId, year)
     }
 
     fun offers(titleId: String, country: String): List<Offer> =
@@ -182,9 +184,10 @@ object JustWatch {
 
     private fun title(node: JSONObject): Title? {
         val content = node.optJSONObject("content") ?: return null
-        val tmdb = content.optJSONObject("externalIds")?.let { text(it, "tmdbId") }
+        val external = content.optJSONObject("externalIds")
         return Title(node.optString("id"), node.optString("objectType"), content.optString("title"),
-            content.optInt("originalReleaseYear"), tmdb, posterUrl(text(content, "posterUrl")))
+            content.optInt("originalReleaseYear"), external?.let { text(it, "tmdbId") }, posterUrl(text(content, "posterUrl")),
+            external?.let { text(it, "imdbId") })
     }
 
     /** "/poster/329366258/{profile}/thunderbolts.{format}" → its [profile] jpg. */
@@ -233,12 +236,16 @@ object JustWatch {
     private fun score(o: JSONObject, key: String): Double? =
         if (o.isNull(key)) null else o.optDouble(key).takeIf { !it.isNaN() && it > 0 }
 
-    /** Same TMDB id if we have one; otherwise the same title (ignoring case
-     *  and punctuation), most popular first. */
-    fun pickTitle(titles: List<Title>, title: String, tmdbId: String?): Title? {
-        if (!tmdbId.isNullOrBlank()) return titles.firstOrNull { it.tmdbId == tmdbId }
+    /** Same TMDB id if we have one; else the same IMDb id; otherwise the same
+     *  title (ignoring case and punctuation) — of [year] if given — most
+     *  popular first. */
+    fun pickTitle(titles: List<Title>, title: String, tmdbId: String?, imdbId: String? = null, year: Int? = null): Title? {
+        if (!tmdbId.isNullOrBlank()) titles.firstOrNull { it.tmdbId == tmdbId }?.let { return it }
+        if (!imdbId.isNullOrBlank()) titles.firstOrNull { it.imdbId == imdbId }?.let { return it }
+        if (!tmdbId.isNullOrBlank() && imdbId.isNullOrBlank()) return null   // a different title with the same name
         val wanted = simplify(title)
-        return titles.firstOrNull { simplify(it.title) == wanted }
+        val same = titles.filter { simplify(it.title) == wanted }
+        return (if (year != null && year > 0) same.firstOrNull { it.year == year } else null) ?: same.firstOrNull()
     }
 
     fun parseSeasons(response: JSONObject): List<Season> {

@@ -63,8 +63,9 @@ export class SyncCore {
   }
 
   /** Called once per poll; returns actions:
-   *  {type:'open', link} {type:'play'} {type:'pause'} {type:'seek', ms}
-   *  {type:'send', cmd, positionSec} {type:'note', text} */
+   *  {type:'open', link} {type:'resolve', file, label, identity} {type:'play'}
+   *  {type:'pause'} {type:'seek', ms} {type:'send', cmd, positionSec}
+   *  {type:'note', text} */
   tick(room, local, nowMs, serverNowSec) {
     const actions = [];
     const item = room.item;
@@ -89,6 +90,13 @@ export class SyncCore {
           this.suppressUntilMs = nowMs + SUPPRESS_MS;
           if (!item.service) actions.push({ type: 'note', text: `Opened "${item.label || item.file}" — this site can't be synced` });
         }
+      } else if (item.identity) {
+        // a Kodi title: the page finds it on a streaming site (JustWatch);
+        // its start-up gets the same grace as a link we open
+        actions.push({ type: 'resolve', file: item.file, label: item.label, identity: item.identity });
+        this.openedAtMs = nowMs;
+        this.playingSinceMs = -1;
+        this.suppressUntilMs = nowMs + SUPPRESS_MS;
       } else if (this.notPlayableFile !== item.file) {
         this.notPlayableFile = item.file;
         actions.push({ type: 'note', text: `"${item.label || item.file}" is a Kodi file — it can't play in a browser` });

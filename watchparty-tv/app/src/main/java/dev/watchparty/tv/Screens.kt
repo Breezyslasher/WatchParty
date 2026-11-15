@@ -737,7 +737,20 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         showRecommendations(p.similar.map { YamtrackClient.Item.fromJustWatch(it) })
     }
 
+    /** The title's identity for the room, so Kodi members play their library copy (Bridge). */
+    private fun identity(): Identity? {
+        if (show) {
+            val (season, episode) = picked ?: return null
+            return Identity.episode(item.title, season, episode)
+        }
+        return Identity.movie(item.title, Ui.year(detailDate ?: item.date)?.toIntOrNull(), tmdb)
+    }
+
+    /** The release date from the title's page (Yamtrack's or JustWatch's), for the identity's year. */
+    private var detailDate: String? = null
+
     internal fun showDetail(d: YamtrackClient.Detail, scoreSource: String = item.source, certification: String? = null) {
+        if (d.date != null) detailDate = d.date
         setPoster(d.image)
         facts.removeAllViews()
         if (d.score != null) facts.addView(Ui.rating(c, d.score, scoreSource, d.scoreCount), lp().apply { rightMargin = Ui.px(c, 20) })
@@ -1034,7 +1047,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     private fun share(d: ServiceDialog, link: String, label: String, pkg: String, title: String, sub: String, o: JustWatch.Offer) {
         d.dismiss()
-        SyncService.share(link, label, pkg)
+        SyncService.share(link, label, pkg, identity = identity())
         host.sent(Playing(link, title, sub, serviceName(o), YamtrackClient.posterUrl(item.image)))
     }
 

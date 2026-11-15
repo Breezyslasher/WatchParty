@@ -319,7 +319,12 @@ export function titleScreen(app, t) {
     }
     const label = show ? `${title} · ${sub}` : title;
     try {
-      await app.start(link, label, { title, sub, service: serviceName(o), image: t.poster });
+      // the title's identity, so Kodi members play their library copy
+      const identity = show
+        ? { type: 'episode', show: t.title, season: episode && episode.season, episode: episode && episode.episode, ids: {} }
+        : { type: 'movie', title: t.title, year: t.year || null, ids: Object.fromEntries(
+          [['tmdb', t.tmdbId], ['imdb', t.imdbId]].filter(([, v]) => v)) };
+      await app.start(link, label, { title, sub, service: serviceName(o), image: t.poster }, identity);
       d.close();
     } catch (e) {
       d.hint(`Couldn't start it: ${e.message}`, true);

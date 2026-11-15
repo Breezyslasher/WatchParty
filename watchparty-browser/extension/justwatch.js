@@ -11,7 +11,7 @@ const IMAGES = 'https://images.justwatch.com';
 const STREAMING = new Set(['FLATRATE', 'FREE', 'ADS', 'FAST']);
 
 const TITLE_FIELDS = `id objectType
-  content(country: $c, language: $l) { title originalReleaseYear posterUrl externalIds { tmdbId } }`;
+  content(country: $c, language: $l) { title originalReleaseYear posterUrl externalIds { tmdbId imdbId } }`;
 
 const SEARCH = `query S($f: TitleFilter!, $c: Country!, $l: Language!, $first: Int!) {
   popularTitles(country: $c, filter: $f, first: $first, sortBy: POPULAR, sortRandomSeed: 0) {
@@ -77,6 +77,34 @@ export class JustWatch {
     return parsePage(await this.post(PAGE, { id, c: this.country, l: 'en' }));
   }
 
+  /** The title for a Kodi item: by TMDB id, else IMDb id, else exact title (and year). */
+  async findTitle(title, tmdbId, objectType, imdbId = null, year = null) {
+    return pickTitle(await this.search(title, objectType, 10), title, tmdbId, imdbId, year);
+  }
+
+  /**
+   * Where to watch a Kodi member's title (a port of the Android app's
+   * Bridge.offers): a movie by its ids or title and year; an episode by its
+   * show's title (an episode's ids aren't the show's), season and episode,
+   * leaving out links every episode shares (a show's page).
+   */
+  async offersFor(identity) {
+    if (identity.type === 'movie') {
+      const t = await this.findTitle(identity.title, identity.ids.tmdb, 'MOVIE', identity.ids.imdb, identity.year);
+      return t ? discoveryPlayLinks(await this.offers(t.id)) : [];
+    }
+    const show = await this.findTitle(identity.show, null, 'SHOW');
+    if (!show) return [];
+    const season = (await this.seasons(show.id)).find(s => s.number === identity.season);
+    if (!season) return [];
+    const list = await this.episodes(season.id);
+    const episode = list.find(e => e.number === identity.episode);
+    if (!episode) return [];
+    const other = list.find(e => e.number === episode.number + 1) || list.find(e => e.number === episode.number - 1);
+    const showLevel = other ? sharedLinks(episode.offers, other.offers) : new Set();
+    return episode.offers.filter(o => !showLevel.has(o.link));
+  }
+
   async offers(id) {
     const r = await this.post(TITLE_OFFERS, { id, c: this.country });
     return parseOffers(data(r).node);
@@ -138,6 +166,7 @@ function title(node) {
     year: Number(content.originalReleaseYear) || 0,
     tmdbId: text(content.externalIds && content.externalIds.tmdbId),
     poster: posterUrl(content.posterUrl),
+    imdbId: text(content.externalIds && content.externalIds.imdbId),
   };
 }
 
@@ -229,6 +258,18 @@ export function linkFor(technicalName, webDeeplink, atvDeeplink, standardWeb) {
     || (standardWeb && webLinkOf(standardWeb));
   if (!raw) return null;
   return normalize(raw, { strip: false }) || raw;
+}
+
+const simplify = s => (s || '').toLowerCase().replace(/\+/g, 'plus').replace(/[^\p{L}\p{N}]/gu, '');
+
+/** Same TMDB id if we have one; else the same IMDb id; otherwise the same
+ *  title (ignoring case and punctuation) — of year if given — most popular first. */
+export function pickTitle(titles, title, tmdbId, imdbId = null, year = null) {
+  if (tmdbId) { const t = titles.find(x => x.tmdbId === tmdbId); if (t) return t; }
+  if (imdbId) { const t = titles.find(x => x.imdbId === imdbId); if (t) return t; }
+  if (tmdbId && !imdbId) return null;   // a different title with the same name
+  const same = titles.filter(x => simplify(x.title) === simplify(title));
+  return (year ? same.find(x => x.year === year) : null) || same[0] || null;
 }
 
 /** "intent://host/path?q#Intent;…;scheme=https;end" → "https://host/path?q";

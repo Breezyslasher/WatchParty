@@ -10,7 +10,8 @@ import { RelayClient, RelayError, normalizeBase } from './relay.js';
 import { serviceOf, roomItem, browserLink } from './links.js';
 import { JustWatch } from './justwatch.js';
 import { el, label, toast } from './ui.js';
-import { roomScreen, browseScreen, titleScreen, linkScreen } from './screens.js';
+import { roomScreen, browseScreen, titleScreen, linkScreen, serviceName } from './screens.js';
+import { regularEpisode, isHboMax } from './hbomax.js';
 
 const $ = id => document.getElementById(id);
 const NONE = { service: null, play: OTHER, positionMs: -1, title: '' };
@@ -29,6 +30,8 @@ let note = '';
 let noteUntil = 0;   // a note shows for a few seconds, then the room's state
 /** What this browser started, by link: title, sub, service, image (for the Room screen). */
 const playing = new Map();
+/** Kodi items found on a streaming site here: their file → { service, link, name }. */
+const resolved = new Map();
 
 function defaultCountry() {
   const region = (navigator.language || 'en-US').split('-')[1];
@@ -52,9 +55,10 @@ const app = {
   justWatchAccess() {
     return chrome.permissions.request({ origins: ['https://apis.justwatch.com/*', 'https://*.hbomax.com/*'] }).catch(() => true);
   },
-  /** Share a title with the room; this browser then opens it like everyone else. */
-  async start(link, label, shown) {
-    lastRoom = await client.command('open', 0, roomItem(link, label, serviceOf(link)));
+  /** Share a title with the room (with its identity, Kodi plays its library
+   *  copy); this browser then opens it like everyone else. */
+  async start(link, label, shown, identity = null) {
+    lastRoom = await client.command('open', 0, roomItem(link, label, serviceOf(link), identity));
     playing.set(link, shown);
     go('room');
     toast(`Sent to the room: ${shown.title}`);
@@ -253,6 +257,9 @@ async function step() {
       corrections: core.corrections,
     });
     if (!joined) return;
+    // a Kodi item found on a site here plays to that site's tab
+    const found = room.item && !room.item.service && resolved.get(room.item.file);
+    if (found) room.item.service = found.service;
     lastRoom = room;
     statusWarn = false;
     for (const a of core.tick(room, local, Date.now(), client.serverNowSec())) await perform(a, room);
@@ -313,6 +320,40 @@ async function perform(a, room) {
     case 'note':
       setNote(a.text);
       break;
+    case 'resolve':
+      resolve(a);
+      break;
+  }
+}
+
+/**
+ * A Kodi member's title (a library file): find it on JustWatch and open it
+ * on the first of its services this browser can sync (JustWatch's order),
+ * like the Android app's Bridge. The file and the stream may differ by a few
+ * seconds (logos, recaps), which sync then holds.
+ */
+async function resolve(a) {
+  const id = a.identity;
+  const name = a.label || (id.type === 'movie' ? id.title : `${id.show} S${id.season} E${id.episode}`);
+  setNote(`Finding "${name}" on a streaming site…`);
+  try {
+    const offers = await app.jw.offersFor(id);
+    const offer = offers.find(o => serviceOf(o.link));
+    if (!offer) {
+      setNote(offers.length ? `"${name}" isn't on a site this browser can sync (${offers.map(o => o.clearName).join(', ')})`
+        : `No streaming service has "${name}" in ${app.country}`);
+      return;
+    }
+    let link = offer.link;
+    if (id.type === 'episode' && isHboMax(link)) link = await regularEpisode(link, id.show, id.season, id.episode);
+    if (!joined || !lastRoom || !lastRoom.item || lastRoom.item.file !== a.file) return;   // the room moved on
+    resolved.set(a.file, { service: serviceOf(link), link, name: offer.clearName });
+    lastRoom.item.service = serviceOf(link);
+    playing.set(a.file, { title: name, sub: `From Kodi · on ${serviceName(offer)}`, service: serviceName(offer), image: null });
+    setNote(`Playing "${name}" on ${serviceName(offer)}`);
+    await openInPlayerTab(link);
+  } catch (e) {
+    setNote(`Couldn't look up "${name}": ${e.message}`);
   }
 }
 
@@ -369,4 +410,4 @@ function setStatus(text, warn = false) {
 }
 
 // for the end-to-end test
-window.__watchParty = { get playerTabId() { return playerTabId; }, get room() { return lastRoom; } };
+window.__watchParty = { get playerTabId() { return playerTabId; }, get room() { return lastRoom; }, resolved };

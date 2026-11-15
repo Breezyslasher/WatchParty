@@ -181,10 +181,47 @@ export function cleanTitle(title, service) {
   return t || (name ? `${name} title` : 'A title');
 }
 
-/** The relay item for a shared title (the Android app's appItem shape). */
-export function roomItem(link, label, service) {
+/**
+ * The relay item for a shared title (the Android app's appItem shape). With
+ * the title's identity — in the Kodi addon's own fields: type, title, year,
+ * ids (tmdb, imdb) for a movie; show, season, episode for an episode — Kodi
+ * members play their library copy of it.
+ */
+export function roomItem(link, label, service, identity = null) {
   const item = { file: link, label, title: label };
+  const ids = {};
   const pkg = androidPackage(service);
-  if (pkg) item.ids = { android: pkg };
+  if (pkg) ids.android = pkg;
+  if (usable(identity)) {
+    item.type = identity.type;
+    if (identity.type === 'movie') {
+      item.title = identity.title;
+      if (identity.year) item.year = identity.year;
+    } else {
+      Object.assign(item, { show: identity.show, season: identity.season, episode: identity.episode });
+    }
+    Object.assign(ids, identity.ids || {});
+  }
+  if (Object.keys(ids).length) item.ids = ids;
   return item;
+}
+
+/** Enough to look a title up: a movie's title, or an episode's show, season and episode. */
+export function usable(identity) {
+  if (!identity) return false;
+  if (identity.type === 'movie') return !!identity.title;
+  if (identity.type === 'episode') return !!identity.show && Number.isInteger(identity.season) && Number.isInteger(identity.episode);
+  return false;
+}
+
+/** The title's identity from a relay item (Kodi's items, and Android's and browsers' from Browse). */
+export function parseIdentity(it) {
+  if (!it || (it.type !== 'movie' && it.type !== 'episode')) return null;
+  const ids = {};
+  for (const [k, v] of Object.entries(it.ids || {})) if (k !== 'android' && v != null && v !== '') ids[k] = String(v);
+  const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+  const text = v => (typeof v === 'string' && v.trim() ? v : null);
+  const identity = { type: it.type, title: text(it.title), year: num(it.year), show: text(it.show),
+    season: num(it.season), episode: num(it.episode), ids };
+  return usable(identity) ? identity : null;
 }

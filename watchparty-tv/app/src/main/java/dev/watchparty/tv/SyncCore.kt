@@ -22,12 +22,46 @@ package dev.watchparty.tv
  */
 
 /** A party item as the relay stores it. Android items carry their link in
- *  [file] and the app's package in ids["android"]. */
+ *  [file] and the app's package in ids["android"]; Kodi items a file and
+ *  the title's [identity]. */
 data class Item(
     val file: String,
     val label: String,
     val androidPackage: String?,
+    val identity: Identity? = null,
 )
+
+/**
+ * What a title is, in the Kodi addon's terms (engine.py's _identity: type,
+ * title, year and ids for a movie; show, season and episode for an episode),
+ * so each device finds its own copy: Kodi in its library, Android and
+ * browsers on JustWatch. [ids] are Kodi's uniqueids: tmdb, imdb, tvdb.
+ */
+data class Identity(
+    val type: String,
+    val title: String? = null,
+    val year: Int? = null,
+    val show: String? = null,
+    val season: Int? = null,
+    val episode: Int? = null,
+    val ids: Map<String, String> = emptyMap(),
+) {
+    /** Enough to look the title up. */
+    val usable: Boolean get() = when (type) {
+        "movie" -> !title.isNullOrBlank()
+        "episode" -> !show.isNullOrBlank() && season != null && episode != null
+        else -> false
+    }
+
+    companion object {
+        fun movie(title: String, year: Int?, tmdbId: String?) =
+            Identity("movie", title = title, year = year?.takeIf { it > 0 },
+                ids = if (tmdbId.isNullOrBlank()) emptyMap() else mapOf("tmdb" to tmdbId))
+
+        fun episode(show: String, season: Int, episode: Int) =
+            Identity("episode", show = show, season = season, episode = episode)
+    }
+}
 
 /** A room member as the relay reports it (for showing the room; sync
  *  doesn't use it). [driftSec] is null when they're not on the item. */
@@ -70,6 +104,8 @@ data class LocalState(
 sealed class Action {
     /** Start the item on this device: send its link to its app. */
     data class Open(val link: String, val pkg: String) : Action()
+    /** A Kodi item: find the title on a streaming app here (JustWatch), then open it. */
+    data class Resolve(val file: String, val label: String, val identity: Identity) : Action()
     object Play : Action()
     object Pause : Action()
     data class SeekTo(val ms: Long) : Action()
@@ -147,6 +183,13 @@ class SyncCore(
                     playingSinceMs = -1L
                     suppressUntilMs = nowMs + SUPPRESS_MS
                 }
+            } else if (item.identity?.usable == true) {
+                // a Kodi title: SyncService finds it on an app here, and its
+                // start-up gets the same grace as a link we open
+                actions += Action.Resolve(item.file, item.label, item.identity)
+                openedAtMs = nowMs
+                playingSinceMs = -1L
+                suppressUntilMs = nowMs + SUPPRESS_MS
             } else if (notPlayableFile != item.file) {
                 notPlayableFile = item.file
                 actions += Action.Note("\"${item.label.ifEmpty { item.file }}\" isn't an app link — can't play it here")

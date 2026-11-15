@@ -17,7 +17,9 @@ sync — pause, play and seek on one TV and the others follow.
 The **relay** (the small server rooms run on) and the **Kodi addon** live in
 [Breezyslasher/kodi-addons](https://github.com/Breezyslasher/kodi-addons),
 under `service.watchparty` — Kodi, Android TV, phone and browser members can
-share a room.
+share a room. Titles started from Browse carry their identity, so Kodi plays
+its library copy; Kodi's titles are found on a streaming service by the apps
+(see [the bridge](watchparty-tv/README.md#kodi-in-the-same-room-the-bridge)).
 
 ## Quick start
 

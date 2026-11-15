@@ -237,6 +237,10 @@ await roomPage.click('button:has-text("Watch")');
 const movie = 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9';
 await until('room has the movie', () => state && state.item && state.item.file === movie);
 ok(state.item.label === 'Thunderbolts*', `Watch started "${state.item.label}" as ${state.item.file}`);
+const rawMovie = (await (await fetch(`${RELAY}/poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ room: code, member_id: other.memberId, position: 0, paused: true, file: '', caching: false, on_item: false, corrections: 0 }) })).json()).state.item;
+ok(rawMovie.type === 'movie' && rawMovie.title === 'Thunderbolts*' && rawMovie.year === 2025 && rawMovie.ids.tmdb === '986056',
+  `it carries the title's identity for Kodi (${JSON.stringify({ type: rawMovie.type, title: rawMovie.title, year: rawMovie.year, ids: rawMovie.ids })})`);
 await until('the browser opened it', () => context.pages().some(p => p.url() === movie));
 await roomPage.bringToFront();
 await until('Room shows it', () => roomPage.isVisible('.nowLabel:has-text("Disney+")'));
@@ -259,6 +263,28 @@ await roomPage.click('.dialog .service:has-text("Disney+")');
 await until('room has the episode', () => state && state.item && state.item.file.includes('91310360'));
 ok(state.item.label === 'Andor · S1 · E1 · Kassa', `started "${state.item.label}"`);
 ok(jwRequests.length > 0 && jwRequests.every(o => o.startsWith('chrome-extension://')), `JustWatch was asked from the extension (Origin ${jwRequests[0]})`);
+// 8. the bridge: a Kodi member starts a library file; the browser finds it on JustWatch and plays it
+await other.command('open', 30, { file: 'nfs://nas/films/thunderbolts.mkv', label: 'Thunderbolts*', type: 'movie',
+  title: 'Thunderbolts*', year: 2025, ids: { tmdb: '986056', imdb: 'tt20969586' } });
+const kodiMovie = 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9';
+await until('the browser opened the Kodi title', async () => {
+  const pages = context.pages().filter(p => p.url() === kodiMovie);
+  return pages.length && pages[0];
+});
+const kodiPlayer = context.pages().find(p => p.url() === kodiMovie);
+await until('playing', () => kodiPlayer.evaluate(() => !document.getElementById('v').paused));
+ok(true, 'a Kodi library title (Thunderbolts*, by its TMDB id) opened on Disney+ in the browser');
+await roomPage.bringToFront();
+await roomPage.click('.nav:has-text("Room")');
+await until('Room shows it as from Kodi', () => roomPage.isVisible('.nowSub:has-text("From Kodi")'));
+ok(true, 'Room shows it: "From Kodi · on Disney+"');
+// it starts at 0, is left alone for its 3 s start-up, then seeks once to the room (opened at 30 s)
+const railDrift = () => roomPage.$eval('.member:has-text("Laptop") .drift', e => parseFloat(e.textContent));
+await until('in sync with the Kodi title', async () => Math.abs(await railDrift()) < 3 &&
+  (await kodiPlayer.evaluate(() => document.getElementById('v').currentTime)) > 30, 25000);
+ok(true, `and syncs to the room after its start-up (video at ${(await kodiPlayer.evaluate(() => document.getElementById('v').currentTime)).toFixed(1)} s, drift ${await railDrift()} s)`);
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '7-from-kodi.png') });
+
 // the browser's Back goes back from a title page
 await roomPage.bringToFront();
 await roomPage.click('.nav:has-text("Browse")');

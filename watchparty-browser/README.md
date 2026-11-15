@@ -5,7 +5,7 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.3.0, not yet tried on a real streaming site.** It looks and works
+**Status: 0.4.0, not yet tried on a real streaming site or with a real Kodi.** It looks and works
 like the Android app: the same rail and screens. Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.
@@ -89,9 +89,15 @@ Sites: Netflix, Disney+, HBO Max, Prime Video, Hulu, Peacock, Paramount+,
 Apple TV, YouTube, Crunchyroll, Tubi, Pluto TV, Starz, Plex, Discovery+.
 A link to another site still opens, but can't be synced.
 
-**Kodi members** share files (`smb://`, library paths) that a browser can't
-open: the room page says so. Kodi skips the browser's https links the same
-way it skips the Android app's.
+**Kodi members** (the bridge, as in the Android app — see its README's *Kodi
+in the same room*): a title started from Browse carries its identity in the
+Kodi addon's fields, so Kodi plays its library copy. A Kodi member's library
+file comes with the title's identity; the browser finds it on JustWatch (by
+TMDB / IMDb id, title and year, or show, season and episode) and opens it on
+the first of its services the browser can sync, then follows the room ("From
+Kodi · on Disney+"). A file and a streaming copy can start a few seconds
+apart (logos, recaps); sync keeps that offset. Kodi items without an identity
+can't play in a browser, and the page says so.
 
 ## Not yet confirmed
 
@@ -123,5 +129,8 @@ agree after it), and starts a title with Paste a link. It also answers
 JustWatch's API with responses shaped like the live ones, searches, opens a
 movie's page and presses Watch, picks a show's episode in the services
 dialog, checks the room gets the Android app's link and label (`Andor · S1 ·
-E1 · Kassa`), and that the browser's Back leaves a title page. Passed against a relay on
+E1 · Kassa`) and the title's identity for Kodi, and that the browser's Back
+leaves a title page. Then a scripted Kodi member starts a library file
+(`nfs://…/thunderbolts.mkv` with its TMDB id): the browser finds it, opens it
+on (stand-in) Disney+, waits out its start-up and seeks once to the room. Passed against a relay on
 `127.0.0.1` and on a LAN address over plain http (2026-11-15).

@@ -152,4 +152,20 @@ class SyncCoreTest {
         other.tick(room(), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0)
         assertEquals(false, other.isStarting(SyncCore.OPEN_GRACE_MS + 1))
     }
+
+    @Test fun aKodiTitleIsLookedUpThenFollowedLikeAnAppItem() {
+        val core = SyncCore()
+        val identity = Identity.movie("Thunderbolts*", 2025, "986056")
+        val kodi = Item("nfs://nas/films/thunderbolts.mkv", "Thunderbolts*", null, identity)
+        assertEquals(listOf<Action>(Action.Resolve(kodi.file, "Thunderbolts*", identity)),
+            core.tick(room(it = kodi), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0))
+        // only once
+        assertEquals(emptyList<Action>(), core.tick(room(it = kodi), local(0.0, LocalPlay.OTHER, null), 1_000L, 1001.0))
+        assertEquals(true, core.isStarting(2_000L))
+        // found on Disney+ here: SyncService names the app on the item (localize); then it's followed
+        val found = kodi.copy(androidPackage = disney)
+        assertEquals(emptyList<Action>(), core.tick(room(it = found), local(0.0), 5_000L, 1005.0))   // playing: starting up
+        // played 3 s: one seek to the room, as for a link this device opened
+        assertEquals(listOf<Action>(Action.SeekTo(108_000)), core.tick(room(it = found), local(3.0), 8_000L, 1008.0))
+    }
 }

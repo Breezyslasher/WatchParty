@@ -3,7 +3,7 @@
 // /command and /leave, each with the room code; every reply carries
 // server_time, used for an EMA-smoothed estimate of the relay's clock.
 
-import { serviceOf } from './links.js';
+import { serviceOf, parseIdentity } from './links.js';
 
 export class RelayError extends Error {
   constructor(message, status = 0) {
@@ -116,6 +116,7 @@ export class RelayClient {
       file: String(it.file || ''),
       label: String(it.label || ''),
       service: serviceOf(String(it.file || '')),
+      identity: parseIdentity(it),
     } : null;
     return {
       seq: Number(s.seq) || 0,

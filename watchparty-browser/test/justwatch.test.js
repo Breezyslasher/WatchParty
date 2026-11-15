@@ -17,7 +17,7 @@ test('search results with their poster and TMDB id', () => {
     { node: { id: 'ts156200', objectType: 'SHOW', content: { title: 'Severance', originalReleaseYear: 2014, externalIds: { tmdbId: null } } } },
   ] } } });
   assert.deepEqual(titles[0], { id: 'tm1238268', objectType: 'MOVIE', title: 'Thunderbolts*', year: 2025, tmdbId: '986056',
-    poster: 'https://images.justwatch.com/poster/329366258/s332/thunderbolts.jpg' });
+    poster: 'https://images.justwatch.com/poster/329366258/s332/thunderbolts.jpg', imdbId: null });
   assert.equal(titles[1].tmdbId, null);
   assert.equal(titles[1].poster, null);
   assert.throws(() => parseTitles({ errors: [{ message: 'rate limited' }] }), /rate limited/);

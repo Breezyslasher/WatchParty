@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.10.1** (search without Yamtrack, not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.11** (the Kodi bridge, and search without Yamtrack: not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -163,8 +163,34 @@ the rail folds into a bar at the top.
 3. **Leave room** stops syncing. **Back** returns to the page before (a title
    page, a person, Browse, then Room), and leaves the app from Room.
 
-Kodi members can be in the same room; they skip app links ("can't be played
-on this device"), and the TV app skips Kodi files.
+Kodi members can be in the same room: see [Kodi in the same room](#kodi-in-the-same-room-the-bridge).
+
+## Kodi in the same room (the bridge)
+
+Kodi, Android and browser members can share a room, and each plays the
+same title from its own source:
+
+- **Android → Kodi.** A title started from **Browse** is shared as its
+  streaming link plus the title's identity, in the Kodi addon's own fields
+  (`type`, `title`, `year`, `ids.tmdb` for a movie; `show`, `season`,
+  `episode` for an episode — `RelayClient.appItem`). Kodi can't open the
+  link, so it plays its **library copy** of that movie or episode (matched by
+  TMDB / IMDb id, title and year, or show, season and episode; the Kodi
+  addon's `AppItemTest`). A pasted link has no identity: Kodi skips it.
+- **Kodi → Android.** A Kodi member shares a library file (`smb://…`) with
+  the title's identity. Android can't open the file, so it looks the title up
+  on JustWatch — a movie by TMDB id, else IMDb id, else title and year; an
+  episode by its show's title, season and episode — and opens it on the
+  first of its services (JustWatch's order) whose app is installed here
+  (`Bridge.kt`, `BridgeTest`). It then syncs like any title. "No streaming
+  service has …" or "… isn't on an app here" otherwise.
+- **The catch:** a library file and a streaming copy can start a few seconds
+  apart (studio logos, "previously on"), or more for a different cut. Sync
+  keeps everyone at the same time code, so that offset stays.
+
+0.11, unit-tested (identity in and out, the lookup, the relay keeping the
+fields) and in the browser extension's end-to-end test; not yet tried with a
+real Kodi.
 
 ## Browse (pick an episode, no link needed)
 
@@ -392,6 +418,7 @@ app. Then check the app can be controlled: Session Probe's
 - `ServiceDialog.kt` — "Start for everyone on": the services in a centered dialog.
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.
+- `Bridge.kt` — a Kodi member's title found on JustWatch and opened on an app here (unit-tested).
 - `HboMax.kt` — swaps an HBO Max "(with ASL)" episode link for the regular edition's (unit-tested).
 - `SelfSetup.kt`, `AdbClient.kt` — "Set up access": grants notification access through the TV's own adb.
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.

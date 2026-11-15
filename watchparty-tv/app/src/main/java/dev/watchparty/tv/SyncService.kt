@@ -58,9 +58,9 @@ class SyncService : Service() {
         @Volatile private var instance: SyncService? = null
 
         /** Announce a link to the room (from the main screen). */
-        fun share(link: String, label: String, pkg: String, positionSec: Double = 0.0): Boolean {
+        fun share(link: String, label: String, pkg: String, positionSec: Double = 0.0, identity: Identity? = null): Boolean {
             val service = instance ?: return false
-            service.worker?.post { service.announce(link, label, pkg, positionSec) }
+            service.worker?.post { service.announce(link, label, pkg, positionSec, identity) }
             return true
         }
 
@@ -212,6 +212,8 @@ class SyncService : Service() {
      */
     private fun localize(room: RoomState): RoomState {
         val item = room.item ?: return room
+        // a Kodi item this device found on one of its apps (Bridge)
+        if (item.androidPackage == null) resolved[item.file]?.let { return room.copy(item = item.copy(androidPackage = it)) }
         val pkg = item.androidPackage ?: return room
         if (!item.file.startsWith("https://") && !item.file.startsWith("http://")) return room
         val key = pkg + "\n" + item.file
@@ -224,10 +226,59 @@ class SyncService : Service() {
         return if (local == pkg) room else room.copy(item = item.copy(androidPackage = local))
     }
 
+    /** Where to look titles up (as the app's Browse does). */
+    private val country: String by lazy { java.util.Locale.getDefault().country.uppercase(java.util.Locale.US).ifEmpty { "US" } }
+
+    /** Kodi items found on an app here: their file → that app's package. */
+    private val resolved = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * A Kodi member's title: look it up on JustWatch (off the sync thread, a
+     * few seconds) and open it on the first of its services installed here.
+     * Until then this device isn't on the item; Kodi's file and the stream
+     * may differ by a few seconds (logos, recaps), which sync then holds.
+     */
+    private fun resolve(a: Action.Resolve) {
+        val name = Bridge.name(a.identity, a.label)
+        note = "Finding \"$name\" on an app here…"
+        Thread {
+            val result = try {
+                val offers = Bridge.offers(a.identity,
+                    find = { title, tmdb, type, imdb, year -> JustWatch.findTitle(title, tmdb, type, country, imdb, year) },
+                    titleOffers = { JustWatch.offers(it, country) },
+                    seasons = { JustWatch.seasons(it, country) },
+                    episodes = { JustWatch.episodes(it, country) })
+                if (offers.isEmpty()) "No streaming service has \"$name\" in $country"
+                else Bridge.choose(offers) { o ->
+                    Apps.packageFor(this, o.link, o.technicalName, o.clearName)?.takeIf { Apps.isInstalled(this, it) }
+                } ?: "\"$name\" isn't on an app here (${offers.joinToString { it.clearName }})"
+            } catch (e: Exception) {
+                "Couldn't look up \"$name\": ${e.message}"
+            }
+            worker?.post {
+                if (result is Pair<*, *>) {
+                    val offer = result.first as JustWatch.Offer
+                    val pkg = result.second as String
+                    var link = offer.link
+                    if (a.identity.type == "episode" && HboMax.isHboMax(link)) {
+                        link = HboMax.regularEpisode(link, a.identity.show ?: "", a.identity.season ?: 0, a.identity.episode ?: 0)
+                    }
+                    resolved[a.file] = pkg
+                    Log.i(TAG, "Kodi item ${a.file} → $link ($pkg)")
+                    openLink(link, pkg)
+                    note = "Playing \"$name\" on ${offer.clearName}"
+                } else {
+                    note = result as String
+                }
+            }
+        }.start()
+    }
+
     private fun perform(a: Action, controller: MediaController?, c: RelayClient) {
         Log.i(TAG, "action: $a")
         when (a) {
             is Action.Open -> openLink(a.link, a.pkg)
+            is Action.Resolve -> resolve(a)
             is Action.Play -> controller?.transportControls?.play()
             is Action.Pause -> controller?.transportControls?.pause()
             is Action.SeekTo -> controller?.transportControls?.seekTo(maxOf(0L, a.ms))
@@ -240,10 +291,10 @@ class SyncService : Service() {
         }
     }
 
-    private fun announce(link: String, label: String, pkg: String, positionSec: Double) {
+    private fun announce(link: String, label: String, pkg: String, positionSec: Double, identity: Identity?) {
         val c = client ?: return
         try {
-            c.command("open", positionSec, RelayClient.appItem(link, label, pkg))
+            c.command("open", positionSec, RelayClient.appItem(link, label, pkg, identity))
             note = "Started for everyone: $label"
         } catch (e: IOException) {
             note = "Couldn't share: ${e.message}"

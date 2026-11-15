@@ -246,4 +246,19 @@ class JustWatchTest {
         assertEquals("2h", JustWatch.runtimeText(120))
         assertEquals("57m", JustWatch.runtimeText(57))
     }
+
+    // ── Kodi's titles: by TMDB id, IMDb id, or title and year ───────────
+
+    @Test fun picksKodisTitleByImdbIdOrTitleAndYear() {
+        val titles = listOf(
+            JustWatch.Title("tm1", "MOVIE", "Dune", 2021, "438631", imdbId = "tt1160419"),
+            JustWatch.Title("tm2", "MOVIE", "Dune", 1984, "841", imdbId = "tt0087182"),
+        )
+        assertEquals("tm2", JustWatch.pickTitle(titles, "Dune", null, "tt0087182")?.id)
+        assertEquals("tm2", JustWatch.pickTitle(titles, "Dune", "841", "tt0087182")?.id)
+        assertEquals("tm2", JustWatch.pickTitle(titles, "Dune", null, null, 1984)?.id)
+        assertEquals("tm1", JustWatch.pickTitle(titles, "Dune", null, null, null)?.id)
+        // a TMDB id alone that matches nothing: no guessing by name
+        assertNull(JustWatch.pickTitle(titles, "Dune", "1", null, 2021))
+    }
 }

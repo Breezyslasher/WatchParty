@@ -112,6 +112,7 @@ class RelayClient(baseUrl: String, private val room: String) {
                 file = it.optString("file", ""),
                 label = it.optString("label", ""),
                 androidPackage = pkg,
+                identity = parseIdentity(it),
             )
         }
         return RoomState(
@@ -152,13 +153,39 @@ class RelayClient(baseUrl: String, private val room: String) {
             return url
         }
 
-        /** The relay item for an Android app link. Kodi members skip it: they
-         *  can't play http(s) links, and ids.android means nothing to them. */
-        fun appItem(link: String, label: String, pkg: String): JSONObject =
-            JSONObject()
-                .put("file", link)
-                .put("label", label)
-                .put("title", label)
-                .put("ids", JSONObject().put("android", pkg))
+        /**
+         * The relay item for an Android app link. Kodi can't play the link,
+         * but with the title's [identity] (in its own fields: type, title,
+         * year, ids or show, season, episode) it plays its library copy.
+         */
+        fun appItem(link: String, label: String, pkg: String, identity: Identity? = null): JSONObject {
+            val ids = JSONObject().put("android", pkg)
+            val item = JSONObject().put("file", link).put("label", label).put("title", label)
+            if (identity != null && identity.usable) {
+                item.put("type", identity.type)
+                if (identity.type == "movie") {
+                    item.put("title", identity.title)
+                    identity.year?.let { item.put("year", it) }
+                } else {
+                    item.put("show", identity.show).put("season", identity.season).put("episode", identity.episode)
+                }
+                for ((k, v) in identity.ids) ids.put(k, v)
+            }
+            return item.put("ids", ids)
+        }
+
+        /** The title's identity, if the item has a usable one (Kodi's items, and Android's from Browse). */
+        fun parseIdentity(it: JSONObject): Identity? {
+            val type = it.optString("type", "")
+            if (type != "movie" && type != "episode") return null
+            val ids = HashMap<String, String>()
+            it.optJSONObject("ids")?.let { o ->
+                for (k in o.keys()) if (k != "android" && !o.isNull(k)) o.optString(k).takeIf { v -> v.isNotEmpty() }?.let { v -> ids[k] = v }
+            }
+            fun text(k: String) = if (it.isNull(k)) null else it.optString(k).takeIf { v -> v.isNotBlank() }
+            fun number(k: String) = if (it.isNull(k) || !it.has(k)) null else it.optString(k).toIntOrNull()
+            return Identity(type, title = text("title"), year = number("year"), show = text("show"),
+                season = number("season"), episode = number("episode"), ids = ids).takeIf { i -> i.usable }
+        }
     }
 }
