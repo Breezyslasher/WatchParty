@@ -248,9 +248,9 @@ only takes `www.starz.com/us/<lang>/…` (its intent filters, from `adb shell
 dumpsys package`). Each device opens the form its app takes: the link as
 shared, else `www.starz.com/us/en/play/<id>`, then `/us/en/movies/<id>` (an
 episode: `/us/en/play/<episode id>`, then `/us/en/series/<id>/episodes/<id>`,
-which only opens the episode's page). ✓ Movies start playing on a Samsung
-phone this way (2026-11-15: the TV link's id is the web /play/ id). Not yet
-tried: an episode's /play/ link on a phone.
+which only opens the episode's page). ✓ Movies and episodes start playing
+on a Samsung phone this way (2026-11-15: the TV link's ids are the web
+/play/ ids).
 
 **Apps that don't claim their links:** some apps don't open their website's
 links (Starz on phones), so Android can't say which app is the service's.
