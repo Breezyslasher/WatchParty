@@ -280,8 +280,8 @@ class SyncService : Service() {
             // yet — a resend then interrupted it), so only resend when it was open
             if (openBefore != null) resendIfNotPlaying(launch, pkg, before)
         } catch (e: Exception) {
-            // the app doesn't take this link (e.g. Starz on phones): open it at its
-            // home screen; once someone plays, sync takes over
+            // the app takes no form of this link (e.g. The Roku Channel): open it
+            // at its home screen; once someone plays, sync takes over
             val home = packageManager.getLeanbackLaunchIntentForPackage(pkg) ?: packageManager.getLaunchIntentForPackage(pkg)
             if (home != null) try {
                 startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

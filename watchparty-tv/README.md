@@ -335,11 +335,14 @@ which only opens the episode's page). ✓ Movies and episodes start playing
 on a Samsung phone this way (2026-11-15: the TV link's ids are the web
 /play/ ids).
 
-**Apps that don't claim their links:** some apps don't open their website's
-links (Starz on phones), so Android can't say which app is the service's.
-Watch Party then looks for an installed app named like the service ("STARZ"
-for Starz, or the link's site name), and opens that app at its home screen:
-find the title and press Play, and sync takes over.
+**Apps that don't claim the shared link:** when no installed app claims a
+title's link (the phone's Starz app doesn't take the TV link
+`starz.com/movies/<id>`), Watch Party looks for an installed app named like
+the service ("STARZ" for Starz, or the link's site name). Then it tries the
+other forms of the link that app does claim (for Starz,
+`www.starz.com/us/en/play/<id>`, which plays). Only if none of them works
+does it open the app at its home screen: find the title and press Play, and
+sync takes over. So far that's only The Roku Channel.
 
 Any other app's link is passed through unchanged; it works if the app
 registers its website's links. If a link only opens the title's page,
