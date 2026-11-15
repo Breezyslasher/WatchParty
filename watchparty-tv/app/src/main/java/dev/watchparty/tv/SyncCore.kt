@@ -29,6 +29,9 @@ data class Item(
     val label: String,
     val androidPackage: String?,
     val identity: Identity? = null,
+    /** The web link to open: [file] for Android and browser items; for a
+     *  Kodi addon's title, its path converted (AddonLinks); else null. */
+    val link: String? = file.takeIf { it.startsWith("https://") || it.startsWith("http://") },
 )
 
 /**
@@ -174,11 +177,12 @@ class SyncCore(
             openedFile = item.file
             last = null
             val pkg = item.androidPackage
-            if (pkg != null && isLink(item.file)) {
+            val link = item.link
+            if (pkg != null && link != null) {
                 if (local.pkg == pkg && local.play == LocalPlay.PLAYING && room.setByMe) {
                     // we announced what we're already watching — don't restart it
                 } else {
-                    actions += Action.Open(item.file, pkg)
+                    actions += Action.Open(link, pkg)
                     openedAtMs = nowMs
                     playingSinceMs = -1L
                     suppressUntilMs = nowMs + SUPPRESS_MS
@@ -275,7 +279,4 @@ class SyncCore(
         last = local
         lastAtMs = nowMs
     }
-
-    private fun isLink(file: String) =
-        file.startsWith("https://") || file.startsWith("http://")
 }

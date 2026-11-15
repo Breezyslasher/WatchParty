@@ -80,11 +80,12 @@ export class SyncCore {
     if (item.file !== this.openedFile) {
       this.openedFile = item.file;
       this.last = null;
-      if (isLink(item.file)) {
+      const link = item.link === undefined ? (isLink(item.file) ? item.file : null) : item.link;
+      if (link) {
         if (item.service && local.service === item.service && local.play === PLAYING && room.setByMe) {
           // we announced what we're already watching: don't restart it
         } else {
-          actions.push({ type: 'open', link: item.file });
+          actions.push({ type: 'open', link });
           this.openedAtMs = nowMs;
           this.playingSinceMs = -1;
           this.suppressUntilMs = nowMs + SUPPRESS_MS;

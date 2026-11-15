@@ -1,0 +1,65 @@
+package dev.watchparty.tv
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+/** Kodi addons' plugin paths (as each addon builds them, from its source) → web links. */
+class AddonLinksTest {
+
+    @Test fun convertsTheAddonsPaths() {
+        val cases = listOf(
+            "plugin://plugin.video.netflix/play/movie/80057281/" to "https://www.netflix.com/watch/80057281",
+            "plugin://plugin.video.netflix/play_strm/movie/80057281/" to "https://www.netflix.com/watch/80057281",
+            "plugin://plugin.video.netflix/play/show/80057281/season/80077209/episode/80077368/" to "https://www.netflix.com/watch/80077368",
+            "plugin://plugin.video.youtube/play/?video_id=dQw4w9WgXcQ" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            // SlyGuy's router: route in "_", arguments sorted, the profile appended by the addon
+            "plugin://slyguy.disney.plus/?_=play&deeplink_id=entity-f51dce23-7d8f-490a-9f0c-be1b5432c2a9&profile_id=abc" to
+                "https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9",
+            "plugin://slyguy.hulu/?_=play&id=EAB%3A%3A3e8b8c5f-1a2b-4c3d-9e8f-0a1b2c3d4e5f%3A%3A60585172%3A%3A123" to
+                "https://www.hulu.com/watch/3e8b8c5f-1a2b-4c3d-9e8f-0a1b2c3d4e5f",
+            "plugin://plugin.video.amazon-test/?asin=B0CH88VRKB&mode=PlayVideo&name=Iron+Man&adult=0" to
+                "https://watch.amazon.com/watch?asin=B0CH88VRKB",
+            "plugin://plugin.video.amazon-test/?asin=amzn1.dv.gti.1234&mode=PlayVideo&name=&adult=0" to
+                "https://watch.amazon.com/watch?gti=amzn1.dv.gti.1234",
+            "plugin://plugin.video.tubitv/?mode=GV&url=100012345" to "https://tubitv.com/movies/100012345",
+            "plugin://plugin.video.tubitv/?mode=GV&url=200012345%7C300012345%7C1" to "https://tubitv.com/tv-shows/200012345",
+            "plugin://plugin.video.crunchyroll/video/GY5P48XEY/GRDQPM1ZY/abc123" to "https://www.crunchyroll.com/watch/GRDQPM1ZY",
+            "plugin://plugin.video.crunchyroll/video/G4PH0WXVJ/abc123" to "https://www.crunchyroll.com/watch/G4PH0WXVJ",
+        )
+        for ((plugin, link) in cases) assertEquals(plugin, link, AddonLinks.webLink(plugin))
+    }
+
+    @Test fun leavesOtherPathsAlone() {
+        for (plugin in listOf(
+            "plugin://slyguy.paramount.plus/?_=play&video_id=abc",       // its links need the title's name
+            "plugin://slyguy.max/?_=play&edit_id=0fc1d4b1-0f6a-4b5b-9c39-6a6e2ee44b3f",
+            "plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Movie",
+            "plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C100012345",
+            "plugin://plugin.video.netflix/directory/home/",
+            "plugin://slyguy.disney.plus/?_=play_trailer&deeplink_id=x",
+            "smb://nas/movie.mkv", "", null,
+        )) assertNull(plugin, AddonLinks.webLink(plugin))
+    }
+
+    @Test fun aKodiAddonItemIsOpenedByItsWebLink() {
+        // Kodi shares the addon's path in "plugin"; its "file" is Kodi's own stream
+        val json = org.json.JSONObject("""{"seq":1,"position":0,"paused":false,"speed":1,"set_at":0,
+            "item":{"file":"http://127.0.0.1:52103/manifest.mpd","label":"Thunderbolts*",
+            "plugin":"plugin://slyguy.disney.plus/?_=play&deeplink_id=f51dce23-7d8f-490a-9f0c-be1b5432c2a9"}}""")
+        val m = RelayClient::class.java.getDeclaredMethod("parseState", org.json.JSONObject::class.java).apply { isAccessible = true }
+        val room = m.invoke(RelayClient("relay.example.com", "X"), json) as RoomState
+        assertEquals("https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9", room.item?.link)
+        // an addon this app can't convert: no link, and Kodi's stream is never opened
+        val other = org.json.JSONObject("""{"seq":1,"position":0,"paused":false,"speed":1,"set_at":0,
+            "item":{"file":"http://127.0.0.1:52103/manifest.mpd","label":"Thunderbolts*",
+            "plugin":"plugin://slyguy.max/?_=play&edit_id=1"}}""")
+        assertNull((m.invoke(RelayClient("relay.example.com", "X"), other) as RoomState).item?.link)
+
+        // the app that opens the link is named on the item (SyncService.localize): it opens like an app link
+        val core = SyncCore()
+        val item = room.item!!.copy(androidPackage = MediaLink.DISNEY_PACKAGE)
+        assertEquals(listOf<Action>(Action.Open("https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9", MediaLink.DISNEY_PACKAGE)),
+            core.tick(room.copy(item = item), LocalState(null, -1, LocalPlay.OTHER, null), 0L, 1000.0))
+    }
+}

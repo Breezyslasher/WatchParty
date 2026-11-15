@@ -212,15 +212,26 @@ class SyncService : Service() {
      */
     private fun localize(room: RoomState): RoomState {
         val item = room.item ?: return room
-        // a Kodi item this device found on one of its apps (Bridge)
-        if (item.androidPackage == null) resolved[item.file]?.let { return room.copy(item = item.copy(androidPackage = it)) }
-        val pkg = item.androidPackage ?: return room
-        if (!item.file.startsWith("https://") && !item.file.startsWith("http://")) return room
-        val key = pkg + "\n" + item.file
+        if (item.androidPackage == null) {
+            // a Kodi item this device found on one of its apps (Bridge)
+            resolved[item.file]?.let { return room.copy(item = item.copy(androidPackage = it)) }
+            // a Kodi addon's title: the app here that opens its web link (AddonLinks)
+            val link = item.link ?: return room
+            val key = "\n" + link
+            if (localizedKey != key) {
+                localizedKey = key
+                localizedPkg = Apps.appFor(this, link) ?: Apps.serviceOfLink(link)?.let { Apps.appByName(this, it) }
+            }
+            val found = localizedPkg ?: return room
+            return room.copy(item = item.copy(androidPackage = found))
+        }
+        val pkg = item.androidPackage
+        val link = item.link ?: return room
+        val key = pkg + "\n" + link
         if (localizedKey != key) {
             localizedKey = key
             localizedPkg = if (Apps.isInstalled(this, pkg)) pkg
-            else Apps.appFor(this, item.file) ?: Apps.serviceOfLink(item.file)?.let { Apps.appByName(this, it) } ?: pkg
+            else Apps.appFor(this, link) ?: Apps.serviceOfLink(link)?.let { Apps.appByName(this, it) } ?: pkg
         }
         val local = localizedPkg ?: pkg
         return if (local == pkg) room else room.copy(item = item.copy(androidPackage = local))

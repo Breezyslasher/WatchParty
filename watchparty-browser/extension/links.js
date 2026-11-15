@@ -225,3 +225,61 @@ export function parseIdentity(it) {
     season: num(it.season), episode: num(it.episode), ids };
   return usable(identity) ? identity : null;
 }
+
+/**
+ * A Kodi streaming addon's plugin:// path → the web link of the same title
+ * (the Android app's AddonLinks.kt; the Kodi addon's addon_links.py does the
+ * other way). Formats from each addon's source (2026-11-15): Netflix
+ * (play/movie/<id>/, play/show/…/episode/<id>/), YouTube (play/?video_id=),
+ * SlyGuy Disney+ (?_=play&deeplink_id=) and Hulu (?_=play&id=EAB::<id>::…),
+ * Amazon (?mode=PlayVideo&asin=), Tubi (?mode=GV&url=), Crunchyroll
+ * (/video/[<series>/]<episode>/<stream>). Others (Paramount+, HBO Max,
+ * Discovery+, Apple TV) have no web link in their paths: null.
+ */
+export function pluginLink(plugin) {
+  if (!plugin || !plugin.startsWith('plugin://')) return null;
+  let url;
+  try {
+    url = new URL(plugin.replace(/^plugin:/, 'http:'));
+  } catch (e) {
+    return null;
+  }
+  const addon = url.hostname;
+  const path = url.pathname.split('/').filter(Boolean);
+  const arg = k => url.searchParams.get(k);
+  switch (addon) {
+    case 'plugin.video.netflix': {
+      if (!['play', 'play_strm'].includes(path[0])) return null;
+      const id = path[1] === 'movie' ? path[2] : (path[1] === 'show' && path[5] === 'episode' ? path[6] : null);
+      return id && /^\d+$/.test(id) ? `https://www.netflix.com/watch/${id}` : null;
+    }
+    case 'plugin.video.youtube': {
+      const id = arg('video_id');
+      return path[0] === 'play' && id && /^[A-Za-z0-9_-]{6,}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : null;
+    }
+    case 'slyguy.disney.plus': {
+      const id = arg('_') === 'play' && arg('deeplink_id');
+      return id ? `https://www.disneyplus.com/play/${id.replace(/^entity-/, '')}` : null;
+    }
+    case 'slyguy.hulu': {
+      const m = arg('_') === 'play' && (arg('id') || '').match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+      return m ? `https://www.hulu.com/watch/${m[0].toLowerCase()}` : null;
+    }
+    case 'plugin.video.amazon-test': {
+      const asin = arg('mode') === 'PlayVideo' && arg('asin');
+      return asin ? `https://watch.amazon.com/watch?${asin.startsWith('amzn1.dv.gti') ? 'gti' : 'asin'}=${asin}` : null;
+    }
+    case 'plugin.video.tubitv': {
+      const parts = arg('mode') === 'GV' ? (arg('url') || '').split('|') : [];
+      if (!parts.length || !/^\d+$/.test(parts[0])) return null;
+      return parts.length >= 3 ? `https://tubitv.com/tv-shows/${parts[0]}` : `https://tubitv.com/movies/${parts[0]}`;
+    }
+    case 'plugin.video.crunchyroll': {
+      if (path[0] !== 'video') return null;
+      const episode = path.length === 4 ? path[2] : (path.length === 3 ? path[1] : null);
+      return episode && /^[A-Z0-9]+$/.test(episode) ? `https://www.crunchyroll.com/watch/${episode}` : null;
+    }
+    default:
+      return null;
+  }
+}

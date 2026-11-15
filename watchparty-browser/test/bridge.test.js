@@ -74,3 +74,45 @@ test("a Kodi episode is found by its show's title, season and episode", async ()
   assert.equal(asked[0], 'search Andor SHOW');
   assert.deepEqual(await jw.offersFor(parseIdentity({ type: 'episode', show: 'Andor', season: 3, episode: 1 })), []);
 });
+
+// ── Kodi streaming addons' paths (the Android app's AddonLinksTest cases) ──
+import { pluginLink } from '../extension/links.js';
+import { RelayClient } from '../extension/relay.js';
+
+test("Kodi addons' paths become web links", () => {
+  const cases = [
+    ['plugin://plugin.video.netflix/play/movie/80057281/', 'https://www.netflix.com/watch/80057281'],
+    ['plugin://plugin.video.netflix/play_strm/movie/80057281/', 'https://www.netflix.com/watch/80057281'],
+    ['plugin://plugin.video.netflix/play/show/80057281/season/80077209/episode/80077368/', 'https://www.netflix.com/watch/80077368'],
+    ['plugin://plugin.video.youtube/play/?video_id=dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+    ['plugin://slyguy.disney.plus/?_=play&deeplink_id=entity-f51dce23-7d8f-490a-9f0c-be1b5432c2a9&profile_id=abc',
+      'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9'],
+    ['plugin://slyguy.hulu/?_=play&id=EAB%3A%3A3e8b8c5f-1a2b-4c3d-9e8f-0a1b2c3d4e5f%3A%3A60585172%3A%3A123',
+      'https://www.hulu.com/watch/3e8b8c5f-1a2b-4c3d-9e8f-0a1b2c3d4e5f'],
+    ['plugin://plugin.video.amazon-test/?asin=B0CH88VRKB&mode=PlayVideo&name=Iron+Man&adult=0', 'https://watch.amazon.com/watch?asin=B0CH88VRKB'],
+    ['plugin://plugin.video.amazon-test/?asin=amzn1.dv.gti.1234&mode=PlayVideo&name=&adult=0', 'https://watch.amazon.com/watch?gti=amzn1.dv.gti.1234'],
+    ['plugin://plugin.video.tubitv/?mode=GV&url=100012345', 'https://tubitv.com/movies/100012345'],
+    ['plugin://plugin.video.tubitv/?mode=GV&url=200012345%7C300012345%7C1', 'https://tubitv.com/tv-shows/200012345'],
+    ['plugin://plugin.video.crunchyroll/video/GY5P48XEY/GRDQPM1ZY/abc123', 'https://www.crunchyroll.com/watch/GRDQPM1ZY'],
+    ['plugin://plugin.video.crunchyroll/video/G4PH0WXVJ/abc123', 'https://www.crunchyroll.com/watch/G4PH0WXVJ'],
+  ];
+  for (const [plugin, link] of cases) assert.equal(pluginLink(plugin), link, plugin);
+  for (const plugin of ['plugin://slyguy.paramount.plus/?_=play&video_id=abc', 'plugin://slyguy.max/?_=play&edit_id=1',
+    'plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Movie', 'plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C1',
+    'plugin://plugin.video.netflix/directory/home/', 'smb://nas/x.mkv', '', null]) assert.equal(pluginLink(plugin), null, String(plugin));
+});
+
+test("a Kodi addon's title opens by its web link, never Kodi's own stream", () => {
+  const c = new RelayClient('relay.example.com', 'X');
+  const room = c.parseState({ item: { file: 'http://127.0.0.1:52103/manifest.mpd', label: 'Thunderbolts*',
+    plugin: 'plugin://slyguy.disney.plus/?_=play&deeplink_id=f51dce23-7d8f-490a-9f0c-be1b5432c2a9' } });
+  assert.equal(room.item.link, 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9');
+  assert.equal(room.item.service, 'disneyplus');
+  const core = new SyncCore();
+  assert.deepEqual(core.tick(room, { service: null, positionMs: -1, play: OTHER }, 0, 1000),
+    [{ type: 'open', link: 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9' }]);
+  // an addon without a web link: nothing is opened (not the 127.0.0.1 stream)
+  const other = c.parseState({ item: { file: 'http://127.0.0.1:52103/manifest.mpd', label: 'X', plugin: 'plugin://slyguy.max/?_=play&edit_id=1' } });
+  assert.equal(other.item.link, null);
+  assert.ok(new SyncCore().tick(other, { service: null, positionMs: -1, play: OTHER }, 0, 1000).every(a => a.type !== 'open'));
+});

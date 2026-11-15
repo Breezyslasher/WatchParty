@@ -3,7 +3,7 @@
 // /command and /leave, each with the room code; every reply carries
 // server_time, used for an EMA-smoothed estimate of the relay's clock.
 
-import { serviceOf, parseIdentity } from './links.js';
+import { serviceOf, parseIdentity, pluginLink } from './links.js';
 
 export class RelayError extends Error {
   constructor(message, status = 0) {
@@ -112,12 +112,14 @@ export class RelayClient {
   parseState(s) {
     s = s || {};
     const it = s.item;
-    const item = it && typeof it === 'object' ? {
-      file: String(it.file || ''),
-      label: String(it.label || ''),
-      service: serviceOf(String(it.file || '')),
-      identity: parseIdentity(it),
-    } : null;
+    let item = null;
+    if (it && typeof it === 'object') {
+      const file = String(it.file || '');
+      // a Kodi addon's title: its path's web link (its file is Kodi's own
+      // stream, e.g. on 127.0.0.1, never opened here)
+      const link = it.plugin ? pluginLink(String(it.plugin)) : (/^https?:\/\//.test(file) ? file : null);
+      item = { file, link, label: String(it.label || ''), service: link ? serviceOf(link) : null, identity: parseIdentity(it) };
+    }
     return {
       seq: Number(s.seq) || 0,
       item,

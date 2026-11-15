@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.11** (the Kodi bridge, and search without Yamtrack: not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.12** (the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -184,13 +184,23 @@ same title from its own source:
   first of its services (JustWatch's order) whose app is installed here
   (`Bridge.kt`, `BridgeTest`). It then syncs like any title. "No streaming
   service has …" or "… isn't on an app here" otherwise.
+- **Kodi's streaming addons.** A Kodi member playing a title in a streaming
+  addon shares the addon's `plugin://` path; Android turns it into the web
+  link of the same title and opens it in the service's app
+  (`AddonLinks.kt`): Netflix (CastagnaIT's addon), YouTube, SlyGuy's Disney+
+  and Hulu, Sandmann79's Prime Video, Tubi and Crunchyroll. Formats read from
+  each addon's source. Paramount+, HBO Max, Discovery+ and Apple TV paths
+  carry no web link; those go through the title's identity instead. The
+  other way, Kodi plays a shared link in an installed addon when it has no
+  library copy (the Kodi addon's `addon_links.py`).
 - **The catch:** a library file and a streaming copy can start a few seconds
   apart (studio logos, "previously on"), or more for a different cut. Sync
   keeps everyone at the same time code, so that offset stays.
 
-0.11, unit-tested (identity in and out, the lookup, the relay keeping the
-fields) and in the browser extension's end-to-end test; not yet tried with a
-real Kodi.
+0.11 (identity) and 0.12 (addons), unit-tested (identity in and out, the
+lookup, the relay keeping the fields, every addon path format) and in the
+browser extension's end-to-end test; not yet tried with a real Kodi or the
+real addons.
 
 ## Browse (pick an episode, no link needed)
 
@@ -419,6 +429,7 @@ app. Then check the app can be controlled: Session Probe's
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.
 - `Bridge.kt` — a Kodi member's title found on JustWatch and opened on an app here (unit-tested).
+- `AddonLinks.kt` — Kodi streaming addons' `plugin://` paths → the web link of the same title (unit-tested).
 - `HboMax.kt` — swaps an HBO Max "(with ASL)" episode link for the regular edition's (unit-tested).
 - `SelfSetup.kt`, `AdbClient.kt` — "Set up access": grants notification access through the TV's own adb.
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.

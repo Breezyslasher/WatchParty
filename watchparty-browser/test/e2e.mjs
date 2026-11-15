@@ -285,6 +285,13 @@ await until('in sync with the Kodi title', async () => Math.abs(await railDrift(
 ok(true, `and syncs to the room after its start-up (video at ${(await kodiPlayer.evaluate(() => document.getElementById('v').currentTime)).toFixed(1)} s, drift ${await railDrift()} s)`);
 if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '7-from-kodi.png') });
 
+// 9. a Kodi addon's title: Kodi shares the addon's path (its file is Kodi's own local stream)
+const addonEpisode = 'https://www.disneyplus.com/play/91310360-d44b-44a4-bdc4-71f999472826';
+await other.command('open', 0, { file: 'http://127.0.0.1:52103/manifest.mpd', label: 'Andor · Kassa',
+  plugin: 'plugin://slyguy.disney.plus/?_=play&deeplink_id=91310360-d44b-44a4-bdc4-71f999472826&profile_id=p1' });
+await until('the browser opened the addon title', () => context.pages().some(p => p.url() === addonEpisode));
+ok(!context.pages().some(p => p.url().startsWith('http://127.0.0.1:52103')), "a Kodi addon's title (SlyGuy Disney+) opened on Disney+, not Kodi's local stream");
+
 // the browser's Back goes back from a title page
 await roomPage.bringToFront();
 await roomPage.click('.nav:has-text("Browse")');

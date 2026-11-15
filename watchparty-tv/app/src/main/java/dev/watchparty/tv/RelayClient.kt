@@ -108,11 +108,17 @@ class RelayClient(baseUrl: String, private val room: String) {
         val item = itemJson?.let {
             val ids = it.optJSONObject("ids")
             val pkg = ids?.optString("android", "")?.takeIf { p -> p.isNotEmpty() }
+            val file = it.optString("file", "")
+            val plugin = it.optString("plugin", "").takeIf { p -> p.isNotEmpty() }
             Item(
-                file = it.optString("file", ""),
+                file = file,
                 label = it.optString("label", ""),
                 androidPackage = pkg,
                 identity = parseIdentity(it),
+                // a Kodi addon's title: its path's web link (its file is
+                // Kodi's own stream, e.g. on 127.0.0.1, never opened here)
+                link = if (plugin != null) AddonLinks.webLink(plugin)
+                else file.takeIf { f -> f.startsWith("https://") || f.startsWith("http://") },
             )
         }
         return RoomState(
