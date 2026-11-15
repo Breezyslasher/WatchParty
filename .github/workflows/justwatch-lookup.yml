@@ -26,6 +26,10 @@ on:
         description: 'Shows only: "SEASONS,EPISODES" to list episode links, e.g. "1,2"'
         required: false
         default: ''
+      origin:
+        description: 'Send this Origin header (e.g. chrome-extension://abc), as a browser extension would'
+        required: false
+        default: ''
       detail:
         description: 'Print title page fields (description, genres, rating, cast) instead of links'
         type: boolean
@@ -49,6 +53,7 @@ jobs:
           PLATFORMS: ${{ inputs.platforms }}
           EPISODES: ${{ inputs.episodes }}
           DETAIL: ${{ inputs.detail && '--detail' || '' }}
+          ORIGIN: ${{ inputs.origin }}
         run: |
           IFS='|' read -ra list <<< "$TITLES"
-          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" --episodes "$EPISODES" $DETAIL "${list[@]}"
+          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" --episodes "$EPISODES" --origin "$ORIGIN" $DETAIL "${list[@]}"

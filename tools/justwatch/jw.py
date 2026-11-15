@@ -214,10 +214,18 @@ def main():
     ap.add_argument("--kind", default="MOVIE", choices=["MOVIE", "SHOW"])
     ap.add_argument("--episodes", default="",
                     help='for shows: "SEASONS,EPISODES" to list, e.g. "1,2" (season 1, first 2 episodes)')
+    ap.add_argument("--origin", default="",
+                    help='send this Origin (and no Referer), e.g. "chrome-extension://<id>", as a browser extension would')
     ap.add_argument("--detail", action="store_true", help="print title page fields (description, genres, ...)")
     ap.add_argument("--platforms", default="",
                     help='comma list, or "all" to try every Platform value the API reports')
     args = ap.parse_args()
+    if args.origin:
+        HEADERS["Origin"] = args.origin
+        HEADERS.pop("Referer", None)
+        HEADERS["User-Agent"] = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                 "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36")
+        print("Origin:", args.origin)
 
     platforms = [p for p in args.platforms.split(",") if p]
     if platforms == ["all"]:
