@@ -131,4 +131,21 @@ class MediaLinkTest {
         assertEquals("https://tv.apple.com/us/episode/pilot/umc.cmc.5sc6v0g2nj8tk7nvyc7wejees?action=play",
             MediaLink.normalize("https://tv.apple.com/us/episode/pilot/umc.cmc.5sc6v0g2nj8tk7nvyc7wejees")!!.link)
     }
+
+    @Test fun affiliateRedirectsAreUnwrapped() {
+        // JustWatch's Crunchyroll link for Frieren S1 E1 (2026-11-15)
+        val wrapped = "https://crunchyroll.pxf.io/xk92Nv?u=https%3A%2F%2Fwww.crunchyroll.com%2Fwatch%2FGE00324920ARSA&subId3=justappsvod"
+        assertEquals("https://www.crunchyroll.com/watch/GE00324920ARSA", MediaLink.unwrapRedirect(wrapped))
+        assertEquals("https://www.crunchyroll.com/watch/GE00324920ARSA", MediaLink.normalize(wrapped)!!.link)
+        assertEquals(null, MediaLink.unwrapRedirect("https://www.crunchyroll.com/watch/GE00324920ARSA"))
+        assertEquals(null, MediaLink.unwrapRedirect("https://crunchyroll.pxf.io/xk92Nv?subId3=x"))
+    }
+
+    @Test fun crunchyrollUsesTheWebLinkWhereTheAppTakesIt() {
+        val link = "https://www.crunchyroll.com/watch/GE00324920ARSA"
+        // the TV app claims no web links: its own scheme (opens the app)
+        assertEquals(MediaLink.Launch("crunchyroll://watch/GE00324920ARSA"), MediaLink.launchFor(link, MediaLink.CRUNCHYROLL_PACKAGE))
+        // a phone's app claims www.crunchyroll.com/watch/*: the link as is
+        assertEquals(MediaLink.Launch(link), MediaLink.launchFor(link, MediaLink.CRUNCHYROLL_PACKAGE, appTakesLink = true))
+    }
 }

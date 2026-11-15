@@ -252,7 +252,8 @@ class SyncService : Service() {
      *  so an app that's already open doesn't swallow it. */
     private fun openLink(link: String, pkg: String) {
         // the form this app opens (a phone's Starz app doesn't take the TV link)
-        val launch = MediaLink.launchFor(Apps.linkFor(this, link, pkg) ?: link, pkg)
+        val target = Apps.linkFor(this, link, pkg)
+        val launch = MediaLink.launchFor(target ?: link, pkg, appTakesLink = target != null)
         // what the app is playing now (e.g. the movie before), to tell it apart from the new title.
         // HBO Max only has a media session while its player is open (dumpsys on a
         // phone): a session now means it's open, the case where it ignores the link

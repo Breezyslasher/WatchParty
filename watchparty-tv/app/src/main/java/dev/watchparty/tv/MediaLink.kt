@@ -59,6 +59,26 @@ object MediaLink {
     // playableId (they say which show and which playable) and dropping tracking.
     private val APPLE_EPISODE = p("^https?://tv\\.apple\\.com/([a-z]{2})/episode/([^/?#]+)/(umc\\.[A-Za-z0-9.]+)(?:\\?([^#]*))?(?:#.*)?$")
 
+    // Affiliate redirects (Impact: *.pxf.io, *.sjv.io) wrap the real link in u=,
+    // e.g. JustWatch's Crunchyroll links:
+    // crunchyroll.pxf.io/xk92Nv?u=https%3A%2F%2Fwww.crunchyroll.com%2Fwatch%2F<id>&subId3=...
+    private val REDIRECT = p("^https?://(?:[a-z0-9-]+\\.)*(?:pxf|sjv)\\.io/[^?#]*\\?([^#]*)(?:#.*)?$")
+
+    /** The link an affiliate redirect wraps, if [link] is one. */
+    fun unwrapRedirect(link: String): String? {
+        val m = REDIRECT.match(link.trim()) ?: return null
+        for (param in m.group(1).split('&')) {
+            if (!param.startsWith("u=")) continue
+            val inner = try {
+                java.net.URLDecoder.decode(param.substring(2), "UTF-8")
+            } catch (e: IllegalArgumentException) {
+                return null
+            }
+            return inner.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        }
+        return null
+    }
+
     private fun p(regex: String): Pattern = Pattern.compile(regex)
 
     private fun Pattern.match(text: String): Matcher? = matcher(text).takeIf { it.matches() }
@@ -89,6 +109,7 @@ object MediaLink {
     fun normalize(raw: String): Shared? {
         val text = raw.trim()
         if (!text.startsWith("http://") && !text.startsWith("https://")) return null
+        unwrapRedirect(text)?.let { return normalize(it) }
         DISNEY.match(text)?.let {
             return Shared("https://www.disneyplus.com/play/${it.group(1)!!.lowercase()}", DISNEY_PACKAGE, "Disney+ title")
         }
@@ -121,7 +142,9 @@ object MediaLink {
     }
 
     /** How this TV should open a room link in [pkg]. */
-    fun launchFor(link: String, pkg: String): Launch {
+    /** How to launch [link] in [pkg]; [appTakesLink]: the app claims the link
+     *  as is (a phone's Crunchyroll app does; the TV app doesn't). */
+    fun launchFor(link: String, pkg: String, appTakesLink: Boolean = false): Launch {
         if (pkg == NETFLIX_TV_PACKAGE) {
             // Confirmed: https://www.netflix.com/watch/<id> with the extra
             // source=30 starts the title (after a few seconds) in the Android
@@ -130,8 +153,8 @@ object MediaLink {
                 return Launch("https://www.netflix.com/watch/${it.group(1)}", mapOf("source" to "30"))
             }
         }
-        if (pkg == CRUNCHYROLL_PACKAGE) {
-            // Its only link: opens the app (not the episode) so everyone can pick it.
+        if (pkg == CRUNCHYROLL_PACKAGE && !appTakesLink) {
+            // The TV app's only link: opens the app (not the episode) so everyone can pick it.
             CRUNCHYROLL.match(link)?.let { return Launch("crunchyroll://watch/${it.group(1)}") }
         }
         return Launch(link)
