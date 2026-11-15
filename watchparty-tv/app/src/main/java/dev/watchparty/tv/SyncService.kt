@@ -46,6 +46,9 @@ class SyncService : Service() {
             private set
         @Volatile var running = false
             private set
+        /** The room as of the last poll (for the room screen), null when not in one. */
+        @Volatile var room: RoomState? = null
+            private set
         @Volatile private var instance: SyncService? = null
 
         /** Announce a link to the room (from the main screen). */
@@ -119,6 +122,7 @@ class SyncService : Service() {
         client = null
         instance = null
         running = false
+        room = null
         setStatus("Not in a room")
         if (Build.VERSION.SDK_INT >= 24) {
             stopForeground(1 /* STOP_FOREGROUND_REMOVE, API 24 */)
@@ -161,6 +165,7 @@ class SyncService : Service() {
                 corrections = core.corrections,
             ))
             lastRoom = room
+            Companion.room = room
             lastError = null
             if (room.item?.androidPackage != previous?.item?.androidPackage) {
                 controller = sessionFor(room)

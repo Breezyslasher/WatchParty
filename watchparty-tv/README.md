@@ -4,11 +4,12 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.7.2.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
-TV, Android 14): joining rooms, announcing titles, and **Set up access** on
-both (automatic on the Sony, the settings switch with the remote on the
-Chromecast). New in 0.7 and not yet tried on a device: **Browse Yamtrack**,
-and phones (see [Phones](#phones)).
+**Status: 0.8.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+(Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
+on both (automatic on the Sony, the settings switch with the remote on the
+Chromecast). 0.8 is a new look (same behaviour); its layouts were checked in
+rendered screenshots at 1080p and phone size, not yet with a remote on a TV.
+Not yet tried on a device: **Browse Yamtrack**, and phones (see [Phones](#phones)).
 Syncing two TVs in one room end to end is still being tested.
 The sync logic, link handling, relay client and adb client are unit-tested
 (the relay tests against the real relay), and every app link below was
@@ -113,35 +114,41 @@ can be a member of the room or pick what to watch with **Browse Yamtrack**:
   adb over the network; **Set up access** opens the notification-access
   switch instead. On Android 13+, a sideloaded app's switch is blocked until
   *Settings → Apps → Watch Party → ⋮ → Allow restricted settings*.
-- **Not yet tried on a phone:** Watch Party 0.7.x itself. Session Probe
+- **Not yet tried on a phone:** Watch Party itself (0.7.x; 0.8's phone layout was only checked in screenshots). Session Probe
   controlled Disney+ and Vita_plex on a phone, so syncing works there; which
   links start playback in the phone apps (e.g. Netflix without the TV app's
   `source=30` extra) is untested.
 
 ## Use
 
-1. Open **Watch Party**, enter the relay address (e.g. `192.168.1.5:8765` or
+The screen has a rail on the left (**Room**, **Browse Yamtrack**, **Paste a
+link**, and the room itself) and the chosen screen on the right. On a phone
+the rail folds into a bar at the top.
+
+1. In the rail, enter the relay address (e.g. `192.168.1.5:8765` or
    `https://relay.example.com`), the room code and a name, and press
    **Join room**. It stays in the room while you watch in other apps; the
-   status line shows the room and your drift.
-2. To start something, paste its link in **Start for everyone** (typing on a
-   TV is easiest from the Google TV remote app on a phone) and press the
-   button.
-3. **Leave room** stops syncing.
+   rail lists everyone in the room with what they're doing and their drift.
+2. To start something, use **Browse Yamtrack** (below) or **Paste a link**
+   and **Start for everyone** (typing on a TV is easiest from the Google TV
+   remote app on a phone). **Room** shows what's playing.
+3. **Leave room** stops syncing. **Back** goes Picker → Browse → Room, and
+   leaves the app from Room.
 
 Kodi members can be in the same room; they skip app links ("can't be played
 on this device"), and the TV app skips Kodi files.
 
 ## Browse Yamtrack (pick an episode, no link needed)
 
-Press **Browse Yamtrack** on the main screen. The first time, enter your
+Press **Browse Yamtrack**. The first time, enter your
 Yamtrack server address and API token (typing is easiest with the Google TV
 app's phone keyboard). Then:
 
 1. **Movies** or **TV shows**, filtered by **Watching / Planning / Paused /
    Completed / All** — your Yamtrack library — or **Search** for anything.
-2. Pick a title. For a show, pick the season, then the episode.
-3. Pick a service. Services whose app isn't on this TV are marked; other TVs
+2. Pick a title. For a show, pick the season, then the episode (the three
+   columns side by side; stacked on a phone).
+3. Pick a service. Services whose app isn't on this TV are dimmed; other TVs
    in the room may still have it.
 4. Every TV in the room starts it, the same as **Start for everyone**.
 
@@ -231,12 +238,15 @@ app. Then check the app can be controlled: Session Probe's
 - `MediaLink.kt` — link normalization (only confirmed formats are rewritten).
 - `JustWatch.kt` — where to watch a title, its seasons and episodes, and each one's link (unit-tested).
 - `YamtrackClient.kt` — read-only Yamtrack API client: library and search (unit-tested).
-- `BrowseActivity.kt` — "Browse Yamtrack": list, search, season/episode/service pickers.
+- `Ui.kt` — the design system: colours, Figtree / JetBrains Mono (`assets/fonts`, OFL),
+  focus rings, buttons, cards, fields. Design px ÷ 2 = dp.
+- `Screens.kt` — Room, Browse (library grid and search), Picker (season / episode / service)
+  and Paste a link.
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.
 - `SelfSetup.kt`, `AdbClient.kt` — "Set up access": grants notification access through the TV's own adb.
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.
-- `MainActivity.kt` — join/leave, status, "Start for everyone", setup.
+- `MainActivity.kt` — setup screen, the rail (join/leave, members), screen switching, Back, toasts.
 - `SessionAccessService.kt` — empty notification listener (unlocks media sessions).
 
 Tests: `./gradlew test`. To include the relay tests, start a relay

@@ -25,6 +25,16 @@ data class Item(
     val androidPackage: String?,
 )
 
+/** A room member as the relay reports it (for showing the room; sync
+ *  doesn't use it). [driftSec] is null when they're not on the item. */
+data class Member(
+    val name: String,
+    val paused: Boolean,
+    val caching: Boolean,
+    val onItem: Boolean,
+    val driftSec: Double?,
+)
+
 data class RoomState(
     val seq: Long,
     val item: Item?,
@@ -33,6 +43,7 @@ data class RoomState(
     val speed: Double,
     val setAtSec: Double,
     val setByMe: Boolean,
+    val members: List<Member> = emptyList(),
 ) {
     /** Where playback should be at [serverNowSec]. */
     fun expectedSec(serverNowSec: Double): Double {

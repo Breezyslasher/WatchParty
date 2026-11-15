@@ -122,10 +122,29 @@ class RelayClient(baseUrl: String, private val room: String) {
             speed = s.optDouble("speed", 1.0),
             setAtSec = s.optDouble("set_at", 0.0),
             setByMe = memberId != null && s.optString("set_by", "") == memberId,
+            members = parseMembers(s.optJSONArray("members")),
         )
     }
 
     companion object {
+        /** The relay's member list (relay.py snapshot: name, paused, caching,
+         *  on_item, drift — drift is null off the item). */
+        fun parseMembers(array: org.json.JSONArray?): List<Member> {
+            if (array == null) return emptyList()
+            val out = ArrayList<Member>()
+            for (i in 0 until array.length()) {
+                val m = array.optJSONObject(i) ?: continue
+                out.add(Member(
+                    name = m.optString("name", ""),
+                    paused = m.optBoolean("paused", false),
+                    caching = m.optBoolean("caching", false),
+                    onItem = m.optBoolean("on_item", false),
+                    driftSec = if (m.isNull("drift") || !m.has("drift")) null else m.optDouble("drift"),
+                ))
+            }
+            return out
+        }
+
         /** "relay.example.com", "192.168.1.5:8765" or a full URL → base URL. */
         fun normalizeBase(raw: String): String {
             var url = raw.trim().trimEnd('/')

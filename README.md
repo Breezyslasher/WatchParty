@@ -35,6 +35,6 @@ under `service.watchparty` — Kodi and Android TV members can share a room.
 
 ## Status
 
-Watch Party TV 0.7.2 is tested on a Sony Android TV 9 and a Chromecast HD
-(Google TV, Android 14). See [watchparty-tv/README.md](watchparty-tv/README.md)
+Watch Party TV 0.8 (new look; 0.7.2 is tested on a Sony Android TV 9 and a
+Chromecast HD, Google TV, Android 14). See [watchparty-tv/README.md](watchparty-tv/README.md)
 for which apps' links start playback and what's still being tested.
