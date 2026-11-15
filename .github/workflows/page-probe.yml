@@ -1,0 +1,35 @@
+name: Page probe
+
+# Manually run: fetches public pages and prints what matches a pattern
+# (tools/probe/probe.py), e.g. to see which edition a service's link opens.
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'URLs, separated by spaces'
+        required: true
+      pattern:
+        description: 'Regular expression (case-insensitive)'
+        required: true
+      context:
+        description: 'Characters shown around each match'
+        required: false
+        default: '120'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        env:
+          URLS: ${{ inputs.urls }}
+          PATTERN: ${{ inputs.pattern }}
+          CONTEXT: ${{ inputs.context }}
+        run: |
+          read -ra list <<< "$URLS"
+          python3 tools/probe/probe.py --pattern "$PATTERN" --context "$CONTEXT" "${list[@]}"
