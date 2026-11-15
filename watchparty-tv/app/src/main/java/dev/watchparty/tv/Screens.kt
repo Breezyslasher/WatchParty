@@ -557,6 +557,9 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private val seasonButtons = ArrayList<TextTile>()
     private val episodeButtons = ArrayList<TextTile>()
     private var season: Pick? = null
+    /** The season and episode whose services are shown. */
+    private var picked: Pair<Int, Int>? = null
+    private var starting = false
     private var firstSeason: View? = null
     private var firstService: View? = null
     private var gen = 0
@@ -820,6 +823,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     }
 
     internal fun chooseEpisodeTitle(s: Pick, e: Pick) {
+        picked = s.number to e.number
         for (b in episodeButtons) b.setChosen(b.tag == e.number)
         servicesTitle.text = "S${s.number} · E${e.number} on"
     }
@@ -893,8 +897,28 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             return
         }
         val label = if (show) "$title · $sub" else title
-        SyncService.share(o.link, label, pkg)
-        host.sent(Playing(o.link, title, sub, serviceName(o), YamtrackClient.posterUrl(item.image)))
+        val episode = picked
+        if (show && episode != null && HboMax.isHboMax(o.link)) {
+            // JustWatch's HBO Max link can be the "(with ASL)" edition: use the regular one
+            if (starting) return
+            starting = true
+            showHint("Checking HBO Max…")
+            Thread {
+                val link = HboMax.regularEpisode(o.link, item.title, episode.first, episode.second)
+                ui {
+                    starting = false
+                    hint.visibility = View.GONE
+                    share(link, label, pkg, title, sub, o)
+                }
+            }.start()
+            return
+        }
+        share(o.link, label, pkg, title, sub, o)
+    }
+
+    private fun share(link: String, label: String, pkg: String, title: String, sub: String, o: JustWatch.Offer) {
+        SyncService.share(link, label, pkg)
+        host.sent(Playing(link, title, sub, serviceName(o), YamtrackClient.posterUrl(item.image)))
     }
 
     companion object {

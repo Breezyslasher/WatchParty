@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.2.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.3.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -198,6 +198,18 @@ US, 2026-11-15):
 | Amazon | `watch.amazon.com/watch?asin=<episode>` | ✓ |
 | Netflix | Android TV link: the show's `netflix.com/watch/<id>` | ✗ — so Watch Party uses Netflix's **web** link, the episode's own `/watch/<id>` |
 
+**HBO Max "(with ASL)" editions:** HBO Max lists some shows twice, the
+show and a separate "(with ASL)" series with American Sign Language
+interpretation. JustWatch's HBO Max episode links for The Last of Us are the
+ASL edition's (S1 E1 `dae9e532…` is "When You're Lost in the Darkness (with
+ASL)"; checked 2026-11-15 with the page probe workflow). When you pick an HBO
+Max episode, Watch Party checks HBO Max's public ASL page
+(`hbomax.com/accessibility/asl`) for "<Title> (with ASL)"; if it's there, it
+finds the regular series (the ASL series' "You May Also Like") and that
+season's episode (`hbomax.com/show/<id>/s<N>`), and shares the regular
+episode's link. Anything unexpected keeps JustWatch's link. Movies aren't
+checked yet.
+
 Movie links are the ones in [Which link to share](#which-link-to-share).
 **Not yet confirmed on a TV:** that episode links start the right episode
 (Netflix's web `/watch/<episode id>`, Apple TV's `/episode/` links), and
@@ -258,6 +270,7 @@ app. Then check the app can be controlled: Session Probe's
   episode / service, cast, More like this), the person page and Paste a link.
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.
+- `HboMax.kt` — swaps an HBO Max "(with ASL)" episode link for the regular edition's (unit-tested).
 - `SelfSetup.kt`, `AdbClient.kt` — "Set up access": grants notification access through the TV's own adb.
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.
 - `MainActivity.kt` — setup screen, the rail (join/leave, members), screen switching, Back, toasts.
