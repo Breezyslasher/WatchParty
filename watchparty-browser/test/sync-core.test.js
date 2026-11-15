@@ -88,13 +88,6 @@ test('the announcer already watching is not restarted', () => {
   assert.ok(core.tick(room({ mine: true }), local(100), 0, 1000).every(a => a.type !== 'open'));
 });
 
-test('a tab shared while paused is not reloaded (alreadyOpen)', () => {
-  const core = new SyncCore();
-  core.alreadyOpen(link, 0);
-  const actions = core.tick(room({ mine: true, paused: true }), local(100, PAUSED), 1000, 1001);
-  assert.ok(actions.every(a => a.type !== 'open'));
-});
-
 test("a paused room's expected position doesn't advance", () => {
   assert.equal(expectedSec(room({ pos: 300, paused: true }), 5000), 300);
   assert.equal(expectedSec(room(), 1010), 110);

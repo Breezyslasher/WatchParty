@@ -5,7 +5,8 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.2.0, not yet tried on a real streaming site.** Tested end to end
+**Status: 0.3.0, not yet tried on a real streaming site.** It looks and works
+like the Android app: the same rail and screens. Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.
 
@@ -21,26 +22,30 @@ Not in an extension store yet; load it from this folder:
 
 ## Use
 
-1. Click the Watch Party button in the toolbar: the room page opens in a tab.
-2. Enter the relay address, the room code and a name, and press **Join room**.
-   The browser asks once for access to the relay (and, in Firefox, to the
-   streaming sites).
-3. When someone starts a title — from a TV, a phone, or another browser — it
-   opens in its own tab (the "player tab") and follows the room: play, pause
-   and seek on any device and the browser follows; pause or seek in the
-   browser and everyone follows.
-4. To start something yourself, **search** under *Find something to watch*
-   (movies or TV shows), open a title, pick the season and episode, and press
-   **Start** on a service. Or open the title on a streaming site in another
-   tab and press **Share this tab**, or paste a link. Everyone's TV, phone or
-   browser opens the same title.
+Click the Watch Party button in the toolbar: the Watch Party page opens in a
+tab, laid out like the Android app — a rail with **Room**, **Browse** and
+**Paste a link**, then the room form (or the room's members), and the screen
+beside it.
 
-Keep the room page open while watching: it is what keeps the browser in sync.
+1. In the rail, enter the relay address, the room code and a name, and press
+   **Join room**. The browser asks once for access to the relay (and, in
+   Firefox, to the streaming sites and JustWatch).
+2. **Browse**: search for a movie or a TV show, open it, and press **Watch**
+   (a movie) or pick the season and episode; the services open in a dialog.
+   With one service it starts at once, as on Android. Or **Paste a link**.
+3. Everyone's TV, phone or browser opens the title. In the browser it opens in
+   its own tab (the "player tab") and follows the room: play, pause and seek
+   on any device and the browser follows; pause or seek in the browser and
+   everyone follows. **Room** shows what's playing.
+
+Keep the Watch Party page open while watching: it keeps the browser in sync.
+The browser's Back goes back from a title page, like the remote's Back.
 
 ## How it works
 
-- `room.html` / `room.js` — the room page: joins the room and, once a second,
-  reports the player tab's video and follows the room. The tick comes from a
+- `room.html` / `room.js` — the page: the rail (MainActivity's), navigation,
+  and the loop that once a second reports the player tab's video and follows
+  the room. The tick comes from a
   worker (`ticker.js`), because Chrome slows a background page's own timers to
   once a minute after five minutes. The tab is also marked not to be
   discarded.
@@ -55,8 +60,13 @@ Keep the room page open while watching: it is what keeps the browser in sync.
   `play.hbomax.com`, Apple TV `?action=play`, Peacock's play deeplink, …), so
   TVs and phones start the same title. A shared item names the service's
   Android app, which Watch Party's Android app needs to open it.
-- `browse.js`, `justwatch.js`, `hbomax.js` — search and title pages: a port
-  of the Android app's Browse without Yamtrack (`JustWatch.kt`, `HboMax.kt`):
+- `screens.js`, `ui.js`, `room.css` — the Android app's screens (`Screens.kt`,
+  `ServiceDialog.kt`) and components (`Ui.kt`): Room, Browse (search; no
+  Yamtrack library), the title page with its season and episode columns and
+  More like this, the "Start for everyone on" dialog, Paste a link; the same
+  colours, Figtree and sizes (0.6 × the TV design's).
+- `justwatch.js`, `hbomax.js` — search and title pages: a port of the Android
+  app's Browse without Yamtrack (`JustWatch.kt`, `HboMax.kt`):
   the same JustWatch queries and the same choice of each service's link
   (Netflix's web `/watch/<episode>`, else the Android TV link as https, …), the
   HBO Max "(with ASL)" swap, Discovery+ movies via HBO Max's video id, and
@@ -108,8 +118,10 @@ Start a relay first for the last two (`python3 relay_standalone.py --port
 it loads the extension into Chromium, answers `https://www.disneyplus.com/…`
 and `https://www.netflix.com/…` with a test page playing a generated video,
 and has a scripted member start a title, seek, pause and play; then pauses and
-seeks in the browser, and shares a second tab. It also answers JustWatch's
-API with responses shaped like the live ones, searches, starts a movie and an
-episode from Browse, and checks the room gets the Android app's link and
-label (`Andor · S1 · E1 · Kassa`). Passed against a relay on
+seeks in the browser (and checks the room, the browser and the relay's drift
+agree after it), and starts a title with Paste a link. It also answers
+JustWatch's API with responses shaped like the live ones, searches, opens a
+movie's page and presses Watch, picks a show's episode in the services
+dialog, checks the room gets the Android app's link and label (`Andor · S1 ·
+E1 · Kassa`), and that the browser's Back leaves a title page. Passed against a relay on
 `127.0.0.1` and on a LAN address over plain http (2026-11-15).

@@ -1,7 +1,8 @@
 // End to end, in Chromium with the extension loaded: a scripted room member
 // (relay.js in node) starts a title; the extension opens it in a player tab
 // and follows play / pause / seek; a pause and seek in the browser reach the
-// room; and "Share this tab" announces another tab without reloading it.
+// room; Paste a link and Browse (search, title page, Watch, the services
+// dialog, season and episode) start titles with the Android app's links.
 //
 // Streaming sites are stood in for by a test page with a real <video>
 // (Playwright answers https://www.disneyplus.com/… and …netflix.com/… with
@@ -64,7 +65,7 @@ const context = await chromium.launchPersistentContext(path.join(tmp, 'profile')
   headless: true,
   channel: 'chromium',   // full Chromium (new headless): the headless shell has no extensions
   args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--autoplay-policy=no-user-gesture-required'],
-  viewport: { width: 1100, height: 760 },
+  viewport: { width: 1440, height: 860 },
 });
 // stand-ins for the sites; the video with Range support so it can seek
 await context.route(/^https:\/\/www\.(disneyplus|netflix)\.com\//, async route => {
@@ -138,8 +139,12 @@ await roomPage.goto(`chrome-extension://${extId}/room.html`);
 await roomPage.fill('#relay', RELAY);
 await roomPage.fill('#room', code);
 await roomPage.fill('#name', 'Laptop');
+if (SHOTS) {
+  fs.mkdirSync(SHOTS, { recursive: true });
+  await roomPage.screenshot({ path: path.join(SHOTS, '1-room-idle.png') });
+}
 await roomPage.click('#join');
-await until('joined', () => roomPage.isVisible('#inRoom'));
+await until('joined', () => roomPage.isVisible('.roomCode'));
 ok(true, 'joined the room from the room page');
 
 // the scripted member: polls like a device that isn't playing anything
@@ -190,69 +195,83 @@ await sleep(5000);
 await player.evaluate(() => { const v = document.getElementById('v'); v.currentTime = 120; });
 await until('room at 120 s', () => state && Math.abs(state.positionSec - 120) < 3, 15000);
 ok(true, `a seek in the browser moved the room (to ${state.positionSec.toFixed(1)} s)`);
+await sleep(6000);
+const roomAt = state.positionSec;
+const browserAt = await t();
+ok(Math.abs(roomAt - 120) < 3 && Math.abs(browserAt - 120) < 3,
+  `6 s later the room (${roomAt.toFixed(1)} s) and the browser (${browserAt.toFixed(1)} s) are both still at 120 s`);
+const me = state.members.find(m => m.name === 'Laptop');
+ok(me && me.driftSec != null && Math.abs(me.driftSec) < 3, `the relay sees the browser in sync (drift ${me && me.driftSec})`);
 
-// 5. share another tab: the room gets its normalized link, the tab isn't reloaded
-const nf = await context.newPage();
-await nf.goto('https://www.netflix.com/watch/70264888?trackId=14170286');
-await until('netflix stand-in playing', () => nf.evaluate(() => document.getElementById('v').currentTime > 1));
-await nf.evaluate(() => { document.getElementById('v').currentTime = 30; window.__marker = 'same page'; });
+// 5. Paste a link: the room gets the link the Android app would share
 await roomPage.bringToFront();
-await until('tab listed', () => roomPage.$$eval('#tabs option', os => os.some(o => o.textContent.includes('Iron Man'))));
-const options = await roomPage.$$eval('#tabs option', os => os.map(o => [o.value, o.textContent]));
-await roomPage.selectOption('#tabs', options.find(([, text]) => text.includes('Iron Man'))[0]);
-await roomPage.click('#shareTab');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '2-room-playing.png') });
+await roomPage.click('.nav:has-text("Paste a link")');
+await roomPage.fill('#link', 'https://www.netflix.com/title/70264888?trackId=14170286');
+await roomPage.fill('#linkTitle', 'Iron Man');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '6-paste.png') });
+await roomPage.click('#startLink');
 await until('room has the Netflix title', () => state && state.item && state.item.file === 'https://www.netflix.com/watch/70264888');
-ok(state.item.label === 'Iron Man', `shared "${state.item.label}" as ${state.item.file}`);
-ok(Math.abs(state.positionSec - 30) < 4, `from where the tab was (${state.positionSec.toFixed(1)} s)`);
-await sleep(4000);
-ok(await nf.evaluate(() => window.__marker === 'same page'), 'the shared tab was not reloaded');
+ok(state.item.label === 'Iron Man', `pasted "${state.item.label}" as ${state.item.file}`);
 const raw = await (await fetch(`${RELAY}/poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ room: code, member_id: other.memberId, position: 0, paused: true, file: '', caching: false, on_item: false, corrections: 0 }) })).json();
 ok(raw.state.item.ids && raw.state.item.ids.android === 'com.netflix.ninja', 'the item names an Android app, so TVs and phones open it');
+await until('the browser opened it', () => context.pages().some(p => p.url() === 'https://www.netflix.com/watch/70264888'));
+ok(true, 'and the browser opened it in its player tab');
+await roomPage.bringToFront();
+await until('Room shows it', () => roomPage.isVisible('.nowTitle:has-text("Iron Man")'));
+ok(true, 'the Room screen shows it');
 
-if (SHOTS) {
-  fs.mkdirSync(SHOTS, { recursive: true });
-  await roomPage.screenshot({ path: path.join(SHOTS, 'room.png'), fullPage: true });
-}
-
-// 6. Browse: search JustWatch, start a movie — the room gets the link the Android app would share
+// 6. Browse: search JustWatch, Watch a movie — one service, so it starts at once (as on Android)
+await roomPage.click('.nav:has-text("Browse")');
 await roomPage.fill('#query', 'Thunderbolts');
-await roomPage.click('#search');
-await until('search results', () => roomPage.$$eval('#results .poster', ps => ps.length === 2));
+await roomPage.press('#query', 'Enter');
+await until('search results', () => roomPage.$$eval('.grid .poster', ps => ps.length === 2));
 ok(true, 'searched JustWatch (movies)');
-if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, 'browse-results.png'), fullPage: true });
-await roomPage.click('#results .poster');
-await until('title page details', () => roomPage.isVisible('text=7.3'));
-await until('services', () => roomPage.isVisible('.service >> text=Disney Plus'));
-ok(true, 'the title page shows the rating and where to watch');
-if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, 'browse-title.png'), fullPage: true });
-await roomPage.click('.service button');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '3-browse.png') });
+await roomPage.click('.grid .poster');
+await until('title page details', () => roomPage.isVisible('.rating:has-text("7.3")'));
+ok(true, 'the title page shows the rating, facts and genres');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '4-title-movie.png'), fullPage: true });
+await roomPage.click('button:has-text("Watch")');
 const movie = 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9';
 await until('room has the movie', () => state && state.item && state.item.file === movie);
-ok(state.item.label === 'Thunderbolts*', `started "${state.item.label}" from Browse as ${state.item.file}`);
+ok(state.item.label === 'Thunderbolts*', `Watch started "${state.item.label}" as ${state.item.file}`);
 await until('the browser opened it', () => context.pages().some(p => p.url() === movie));
-ok(true, 'and the browser opened it itself');
+await roomPage.bringToFront();
+await until('Room shows it', () => roomPage.isVisible('.nowLabel:has-text("Disney+")'));
+ok(true, 'and Room shows it as Now playing · Disney+');
 
-// 7. a show: season, episode, service — labelled as the Android app labels it
-await roomPage.click('#types button[data-type="SHOW"]');
+// 7. a show: season and episode columns, the services dialog, the Android label
+await roomPage.click('.nav:has-text("Browse")');
+await roomPage.click('.tab:has-text("TV shows")');
 await roomPage.fill('#query', 'Andor');
-await roomPage.click('#search');
-await until('show result', () => roomPage.$$eval('#results .poster', ps => ps.length === 1));
-await roomPage.click('#results .poster');
-await until('episodes', () => roomPage.isVisible('.ep >> text=Kassa'));
-await roomPage.click('.ep >> text=Kassa');
-await until('episode services', () => roomPage.isVisible('.where .service >> text=Disney Plus'));
-ok(await roomPage.isVisible(".where >> text=Opens the show's page"), "Pluto's show-level link is marked, as on Android");
-if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, 'browse-episode.png'), fullPage: true });
-await roomPage.click('.where .service:has-text("Disney Plus") button');
+await roomPage.press('#query', 'Enter');
+await until('show result', () => roomPage.$$eval('.grid .poster', ps => ps.length === 1));
+await roomPage.click('.grid .poster');
+await until('episodes', () => roomPage.isVisible('.listButton:has-text("Kassa")'));
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '5-title-show.png') });
+await roomPage.click('.listButton:has-text("Kassa")');
+await until('services dialog', () => roomPage.isVisible('.dialog .service:has-text("Disney+")'));
+ok(await roomPage.isVisible(".dialog .service:has-text(\"Opens the show's page\")"), "Pluto's show-level link is marked, as on Android");
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '5b-services-dialog.png') });
+await roomPage.click('.dialog .service:has-text("Disney+")');
 await until('room has the episode', () => state && state.item && state.item.file.includes('91310360'));
 ok(state.item.label === 'Andor · S1 · E1 · Kassa', `started "${state.item.label}"`);
 ok(jwRequests.length > 0 && jwRequests.every(o => o.startsWith('chrome-extension://')), `JustWatch was asked from the extension (Origin ${jwRequests[0]})`);
+// the browser's Back goes back from a title page
+await roomPage.bringToFront();
+await roomPage.click('.nav:has-text("Browse")');
+await roomPage.click('.grid .poster');
+await until('title page again', () => roomPage.isVisible('h1:has-text("Andor")'));
+await roomPage.goBack();
+await until('back on Browse', () => roomPage.isVisible('#query'));
+ok(true, "the browser's Back returns from a title page to Browse");
 
 polling = false;
 await other.leave();
-await roomPage.click('#leave');
-await until('left', () => roomPage.isVisible('#joinForm'));
+await roomPage.click('#join');
+await until('left', () => roomPage.isVisible('#relay'));
 ok(true, 'left the room');
 await context.close();
 fs.rmSync(tmp, { recursive: true, force: true });

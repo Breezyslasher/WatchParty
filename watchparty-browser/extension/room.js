@@ -1,12 +1,16 @@
-// The room page: joins a relay room, then once a second reports the player
-// tab's state and follows the room (sync-core.js decides; this file carries
-// it out). Titles open in their own tab, the "player tab"; content.js there
-// reads and drives the video.
+// The Watch Party page, laid out like the Android app (MainActivity.kt):
+// a rail with Room, Browse and Paste a link, the room form or its members,
+// and the status line; the chosen screen beside it (screens.js). Once a
+// second it reports the player tab's state and follows the room
+// (sync-core.js decides; this file carries it out). Titles play in their own
+// tab, the "player tab"; content.js there reads and drives the video.
 
-import { SyncCore, PLAYING, PAUSED, BUFFERING, OTHER } from './sync-core.js';
+import { SyncCore, PLAYING, BUFFERING, OTHER } from './sync-core.js';
 import { RelayClient, RelayError, normalizeBase } from './relay.js';
-import { serviceOf, normalize, cleanTitle, roomItem, browserLink, SERVICE_NAMES } from './links.js';
-import { initBrowse } from './browse.js';
+import { serviceOf, roomItem, browserLink } from './links.js';
+import { JustWatch } from './justwatch.js';
+import { el, label, toast } from './ui.js';
+import { roomScreen, browseScreen, titleScreen, linkScreen } from './screens.js';
 
 const $ = id => document.getElementById(id);
 const NONE = { service: null, play: OTHER, positionMs: -1, title: '' };
@@ -14,44 +18,131 @@ const NONE = { service: null, play: OTHER, positionMs: -1, title: '' };
 let client = null;
 let core = null;
 let joined = false;
+let joining = false;
 let busy = false;
 let lastRoom = null;
 let playerTabId = null;
 let myName = '';
+let status = 'Not in a room';
+let statusWarn = false;
 let note = '';
 let noteUntil = 0;   // a note shows for a few seconds, then the room's state
-let error = '';
+/** What this browser started, by link: title, sub, service, image (for the Room screen). */
+const playing = new Map();
 
-// ── setup ────────────────────────────────────────────────────────────────
+function defaultCountry() {
+  const region = (navigator.language || 'en-US').split('-')[1];
+  return region && /^[A-Za-z]{2}$/.test(region) ? region.toUpperCase() : 'US';
+}
 
-chrome.storage.local.get(['relay', 'room', 'name']).then(saved => {
+// ── what the screens use ─────────────────────────────────────────────────
+
+const app = {
+  get joined() { return joined; },
+  get room() { return lastRoom; },
+  playing,
+  country: defaultCountry(),
+  jw: new JustWatch(defaultCountry()),
+  setCountry(c) {
+    app.country = c;
+    app.jw = new JustWatch(c);
+    chrome.storage.local.set({ country: c });
+  },
+  /** JustWatch (and HBO Max, for its ASL check): Firefox asks once; Chrome has them from install. */
+  justWatchAccess() {
+    return chrome.permissions.request({ origins: ['https://apis.justwatch.com/*', 'https://*.hbomax.com/*'] }).catch(() => true);
+  },
+  /** Share a title with the room; this browser then opens it like everyone else. */
+  async start(link, label, shown) {
+    lastRoom = await client.command('open', 0, roomItem(link, label, serviceOf(link)));
+    playing.set(link, shown);
+    go('room');
+    toast(`Sent to the room: ${shown.title}`);
+    render(lastRoom, NONE);
+  },
+  go: s => go(s),
+  openTitle: t => openTitle(t),
+};
+
+// ── layout: the rail and the screens ─────────────────────────────────────
+
+const screens = { room: roomScreen(app), browse: browseScreen(app), link: linkScreen(app) };
+let current = 'room';
+const pages = [];   // title pages opened from Browse (Back returns through them)
+
+const navs = {};
+const field = (labelText, id, placeholder, caps = false) => el('label', { class: 'field-label' }, labelText,
+  el('input', { class: 'field' + (caps ? ' caps' : ''), id, placeholder, autocomplete: 'off', spellcheck: 'false' }));
+const form = el('div', {}, label('Join a room'),
+  field('Relay', 'relay', 'relay.example.com'), field('Room code', 'room', '', true), field('Your name', 'name', 'Laptop'));
+const roomCode = el('div', { class: 'roomCode' });
+const members = el('div', { class: 'members' });
+const info = el('div', { hidden: true }, label('In room'), roomCode, members);
+const joinButton = el('button', { class: 'primary', id: 'join', onclick: toggleJoin }, 'Join room');
+const statusLine = el('div', { class: 'status' }, status);
+$('rail').append(
+  el('div', { class: 'brand' }, 'Watch Party'),
+  el('nav', { class: 'navs' }, [['room', 'Room'], ['browse', 'Browse'], ['link', 'Paste a link']].map(([key, text]) => {
+    navs[key] = el('button', { class: 'nav', onclick: () => go(key) }, text);
+    return navs[key];
+  })),
+  el('div', { class: 'divider' }),
+  el('div', { class: 'railBody' }, form, info, joinButton),
+  el('div', { class: 'railSpacer' }),
+  statusLine,
+  el('div', { class: 'keep' }, 'Keep this tab open while you watch: it keeps this browser in sync.'));
+for (const id of ['relay', 'room', 'name']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') toggleJoin(); });
+
+function show(view, focus) {
+  const content = $('content');
+  content.replaceChildren(view);
+  for (const [key, b] of Object.entries(navs)) b.classList.toggle('on', key === current);
+  window.scrollTo(0, 0);
+  if (focus) focus.focus({ preventScroll: true });
+}
+
+function go(key) {
+  for (const p of pages) p.close();
+  pages.length = 0;
+  current = key;
+  history.replaceState({ depth: 0 }, '');
+  const s = screens[key];
+  show(s.view, document.activeElement && document.activeElement.closest('.rail') ? null : s.defaultFocus());
+}
+
+function openTitle(t) {
+  const page = titleScreen(app, t);
+  pages.push(page);
+  current = 'browse';
+  history.pushState({ depth: pages.length }, '');
+  show(page.view, page.defaultFocus());
+}
+
+// the browser's Back goes back through title pages to Browse, as the remote's Back does
+window.addEventListener('popstate', () => {
+  const page = pages.pop();
+  if (page) page.close();
+  const top = pages[pages.length - 1];
+  show(top ? top.view : screens[current].view, null);
+});
+
+chrome.storage.local.get(['relay', 'room', 'name', 'country']).then(saved => {
   $('relay').value = saved.relay || '';
   $('room').value = saved.room || '';
   $('name').value = saved.name || '';
+  if (saved.country) {
+    app.setCountry(saved.country);
+    const c = $('country');
+    if (c) c.value = saved.country;
+  }
 });
+go('room');
 
 // Chrome can discard a background tab to save memory; this one must keep running
 chrome.tabs.getCurrent().then(tab => {
   if (tab) chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => {});
 }).catch(() => {});
-
-const ticker = new Worker('ticker.js');
-ticker.onmessage = () => step();
-
-$('join').addEventListener('click', join);
-$('leave').addEventListener('click', leave);
-$('shareTab').addEventListener('click', shareTab);
-$('shareLink').addEventListener('click', shareLink);
-$('link').addEventListener('keydown', e => { if (e.key === 'Enter') shareLink(); });
-for (const id of ['relay', 'room', 'name']) {
-  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
-}
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTabs(); });
-chrome.tabs.onUpdated.addListener(() => refreshTabs());
-chrome.tabs.onRemoved.addListener(id => {
-  if (id === playerTabId) playerTabId = null;
-  refreshTabs();
-});
+chrome.tabs.onRemoved.addListener(id => { if (id === playerTabId) playerTabId = null; });
 window.addEventListener('pagehide', () => {
   // leave the room when the page closes (best-effort; the relay also drops silent members)
   if (joined && client && client.memberId) {
@@ -62,12 +153,22 @@ window.addEventListener('pagehide', () => {
   }
 });
 
+const ticker = new Worker('ticker.js');
+ticker.onmessage = () => step();
+
+// ── joining ──────────────────────────────────────────────────────────────
+
 /** Host permission patterns for the streaming sites (Firefox asks for them; Chrome grants them at install). */
 function siteOrigins() {
   return chrome.runtime.getManifest().content_scripts.flatMap(c => c.matches);
 }
 
+function toggleJoin() {
+  if (joined) leave(); else join();
+}
+
 async function join() {
+  if (joining) return;
   const relay = $('relay').value.trim();
   const code = $('room').value.trim().toUpperCase();
   myName = $('name').value.trim() || 'Browser';
@@ -75,19 +176,20 @@ async function join() {
     setStatus('Enter the relay and the room code.', true);
     return;
   }
-  const base = normalizeBase(relay);
   let origin;
   try {
-    const u = new URL(base);
+    const u = new URL(normalizeBase(relay));
     origin = `${u.protocol}//${u.hostname}/*`;   // match patterns have no port
   } catch (e) {
     setStatus("That relay address isn't valid.", true);
     return;
   }
-  // asked first, while the click still counts as the user's: access to the relay and the sites
+  // asked first, while the click still counts as the user's: the relay, the sites, JustWatch
   let granted = false;
   try {
-    granted = await chrome.permissions.request({ origins: [origin, ...siteOrigins()] });
+    granted = await chrome.permissions.request({
+      origins: [origin, ...siteOrigins(), 'https://apis.justwatch.com/*'],
+    });
   } catch (e) {
     setStatus(`Couldn't ask for access: ${e.message}`, true);
     return;
@@ -97,28 +199,25 @@ async function join() {
     return;
   }
   chrome.storage.local.set({ relay, room: code, name: myName });
-  $('join').disabled = true;
+  joining = true;
+  joinButton.disabled = true;
   setStatus('Joining…');
   client = new RelayClient(relay, code);
   core = new SyncCore();
   try {
     lastRoom = await client.join(myName);
   } catch (e) {
-    $('join').disabled = false;
     client = null;
     setStatus(`Couldn't join: ${e.message}`, true);
     return;
+  } finally {
+    joining = false;
+    joinButton.disabled = false;
   }
   joined = true;
-  error = '';
   note = '';
-  $('join').disabled = false;
-  $('joinForm').hidden = true;
-  $('inRoom').hidden = false;
-  $('start').hidden = false;
-  $('roomCode').textContent = code;
-  $('dot').classList.add('on');
-  refreshTabs();
+  roomCode.textContent = code;
+  toast(`Joined ${code}`);
   render(lastRoom, NONE);
 }
 
@@ -128,12 +227,12 @@ async function leave() {
   client = null;
   core = null;
   lastRoom = null;
-  if (c) await c.leave();
-  $('joinForm').hidden = false;
-  $('inRoom').hidden = true;
-  $('start').hidden = true;
-  $('dot').classList.remove('on');
+  render(null, NONE);
   setStatus('Not in a room');
+  if (c) {
+    await c.leave();
+    toast(`Left ${c.room}`);
+  }
 }
 
 // ── the loop ─────────────────────────────────────────────────────────────
@@ -155,7 +254,7 @@ async function step() {
     });
     if (!joined) return;
     lastRoom = room;
-    error = '';
+    statusWarn = false;
     for (const a of core.tick(room, local, Date.now(), client.serverNowSec())) await perform(a, room);
     render(room, local);
   } catch (e) {
@@ -165,12 +264,11 @@ async function step() {
         lastRoom = await client.join(myName);
         core = new SyncCore();
       } catch (e2) {
-        error = `Rejoining failed: ${e2.message}`;
+        setStatus(`Rejoining failed: ${e2.message}`, true);
       }
-    } else {
-      error = e.message || String(e);
+    } else if (joined) {
+      setStatus(e.message || String(e), true);
     }
-    setStatus(error, true);
   } finally {
     busy = false;
   }
@@ -200,17 +298,14 @@ async function localState() {
 
 async function perform(a, room) {
   switch (a.type) {
-    case 'open': {
+    case 'open':
       setNote(`Opening ${room.item && room.item.label ? room.item.label : a.link}`);
       await openInPlayerTab(a.link);
       break;
-    }
     case 'play':
     case 'pause':
     case 'seek':
-      if (playerTabId != null) {
-        await chrome.tabs.sendMessage(playerTabId, { wp: a.type, ms: a.ms }).catch(() => {});
-      }
+      if (playerTabId != null) await chrome.tabs.sendMessage(playerTabId, { wp: a.type, ms: a.ms }).catch(() => {});
       break;
     case 'send':
       await client.command(a.cmd, a.positionSec);
@@ -235,122 +330,30 @@ async function openInPlayerTab(roomLink) {
   playerTabId = tab.id;
 }
 
-// ── starting a title ─────────────────────────────────────────────────────
-
-async function refreshTabs() {
-  if (!joined) return;
-  const select = $('tabs');
-  if (document.activeElement === select) return;
-  const tabs = (await chrome.tabs.query({})).filter(t => serviceOf(t.url || ''));
-  tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
-  const chosen = select.value;
-  select.replaceChildren(...tabs.map(t => {
-    const o = document.createElement('option');
-    o.value = String(t.id);
-    const service = serviceOf(t.url);
-    o.textContent = `${SERVICE_NAMES[service]} — ${cleanTitle(t.title, service)}`;
-    return o;
-  }));
-  if (!tabs.length) {
-    const o = document.createElement('option');
-    o.textContent = 'No streaming site open in this browser';
-    o.disabled = true;
-    select.append(o);
-  }
-  const keep = [chosen, String(playerTabId)].find(v => tabs.some(t => String(t.id) === v));
-  if (keep) select.value = keep;
-  $('shareTab').disabled = !tabs.length;
-}
-
-async function shareTab() {
-  if (!joined) return;
-  const id = Number($('tabs').value);
-  let tab;
-  try {
-    tab = await chrome.tabs.get(id);
-  } catch (e) {
-    setStatus('That tab is gone.', true);
-    refreshTabs();
-    return;
-  }
-  const service = serviceOf(tab.url || '');
-  const link = normalize(tab.url || '');
-  if (!service || !link) {
-    setStatus("That tab isn't on a streaming site Watch Party knows.", true);
-    return;
-  }
-  playerTabId = tab.id;
-  let s = null;
-  try {
-    s = await chrome.tabs.sendMessage(tab.id, { wp: 'state' });
-  } catch (e) {
-    // a page without the content script yet (opened before the extension): share it anyway
-  }
-  const label = cleanTitle((s && s.title) || tab.title, service);
-  const positionSec = s && s.positionMs > 0 ? s.positionMs / 1000 : 0;
-  try {
-    // this tab already has it: don't reload it when the room names it
-    if (s && s.play !== OTHER) core.alreadyOpen(link, Date.now());
-    lastRoom = await client.command('open', positionSec, roomItem(link, label, service));
-    setNote(`Started for everyone: ${label}`);
-    render(lastRoom, NONE);
-  } catch (e) {
-    setStatus(`Couldn't share: ${e.message}`, true);
-  }
-}
-
-async function shareLink() {
-  if (!joined) return;
-  const link = normalize($('link').value);
-  if (!link) {
-    setStatus('Paste a title\'s web link (https://…).', true);
-    return;
-  }
-  const service = serviceOf(link);
-  const label = service ? `${SERVICE_NAMES[service]} title` : new URL(link).hostname;
-  try {
-    lastRoom = await client.command('open', 0, roomItem(link, label, service));
-    $('link').value = '';
-    setNote(`Started for everyone: ${label}`);
-  } catch (e) {
-    setStatus(`Couldn't share: ${e.message}`, true);
-  }
-}
-
-// Browse (JustWatch): a picked title goes to the room like a shared link
-initBrowse({
-  inRoom: () => joined,
-  start: async (link, label) => {
-    lastRoom = await client.command('open', 0, roomItem(link, label, serviceOf(link)));
-    setNote(`Started for everyone: ${label}`);
-  },
-});
-
 // ── showing the room ─────────────────────────────────────────────────────
 
+let shownMembers = '';
+
 function render(room, local) {
-  if (!room) return;
+  form.hidden = joined;
+  info.hidden = !joined;
+  joinButton.textContent = joined ? 'Leave room' : 'Join room';
+  const list = joined && room ? room.members : [];
+  const key = JSON.stringify(list.map(m => [m.name, m.caching, m.onItem, m.paused, m.driftSec == null ? null : m.driftSec.toFixed(1)]));
+  if (key !== shownMembers) {
+    shownMembers = key;
+    members.replaceChildren(...list.map(m => el('div', { class: 'member' },
+      el('div', { class: 'who' }, el('div', { class: 'name' }, m.name || 'Someone'),
+        el('div', { class: 'what' }, m.caching ? 'Buffering' : !m.onItem ? 'Not on the title yet' : m.paused ? 'Paused' : 'Watching')),
+      el('div', { class: 'drift mono' }, m.driftSec == null ? '—' : `${m.driftSec >= 0 ? '+' : ''}${m.driftSec.toFixed(1)}s`))));
+  }
+  screens.room.tick(room);
+  if (!joined || !room) return;
+  if (statusWarn) return;
   const item = room.item;
-  $('nowPlaying').textContent = item ? (item.label || item.file) : 'Nothing yet';
-  $('nowService').textContent = item
-    ? (item.service ? SERVICE_NAMES[item.service] + (room.paused ? ' · paused' : '') : 'Not a site this browser can play')
-    : 'Share a tab, or someone else starts a title';
-  $('members').replaceChildren(...room.members.map(m => {
-    const li = document.createElement('li');
-    const who = document.createElement('span');
-    who.textContent = m.name || 'Someone';
-    const what = document.createElement('span');
-    what.className = 'what';
-    what.textContent = !m.onItem ? 'not on it yet'
-      : m.caching ? 'buffering'
-      : (m.paused ? 'paused' : 'playing') + (m.driftSec != null ? ` · ${m.driftSec >= 0 ? '+' : ''}${m.driftSec.toFixed(1)}s` : '');
-    li.append(who, what);
-    return li;
-  }));
   const here = local.service && item && local.service === item.service
-    ? ({ PLAYING: 'playing here', PAUSED: 'paused here', BUFFERING: 'loading here', OTHER: 'opening here' })[local.play]
-    : '';
-  setStatus(error || (Date.now() < noteUntil ? note : '') || (here ? `In sync · ${here}` : 'In the room'), !!error);
+    ? ({ PLAYING: 'playing here', PAUSED: 'paused here', BUFFERING: 'loading here', OTHER: 'opening here' })[local.play] : '';
+  setStatus((Date.now() < noteUntil ? note : '') || `In room ${client.room}` + (here ? ` · ${here}` : ''));
 }
 
 function setNote(text) {
@@ -359,8 +362,10 @@ function setNote(text) {
 }
 
 function setStatus(text, warn = false) {
-  $('status').textContent = text;
-  $('status').classList.toggle('warn', warn);
+  status = text;
+  statusWarn = warn;
+  statusLine.textContent = text;
+  statusLine.classList.toggle('warn', warn);
 }
 
 // for the end-to-end test

@@ -49,15 +49,6 @@ export class SyncCore {
     this.corrections = 0;
   }
 
-  /** This browser already has [file] open and playing (it shared its own
-   *  tab): don't open it again when the room's answer names it. */
-  alreadyOpen(file, nowMs) {
-    this.openedFile = file;
-    this.openedAtMs = nowMs - OPEN_GRACE_MS;
-    this.playingSinceMs = -1;
-    this.last = null;
-  }
-
   /** The just-opened title is still starting: its loading isn't the room's business. */
   isStarting(nowMs) {
     return this.openedFile !== null && nowMs - this.openedAtMs < OPEN_GRACE_MS &&
