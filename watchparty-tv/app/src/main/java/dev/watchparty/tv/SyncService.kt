@@ -210,7 +210,8 @@ class SyncService : Service() {
         val key = pkg + "\n" + item.file
         if (localizedKey != key) {
             localizedKey = key
-            localizedPkg = if (Apps.isInstalled(this, pkg)) pkg else Apps.appFor(this, item.file) ?: pkg
+            localizedPkg = if (Apps.isInstalled(this, pkg)) pkg
+            else Apps.appFor(this, item.file) ?: Apps.serviceOfLink(item.file)?.let { Apps.appByName(this, it) } ?: pkg
         }
         val local = localizedPkg ?: pkg
         return if (local == pkg) room else room.copy(item = item.copy(androidPackage = local))
@@ -256,6 +257,16 @@ class SyncService : Service() {
             startActivity(intent)
             note = "Opening in ${appName(pkg)}…"
         } catch (e: Exception) {
+            // the app doesn't take this link (e.g. Starz on phones): open it at its
+            // home screen; once someone plays, sync takes over
+            val home = packageManager.getLeanbackLaunchIntentForPackage(pkg) ?: packageManager.getLaunchIntentForPackage(pkg)
+            if (home != null) try {
+                startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                note = "Opened ${appName(pkg)}: find the title, then press Play"
+                return
+            } catch (e2: Exception) {
+                Log.w(TAG, "home screen failed for $pkg", e2)
+            }
             note = "${appName(pkg)} isn't installed or can't open this link"
             Log.w(TAG, "open failed for $pkg", e)
         }

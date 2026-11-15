@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.5.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.6.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -239,6 +239,12 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 HBO Max show pages use a *different* id from the watch link, so for HBO Max
 copy the link while it plays. Netflix needs the `source=30` extra: the same
 link without it only opened the app.
+
+**Apps that don't claim their links:** some apps don't open their website's
+links (Starz on phones), so Android can't say which app is the service's.
+Watch Party then looks for an installed app named like the service ("STARZ"
+for Starz, or the link's site name), and opens that app at its home screen:
+find the title and press Play, and sync takes over.
 
 Any other app's link is passed through unchanged. If it only opens the
 title's page, everyone presses Play and sync takes over.

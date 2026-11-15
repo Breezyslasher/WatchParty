@@ -894,7 +894,9 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         d.setServices(sorted.map { o ->
             val pkg = installedPackage(o)
             val note = when {
-                pkg == null -> "Not on this TV. Others in the room may have it."
+                pkg == null -> "Not on this ${if (phone) "phone" else "TV"}. Others in the room may have it."
+                // the app doesn't take its website's links: it opens at its home screen
+                !Apps.claimsLink(c, o.link, pkg) -> "Opens the app: find it, then press Play."
                 autoPlays(o.link) -> "Starts playing"
                 else -> "Opens the app. Everyone presses Play."
             }
@@ -909,7 +911,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     }
 
     private fun installedPackage(o: JustWatch.Offer): String? {
-        val pkg = Apps.packageFor(c, o.link, o.technicalName) ?: return null
+        val pkg = Apps.packageFor(c, o.link, o.technicalName, o.clearName) ?: return null
         return if (Apps.isInstalled(c, pkg)) pkg else null
     }
 
@@ -918,7 +920,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             d.hint("Join a room first (in the rail), then pick a service here.", warn = true)
             return
         }
-        val pkg = Apps.packageFor(c, o.link, o.technicalName)
+        val pkg = Apps.packageFor(c, o.link, o.technicalName, o.clearName)
         if (pkg == null) {
             d.hint("Don't know which app opens ${serviceName(o)} links.", warn = true)
             return
