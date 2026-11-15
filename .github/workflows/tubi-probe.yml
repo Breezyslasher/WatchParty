@@ -1,0 +1,36 @@
+name: Tubi episode probe
+
+# Manually run: asks Tubi's content API about one episode with
+# plugin.video.tubitv's own code (tools/probe/tubi_episode.py), to see whether
+# an episode id alone leads to its series and season.
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: 'A Tubi series to search for'
+        required: false
+        default: 'Forensic Files'
+      kodi_ref:
+        description: 'Branch of Breezyslasher/kodi-addons with the Tubi addon'
+        required: false
+        default: 'claude/kodi-sync-research-ekx3xo'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Breezyslasher/kodi-addons
+          ref: ${{ inputs.kodi_ref }}
+          path: kodi-addons
+      - run: pip install requests
+      - name: Probe
+        env:
+          QUERY: ${{ inputs.query }}
+        run: python3 tools/probe/tubi_episode.py --addon kodi-addons/plugin.video.tubitv "$QUERY"
