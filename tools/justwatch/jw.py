@@ -83,6 +83,57 @@ KNOWN_PLATFORMS = ["WEB", "ANDROID", "IOS", "ANDROID_TV", "FIRE_TV", "TVOS",
                    "TIZENOS", "WEBOS", "ROKU_OS", "XBOX", "PLAYSTATION"]
 
 
+# Episode links. JustWatch's schema isn't published (introspection is off),
+# so this is a best guess; GraphQL errors name any field that doesn't exist.
+EPISODES = """query E($id: ID!, $c: Country!, $l: Language!) {
+  node(id: $id) { ... on Show {
+    seasons(sortDirection: ASC) {
+      id
+      content(country: $c, language: $l) { seasonNumber title }
+      episodes(sortDirection: ASC) {
+        id
+        content(country: $c, language: $l) { episodeNumber title }
+        web: offers(country: $c, platform: WEB) {
+          monetizationType standardWebURL deeplinkURL(platform: WEB)
+          package { clearName technicalName }
+        }
+        atv: offers(country: $c, platform: ANDROID_TV) {
+          monetizationType deeplinkURL(platform: ANDROID_TV)
+          package { clearName technicalName }
+        }
+      }
+    }
+  } }
+}"""
+
+
+def episodes(node_id, country, max_seasons, max_episodes):
+    data = post(EPISODES, {"id": node_id, "c": country, "l": "en"})
+    if data.get("errors"):
+        for err in data["errors"][:5]:
+            print("   episodes error:", err.get("message", "")[:400])
+        return
+    show = (data.get("data") or {}).get("node") or {}
+    for season in (show.get("seasons") or [])[:max_seasons]:
+        sc = season.get("content") or {}
+        print(f"   -- season {sc.get('seasonNumber')} ({season.get('id')})")
+        for ep in (season.get("episodes") or [])[:max_episodes]:
+            ec = ep.get("content") or {}
+            print(f"      E{ec.get('episodeNumber')} {ec.get('title')!r} ({ep.get('id')})")
+            seen = set()
+            for kind in ("web", "atv"):
+                for o in ep.get(kind) or []:
+                    if o["monetizationType"] not in STREAMING:
+                        continue
+                    link = o.get("deeplinkURL")
+                    key = (kind, o["package"]["technicalName"], link)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    extra = f" web={o.get('standardWebURL')}" if kind == "web" else ""
+                    print(f"        {kind.upper():<3} {o['package']['clearName']:<22} deeplink={link}{extra}")
+
+
 def introspect():
     data = post(INTROSPECT, {})
     if data.get("errors"):
@@ -123,6 +174,8 @@ def main():
     ap.add_argument("titles", nargs="+")
     ap.add_argument("--country", default="US")
     ap.add_argument("--kind", default="MOVIE", choices=["MOVIE", "SHOW"])
+    ap.add_argument("--episodes", default="",
+                    help='for shows: "SEASONS,EPISODES" to list, e.g. "1,2" (season 1, first 2 episodes)')
     ap.add_argument("--platforms", default="",
                     help='comma list, or "all" to try every Platform value the API reports')
     args = ap.parse_args()
@@ -158,6 +211,10 @@ def main():
                 seen.add(key)
                 print(f"   WEB  {o['package']['clearName']:<26} [{o['package']['technicalName']}] "
                       f"{o['monetizationType']:<8} {o['standardWebURL']}")
+            if args.episodes and node.get("objectType") == "SHOW":
+                seasons_n, episodes_n = (int(x) for x in args.episodes.split(","))
+                episodes(node["id"], args.country, seasons_n, episodes_n)
+                continue
             if platforms:
                 per_platform(node["id"], args.country, platforms)
                 continue
