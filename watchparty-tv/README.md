@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.1.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -147,7 +147,10 @@ app's phone keyboard). Then:
 
 1. **Movies** or **TV shows**, filtered by **Watching / Planning / Paused /
    Completed / All** — your Yamtrack library — or **Search** for a movie or a
-   TV show (pick which with the chips above the search box).
+   TV show (pick which with the chips above the search box). Filters with
+   nothing in them are hidden (counted with one `limit=1` request per
+   status), and if nothing is being watched it opens the first list that has
+   something.
 2. Pick a title. Its page shows the rating from the server's source (TMDB's,
    not your own score), the release or first-air date, runtime, seasons,
    genres and the description (press OK on it to read all of it). For a

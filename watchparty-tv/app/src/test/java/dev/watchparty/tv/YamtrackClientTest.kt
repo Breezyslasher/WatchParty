@@ -135,6 +135,20 @@ class YamtrackClientTest {
             YamtrackClient.posterUrl("https://image.tmdb.org/t/p/w500/4D0PpNI0kmP58hgrwGC3wCjxhnm.jpg"))
     }
 
+    @Test fun hidesStatusFiltersWithNothingInThem() {
+        val order = listOf(1, 0, 2, 3, -1)   // Watching, Planning, Paused, Completed, All
+        // nothing paused or completed
+        assertEquals(listOf(1, 0, -1), YamtrackClient.statusesWithTitles(mapOf(1 to 3, 0 to 5, 2 to 0, 3 to 0, -1 to 8), order, -1))
+        // only planning: "All" would show the same titles
+        assertEquals(listOf(0), YamtrackClient.statusesWithTitles(mapOf(1 to 0, 0 to 4, 2 to 0, 3 to 0, -1 to 4), order, -1))
+        // only planning, but some are dropped (no chip): "All" shows more, so it stays
+        assertEquals(listOf(0, -1), YamtrackClient.statusesWithTitles(mapOf(1 to 0, 0 to 4, 2 to 0, 3 to 0, -1 to 6), order, -1))
+        // an empty library
+        assertEquals(emptyList<Int>(), YamtrackClient.statusesWithTitles(mapOf(1 to 0, 0 to 0, 2 to 0, 3 to 0, -1 to 0), order, -1))
+        // counts that failed (-1) or haven't arrived keep their chip
+        assertEquals(listOf(1, 0, 2, -1), YamtrackClient.statusesWithTitles(mapOf(1 to -1, 2 to 1, 3 to 0, -1 to 9), order, -1))
+    }
+
     @Test fun parsesTheTitlePage() {
         // MEDIA_DETAILS_EXAMPLE (a show), trimmed
         val show = YamtrackClient.parseDetail(JSONObject("""{

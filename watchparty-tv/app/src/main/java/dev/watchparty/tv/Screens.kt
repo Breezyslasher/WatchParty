@@ -190,6 +190,9 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     private var loading = false
     private var generation = 0
     private val items = ArrayList<YamtrackClient.Item>()
+    /** Titles per status, for "movie" and "tv": chips with none are hidden. */
+    private val counts = HashMap<String, Map<Int, Int>>()
+    private var countGeneration = 0
 
     private val tabs = LinkedHashMap<String, TextTile>()
     private val chips = LinkedHashMap<Int, TextTile>()
@@ -284,7 +287,10 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
 
     init {
         updateHeader()
-        if (configured()) reload()
+        if (configured()) {
+            reload()
+            countStatuses(tab)
+        }
     }
 
     override fun defaultFocus(): View? = if (!configured()) serverField else tabs[tab]
@@ -302,8 +308,10 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             return
         }
         host.prefs.edit().putString(KEY_URL, url).putString(KEY_TOKEN, token).apply()
+        counts.clear()
         updateHeader()
         reload()
+        if (tab != "search") countStatuses(tab)
         tabs[tab]?.requestFocus()
     }
 
@@ -318,7 +326,53 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             if (query.isNotEmpty()) reload()
         } else {
             reload()
+            countStatuses(key)
         }
+    }
+
+    /** One small request per status (limit=1, read the total), all at once. */
+    private fun countStatuses(type: String) {
+        if (!configured()) return
+        val my = ++countGeneration
+        val client = client()
+        Thread {
+            val result = HashMap<Int, Int>()
+            STATUSES.map { (code, _) ->
+                Thread {
+                    val n = try {
+                        client.library(type, if (code == ALL) null else code, 0, 1).total
+                    } catch (e: Exception) {
+                        -1
+                    }
+                    synchronized(result) { result[code] = n }
+                }.apply { start() }
+            }.forEach { it.join() }
+            c.runOnUiThread { if (my == countGeneration) applyCounts(type, result) }
+        }.start()
+    }
+
+    internal fun applyCounts(type: String, result: Map<Int, Int>) {
+        counts[type] = result
+        if (tab != type) return
+        val shown = YamtrackClient.statusesWithTitles(result, STATUSES.map { it.first }, ALL)
+        val hadFocus = chips.values.any { it.isFocused }
+        updateHeader()
+        if (shown.isNotEmpty() && status !in shown) {
+            // e.g. nothing being watched: open the first list that has something
+            status = shown.first()
+            reload()
+        } else if (shown.isEmpty()) {
+            clearGrid()
+            empty.text = emptyText()
+            empty.visibility = View.VISIBLE
+        }
+        if (hadFocus) (chips[status]?.takeIf { it.visibility == View.VISIBLE } ?: tabs[tab])?.requestFocus()
+    }
+
+    private fun emptyText(): String = when {
+        tab == "search" -> "No matches."
+        counts[tab]?.get(ALL) == 0 -> "No ${if (tab == "tv") "TV shows" else "movies"} in your Yamtrack yet. Search finds any title."
+        else -> "Nothing here."
     }
 
     private fun runSearch() {
@@ -340,7 +394,12 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             t.visibility = if (ok) View.VISIBLE else View.GONE
         }
         for ((code, chip) in chips) chip.setChosen(code == status)
-        (chipRow.parent as View).visibility = if (ok && tab != "search") View.VISIBLE else View.GONE
+        (chipRow.parent as View).visibility =
+            if (ok && tab != "search" && counts[tab]?.get(ALL) != 0) View.VISIBLE else View.GONE
+        // chips hidden for an empty status on this tab (counts arrive a moment later)
+        val known = counts[tab]
+        val shown = if (known == null) null else YamtrackClient.statusesWithTitles(known, STATUSES.map { it.first }, ALL)
+        for ((code, chip) in chips) chip.visibility = if (shown == null || code in shown) View.VISIBLE else View.GONE
         for ((key, chip) in typeChips) chip.setChosen(key == searchType)
         typeRow.visibility = if (ok && tab == "search") View.VISIBLE else View.GONE
         searchField.hint = if (searchType == "tv") "Search TV shows" else "Search movies"
@@ -409,7 +468,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
                 offset += p.items.size
                 total = if (searching) items.size else p.total
                 empty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
-                empty.text = if (items.isEmpty()) (if (searching) "No matches." else "Nothing here.") else ""
+                empty.text = if (items.isEmpty()) emptyText() else ""
             }
         }.start()
     }

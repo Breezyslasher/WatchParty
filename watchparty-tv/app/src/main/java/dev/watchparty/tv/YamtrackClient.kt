@@ -174,6 +174,20 @@ class YamtrackClient(baseUrl: String, private val token: String) {
         const val COMPLETED = 3
         const val DROPPED = 4
 
+        /**
+         * Which status filters to show, in [order], given how many titles each
+         * has ([all] is the code for "no filter"; a count < 0 means unknown, so
+         * it stays). Empty statuses go; "All" goes too when it would show the
+         * same titles as the only status left; nothing at all → empty list.
+         */
+        fun statusesWithTitles(counts: Map<Int, Int>, order: List<Int>, all: Int): List<Int> {
+            if (counts[all] == 0) return emptyList()
+            val shown = order.filter { (counts[it] ?: -1) != 0 }
+            val statuses = shown.filter { it != all }
+            if (statuses.size == 1 && all in shown && counts[all] == counts[statuses[0]]) return statuses
+            return shown
+        }
+
         /** "yamtrack.lan:8000" → "https://yamtrack.lan:8000/" (http kept if given). */
         fun normalizeBase(input: String): String {
             var s = input.trim()
