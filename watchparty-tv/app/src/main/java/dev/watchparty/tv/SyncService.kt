@@ -37,7 +37,7 @@ class SyncService : Service() {
         private const val POLL_MS = 1_000L
         /** Apps that need a link sent twice when already open (see resendIfNotPlaying). */
         private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE)
-        private const val RESEND_AFTER_MS = 4_000L
+        private const val RESEND_AFTER_MS = 8_000L
 
         const val EXTRA_RELAY = "relay"
         const val EXTRA_ROOM = "room"
@@ -282,7 +282,7 @@ class SyncService : Service() {
      * movie, it shows its home screen, even in a fresh task and with playback
      * stopped); the same link sent again, without clearing the task, then
      * opens (adb on a Samsung phone, 2026-11-15). So if it isn't playing a few
-     * seconds after the first link, send it once more.
+     * seconds (8 s: 4 s was sometimes too soon) after the first link, send it once more.
      */
     private fun resendIfNotPlaying(launch: MediaLink.Launch, pkg: String) {
         worker?.postDelayed({
