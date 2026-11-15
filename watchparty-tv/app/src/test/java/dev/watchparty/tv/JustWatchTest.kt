@@ -181,4 +181,75 @@ class JustWatchTest {
         // not on HBO Max: unchanged (the page)
         assertEquals(listOf(dplus, tubi), JustWatch.discoveryPlayLinks(listOf(dplus, tubi)))
     }
+
+    // ── search and title pages without Yamtrack (live API output, tools/justwatch/jw.py --detail, 2026-11-15)
+
+    @Test fun searchResultsCarryTheirPosterAndTmdbId() {
+        val response = JSONObject("""{"data":{"popularTitles":{"edges":[
+            {"node":{"id":"tm1238268","objectType":"MOVIE","content":{"title":"Thunderbolts*","originalReleaseYear":2025,
+             "posterUrl":"/poster/329366258/{profile}/thunderbolts.{format}","externalIds":{"tmdbId":"986056"}}}},
+            {"node":{"id":"tm3022632","objectType":"MOVIE","content":{"title":"Mallory Reimagined","originalReleaseYear":2025,
+             "posterUrl":null,"externalIds":{"tmdbId":null}}}}]}}}""")
+        val titles = JustWatch.parseTitles(response)
+        assertEquals(JustWatch.Title("tm1238268", "MOVIE", "Thunderbolts*", 2025, "986056",
+            "https://images.justwatch.com/poster/329366258/s332/thunderbolts.jpg"), titles[0])
+        assertEquals(null, titles[1].poster)
+
+        // as Browse items: by TMDB id when there is one (Yamtrack can fill the page), else JustWatch's
+        assertEquals(YamtrackClient.Item("986056", "tmdb", "movie", "Thunderbolts*",
+            "https://images.justwatch.com/poster/329366258/s332/thunderbolts.jpg", null, "2025", jwId = "tm1238268"),
+            YamtrackClient.Item.fromJustWatch(titles[0]))
+        val noTmdb = YamtrackClient.Item.fromJustWatch(titles[1])
+        assertEquals("tm3022632", noTmdb.mediaId)
+        assertEquals("justwatch", noTmdb.source)
+        assertEquals("tv", YamtrackClient.Item.fromJustWatch(titles[0].copy(objectType = "SHOW")).mediaType)
+    }
+
+    @Test fun parsesATitlePage() {
+        val response = JSONObject("""{"data":{"node":{
+            "content":{"title":"The Last of Us","originalReleaseDate":"2023-01-15","runtime":57,
+              "shortDescription":"Twenty years after modern civilization has been destroyed, Joel ...",
+              "posterUrl":"/poster/301981224/{profile}/the-last-of-us.{format}","ageCertification":"TV-MA",
+              "genres":[{"translation":"Action & Adventure"},{"translation":"Drama"}],
+              "scoring":{"imdbScore":8.4,"imdbVotes":756329,"tmdbScore":8.394},
+              "credits":[{"role":"ACTOR","name":"Pedro Pascal","characterName":"Joel Miller (uncredited)","personId":32436},
+                {"role":"ACTOR","name":"Bella Ramsey","characterName":"Ellie Williams","personId":764152},
+                {"role":"ACTOR","name":"Pedro Pascal","characterName":"Joel Miller","personId":32436},
+                {"role":"DIRECTOR","name":"Craig Mazin","characterName":"","personId":1753}]},
+            "similarTitlesV2":{"edges":[{"node":{"id":"ts88632","objectType":"SHOW","content":{"title":"Chernobyl",
+              "originalReleaseYear":2019,"posterUrl":"/poster/130849429/{profile}/chernobyl.{format}","externalIds":{"tmdbId":"87108"}}}}]}
+        }}}""")
+        val p = JustWatch.parsePage(response)!!
+        assertEquals("The Last of Us", p.title)
+        assertEquals("https://images.justwatch.com/poster/301981224/s592/the-last-of-us.jpg", p.poster)
+        assertEquals(listOf("Action & Adventure", "Drama"), p.genres)
+        assertEquals(8.394, p.score!!, 0.0001)
+        assertEquals("tmdb", p.scoreSource)
+        assertEquals(null, p.scoreCount)
+        assertEquals("2023-01-15", p.date)
+        assertEquals(57, p.runtime)
+        assertEquals("TV-MA", p.certification)
+        // actors only, each once
+        assertEquals(listOf("Pedro Pascal", "Bella Ramsey"), p.cast.map { it.name })
+        assertEquals(listOf("Chernobyl"), p.similar.map { it.title })
+        assertEquals("87108", p.similar[0].tmdbId)
+    }
+
+    @Test fun imdbRatingWhenTmdbHasNone() {
+        val response = JSONObject("""{"data":{"node":{"content":{"title":"X","runtime":0,"ageCertification":"",
+            "scoring":{"imdbScore":7.1,"imdbVotes":313489,"tmdbScore":null},"credits":[],"genres":[]}}}}""")
+        val p = JustWatch.parsePage(response)!!
+        assertEquals(7.1, p.score!!, 0.0001)
+        assertEquals("imdb", p.scoreSource)
+        assertEquals(313489, p.scoreCount)
+        assertEquals(null, p.runtime)
+        assertEquals(null, p.certification)
+        assertEquals(emptyList<JustWatch.Title>(), p.similar)
+    }
+
+    @Test fun runtimeText() {
+        assertEquals("2h 7m", JustWatch.runtimeText(127))
+        assertEquals("2h", JustWatch.runtimeText(120))
+        assertEquals("57m", JustWatch.runtimeText(57))
+    }
 }

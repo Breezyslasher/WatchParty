@@ -17,7 +17,7 @@ import android.widget.TextView
 import java.util.Locale
 
 /*
- * The content screens of the "Cinema" design: Room (home), Browse Yamtrack,
+ * The content screens of the "Cinema" design: Room (home), Browse,
  * the season / episode / service picker, and Paste a link. Values are the
  * design file's px (Ui.px halves them to dp). Behaviour is the same as
  * before the redesign: Yamtrack for titles, seasons, episodes and links,
@@ -98,7 +98,7 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
     private val nowTitle = Ui.text(c, "", 84, 800, spacingEm = -0.03f).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
     private val nowSub = Ui.oneLine(Ui.text(c, "", 30, 400, Ui.TEXT_2))
     private val idle = Ui.column(c)
-    private val browseTile = Ui.homeTile(c, "Browse Yamtrack", "Your movies and shows, or search") { host.go(Screen.BROWSE) }
+    private val browseTile = Ui.homeTile(c, "Browse", "Search any title, or your Yamtrack library") { host.go(Screen.BROWSE) }
     private val linkTile = Ui.homeTile(c, "Paste a link", "From Disney+, Netflix, HBO Max and more") { host.go(Screen.LINK) }
     private var shownFile: String? = "-"
 
@@ -174,7 +174,7 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
     }
 }
 
-// ── Browse Yamtrack ─────────────────────────────────────────────────────
+// ── Browse: Yamtrack's library, or search (Yamtrack, else JustWatch) ────
 
 class BrowseScreen(host: Host) : ContentScreen(host) {
     private val phone = Ui.isPhone(c)
@@ -213,7 +213,8 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         else setPadding(Ui.px(c, 96), Ui.px(c, 64), Ui.px(c, 96), 0)
 
         val tabRow = Ui.row(c)
-        for ((key, name) in listOf("movie" to "Movies", "tv" to "TV shows", "search" to "Search")) {
+        // without Yamtrack: Search (JustWatch) and Connect Yamtrack
+        for ((key, name) in listOf("movie" to "Movies", "tv" to "TV shows", "search" to "Search", "yamtrack" to "Connect Yamtrack")) {
             val t = Ui.tab(c, name) { selectTab(key) }
             tabs[key] = t
             tabRow.addView(t, lp(WRAP, Ui.tap(c, 68)).apply { if (tabRow.childCount > 0) leftMargin = Ui.px(c, 12) })
@@ -253,9 +254,10 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         }
         addView(searchField, lp(if (phone) MATCH else Ui.px(c, 900), Ui.tap(c, 76)).apply { topMargin = Ui.px(c, 32) })
 
-        // Yamtrack server + token, until set
+        // Yamtrack server + token, until set (optional: Search works without it)
         serverBox.addView(Ui.text(c, "Connect to Yamtrack", 44, 700))
-        serverBox.addView(Ui.text(c, "Your server and API token (Yamtrack's settings show the token). Typing is " +
+        serverBox.addView(Ui.text(c, "Optional: your library (Watching, Planning, …) and people's pages. Enter your " +
+            "server and API token (Yamtrack's settings show the token). Typing is " +
             "easiest from the Google TV app on your phone.", 28, 400, Ui.TEXT_2, lineHeight = 1.3f).apply {
             maxWidth = Ui.px(c, 1000)
         }, lp().apply { topMargin = Ui.px(c, 14) })
@@ -292,14 +294,18 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     }
 
     init {
+        if (!configured()) tab = "search"
         updateHeader()
         if (configured()) {
             reload()
             countStatuses(tab)
+        } else {
+            empty.text = "Type a title to search."
+            empty.visibility = View.VISIBLE
         }
     }
 
-    override fun defaultFocus(): View? = if (!configured()) serverField else tabs[tab]
+    override fun defaultFocus(): View? = tabs[tab]
 
     private fun configured() = configured(host.prefs)
 
@@ -315,6 +321,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         }
         host.prefs.edit().putString(KEY_URL, url).putString(KEY_TOKEN, token).apply()
         counts.clear()
+        if (tab == "yamtrack") tab = "movie"
         updateHeader()
         reload()
         if (tab != "search") countStatuses(tab)
@@ -324,9 +331,13 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     private fun selectTab(key: String) {
         tab = key
         updateHeader()
-        if (key == "search") {
+        if (key == "yamtrack") {
             clearGrid()
-            empty.text = if (query.isEmpty()) "Type a title to search Yamtrack." else ""
+            empty.visibility = View.GONE
+            serverField.requestFocus()
+        } else if (key == "search") {
+            clearGrid()
+            empty.text = if (query.isEmpty()) "Type a title to search." else ""
             empty.visibility = View.VISIBLE
             searchField.requestFocus()
             if (query.isNotEmpty()) reload()
@@ -385,7 +396,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         query = searchField.text.toString().trim()
         if (query.isEmpty()) {
             clearGrid()
-            empty.text = "Type a title to search Yamtrack."
+            empty.text = "Type a title to search."
             empty.visibility = View.VISIBLE
             return
         }
@@ -394,10 +405,15 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
 
     private fun updateHeader() {
         val ok = configured()
-        serverBox.visibility = if (ok) View.GONE else View.VISIBLE
+        serverBox.visibility = if (tab == "yamtrack") View.VISIBLE else View.GONE
         for ((key, t) in tabs) {
             t.setChosen(key == tab)
-            t.visibility = if (ok) View.VISIBLE else View.GONE
+            // the library needs Yamtrack; Search doesn't
+            t.visibility = when (key) {
+                "search" -> View.VISIBLE
+                "yamtrack" -> if (ok) View.GONE else View.VISIBLE
+                else -> if (ok) View.VISIBLE else View.GONE
+            }
         }
         for ((code, chip) in chips) chip.setChosen(code == status)
         (chipRow.parent as View).visibility =
@@ -407,11 +423,11 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         val shown = if (known == null) null else YamtrackClient.statusesWithTitles(known, STATUSES.map { it.first }, ALL)
         for ((code, chip) in chips) chip.visibility = if (shown == null || code in shown) View.VISIBLE else View.GONE
         for ((key, chip) in typeChips) chip.setChosen(key == searchType)
-        typeRow.visibility = if (ok && tab == "search") View.VISIBLE else View.GONE
+        typeRow.visibility = if (tab == "search") View.VISIBLE else View.GONE
         searchField.hint = if (searchType == "tv") "Search TV shows" else "Search movies"
-        searchField.visibility = if (ok && tab == "search") View.VISIBLE else View.GONE
-        scroll.visibility = if (ok) View.VISIBLE else View.GONE
-        if (!ok) empty.visibility = View.GONE
+        searchField.visibility = if (tab == "search") View.VISIBLE else View.GONE
+        scroll.visibility = if (tab == "yamtrack") View.GONE else View.VISIBLE
+        if (tab == "yamtrack") empty.visibility = View.GONE
     }
 
     private fun clearGrid() {
@@ -431,8 +447,8 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     }
 
     private fun load() {
-        if (loading || !configured()) return
         val searching = tab == "search"
+        if (loading || tab == "yamtrack" || (!searching && !configured())) return
         if (searching && query.isEmpty()) return
         loading = true
         val gen = generation
@@ -447,7 +463,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             var error: Exception? = null
             try {
                 page = if (searching) {
-                    client().search(searchType, text)
+                    search(searchType, text)
                 } else {
                     client().library(type, if (code == ALL) null else code, from)
                 }
@@ -463,7 +479,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
                     empty.text = "Couldn't load: ${failed.message}"
                     empty.visibility = View.VISIBLE
                     // wrong server or token: bring the form back to fix it
-                    if (failed is YamtrackClient.YamtrackException || failed is java.io.IOException) {
+                    if (!searching && (failed is YamtrackClient.YamtrackException || failed is java.io.IOException)) {
                         serverBox.visibility = View.VISIBLE
                     }
                     return@runOnUiThread
@@ -477,6 +493,25 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
                 empty.text = if (items.isEmpty()) emptyText() else ""
             }
         }.start()
+    }
+
+    /**
+     * Yamtrack's search when it's set up; JustWatch's when it isn't, fails or
+     * finds nothing. JustWatch titles carry their TMDB id when JustWatch has
+     * it, so with Yamtrack their page still comes from Yamtrack.
+     */
+    private fun search(type: String, text: String): YamtrackClient.Page {
+        if (configured()) {
+            try {
+                val p = client().search(type, text)
+                if (p.items.isNotEmpty()) return p
+            } catch (e: Exception) {
+                // try JustWatch
+            }
+        }
+        val found = JustWatch.search(text, if (type == "tv") "SHOW" else "MOVIE", host.country)
+            .map { YamtrackClient.Item.fromJustWatch(it) }
+        return YamtrackClient.Page(found, found.size)
     }
 
     /** Shows [list] as the grid (what a loaded page does). */
@@ -532,8 +567,9 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
 
         fun statusName(status: Int?) = STATUSES.firstOrNull { it.first == status }?.second
 
-        /** "TV · Watching" — Yamtrack's lists have no year. */
-        fun meta(item: YamtrackClient.Item) = listOfNotNull(kind(item.mediaType), statusName(item.status)).joinToString(" · ")
+        /** "TV · Watching" (Yamtrack's lists have no year); "Movie · 2025" for search results with one. */
+        fun meta(item: YamtrackClient.Item) =
+            listOfNotNull(kind(item.mediaType), statusName(item.status) ?: Ui.year(item.date)).joinToString(" · ")
     }
 }
 
@@ -543,6 +579,9 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private val phone = Ui.isPhone(c)
     private val show = item.mediaType == "tv"
     private val tmdb = if (item.source == "tmdb") item.mediaId else null
+    private val yamtrack = BrowseScreen.configured(host.prefs)
+    /** The title on JustWatch: the search result's id, else looked up once. */
+    @Volatile private var jwTitle: String? = item.jwId
 
     /** A season or episode from Yamtrack (TMDB numbers) or JustWatch (with its id / offers). */
     internal data class Pick(val number: Int, val title: String, val jwId: String? = null, val offers: List<JustWatch.Offer>? = null)
@@ -660,7 +699,14 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     /** The detail, cast and recommendations; each is optional (an older server, a title without them). */
     private fun loadPage() {
-        if (!BrowseScreen.configured(host.prefs) || item.source.isEmpty()) return
+        if (!yamtrack || item.source.isEmpty() || item.source == "justwatch") {
+            // without Yamtrack: JustWatch's page (description, genres, rating, cast, similar)
+            quietly {
+                val id = jwTitleId() ?: return@quietly
+                JustWatch.page(id, host.country)?.let { p -> ui { showJustWatchPage(p) } }
+            }
+            return
+        }
         val type = item.mediaType
         quietly { client().detail(type, item.source, item.mediaId).let { d -> ui { showDetail(d) } } }
         quietly { client().cast(type, item.source, item.mediaId).let { list -> ui { showCast(list) } } }
@@ -677,16 +723,32 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         }.start()
     }
 
-    internal fun showDetail(d: YamtrackClient.Detail) {
+    /** JustWatch's id for this title (searched by TMDB id or title the first time). */
+    private fun jwTitleId(): String? {
+        jwTitle?.let { return it }
+        val t = JustWatch.findTitle(item.title, tmdb, if (show) "SHOW" else "MOVIE", host.country) ?: return null
+        jwTitle = t.id
+        return t.id
+    }
+
+    internal fun showJustWatchPage(p: JustWatch.Page) {
+        showDetail(YamtrackClient.Detail(p.title, p.poster, p.synopsis, p.genres, p.score, p.scoreCount, p.date,
+            p.runtime?.let { JustWatch.runtimeText(it) }, null, null, null), p.scoreSource, p.certification)
+        showCast(p.cast.map { YamtrackClient.CastMember(it.personId, "justwatch", it.name, it.character, null) })
+        showRecommendations(p.similar.map { YamtrackClient.Item.fromJustWatch(it) })
+    }
+
+    internal fun showDetail(d: YamtrackClient.Detail, scoreSource: String = item.source, certification: String? = null) {
         setPoster(d.image)
         facts.removeAllViews()
-        if (d.score != null) facts.addView(Ui.rating(c, d.score, item.source, d.scoreCount), lp().apply { rightMargin = Ui.px(c, 20) })
+        if (d.score != null) facts.addView(Ui.rating(c, d.score, scoreSource, d.scoreCount), lp().apply { rightMargin = Ui.px(c, 20) })
         val parts = if (show) listOfNotNull(
             Ui.date(d.date)?.let { "First aired $it" },
             d.seasons?.let { if (it == 1) "1 season" else "$it seasons" },
             d.runtime,
             d.status,
-        ) else listOfNotNull(Ui.date(d.date), d.runtime)
+            certification,
+        ) else listOfNotNull(Ui.date(d.date), d.runtime, certification)
         if (parts.isNotEmpty()) facts.addView(Ui.text(c, parts.joinToString(" · "), 26, 500, Ui.TEXT_2, lineHeight = 1.3f), lp(0, WRAP, 1f))
         facts.visibility = if (facts.childCount > 0) View.VISIBLE else View.GONE
 
@@ -702,7 +764,11 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         castSection.removeAllViews()
         if (cast.isEmpty()) return
         castSection.addView(rail(c, "Cast", cast.map { m ->
-            Ui.castCard(c, m.name, m.character, m.image) { host.openPerson(m) }
+            Ui.castCard(c, m.name, m.character, m.image) {
+                // JustWatch has no person pages; Yamtrack's need a TMDB person
+                if (m.source == "justwatch") host.toast("People's pages need Yamtrack (Browse → Connect Yamtrack)")
+                else host.openPerson(m)
+            }
         }, 190))
         castSection.visibility = View.VISIBLE
     }
@@ -739,14 +805,14 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     // movies: Yamtrack's links, else JustWatch; shown when Watch opens the dialog
     private fun loadMovie() {
         val offers = try {
-            val fromYamtrack = if (tmdb != null) try {
+            val fromYamtrack = if (yamtrack && tmdb != null) try {
                 client().providers("movie", "tmdb", tmdb, host.country)
             } catch (e: Exception) {
                 emptyList()
             } else emptyList()
             fromYamtrack.ifEmpty {
-                val t = JustWatch.findTitle(item.title, tmdb, "MOVIE", host.country)
-                if (t == null) emptyList() else JustWatch.offers(t.id, host.country)
+                val id = jwTitleId()
+                if (id == null) emptyList() else JustWatch.offers(id, host.country)
             }
         } catch (e: Exception) {
             ui { movieError = "Couldn't look it up: ${e.message}"; movieOffers = emptyList(); refreshMovieDialog() }
@@ -774,14 +840,14 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     // shows: seasons and episodes from Yamtrack (TMDB), else JustWatch
     private fun loadSeasons() {
-        val fromYamtrack = if (tmdb != null) try {
+        val fromYamtrack = if (yamtrack && tmdb != null) try {
             client().seasons(tmdb).map { Pick(it.number, it.title) }
         } catch (e: Exception) {
             emptyList()
         } else emptyList()
         val seasons = fromYamtrack.ifEmpty {
-            val t = JustWatch.findTitle(item.title, tmdb, "SHOW", host.country)
-            if (t == null) emptyList() else JustWatch.seasons(t.id, host.country).map { Pick(it.number, it.title, jwId = it.id) }
+            val id = jwTitleId()
+            if (id == null) emptyList() else JustWatch.seasons(id, host.country).map { Pick(it.number, it.title, jwId = it.id) }
         }
         ui { showSeasons(seasons) }
     }
@@ -885,14 +951,14 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     /** Yamtrack's per-episode links; JustWatch when it has none. */
     private fun episodeOffers(season: Int, episode: Int): List<JustWatch.Offer> {
-        val fromYamtrack = try {
-            client().episodeProviders(tmdb!!, season, episode, host.country)
+        val fromYamtrack = if (yamtrack && tmdb != null) try {
+            client().episodeProviders(tmdb, season, episode, host.country)
         } catch (e: Exception) {
             emptyList()
-        }
+        } else emptyList()
         if (fromYamtrack.isNotEmpty()) return fromYamtrack
-        val t = JustWatch.findTitle(item.title, tmdb, "SHOW", host.country) ?: return emptyList()
-        val jwSeason = JustWatch.seasons(t.id, host.country).firstOrNull { it.number == season } ?: return emptyList()
+        val id = jwTitleId() ?: return emptyList()
+        val jwSeason = JustWatch.seasons(id, host.country).firstOrNull { it.number == season } ?: return emptyList()
         return JustWatch.episodes(jwSeason.id, host.country).firstOrNull { it.number == episode }?.offers ?: emptyList()
     }
 

@@ -418,6 +418,7 @@ object Ui {
         "tmdb" -> "TMDB"
         "mal" -> "MyAnimeList"
         "tvdb" -> "TVDB"
+        "imdb" -> "IMDb"
         else -> source.uppercase(Locale.US)
     }
 

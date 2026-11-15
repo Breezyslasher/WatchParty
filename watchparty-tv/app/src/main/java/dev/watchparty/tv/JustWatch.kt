@@ -24,7 +24,28 @@ object JustWatch {
     private const val API = "https://apis.justwatch.com/graphql"
     private val STREAMING = setOf("FLATRATE", "FREE", "ADS", "FAST")
 
-    data class Title(val id: String, val objectType: String, val title: String, val year: Int, val tmdbId: String?)
+    data class Title(val id: String, val objectType: String, val title: String, val year: Int, val tmdbId: String?,
+                     val poster: String? = null)
+
+    /** A title page from JustWatch, for titles found without Yamtrack. [score]
+     *  is TMDB's ([scoreSource] "tmdb"), else IMDb's; [runtime] in minutes. */
+    data class Page(
+        val title: String,
+        val poster: String?,
+        val synopsis: String?,
+        val genres: List<String>,
+        val score: Double?,
+        val scoreSource: String,
+        val scoreCount: Int?,
+        val date: String?,
+        val runtime: Int?,
+        val certification: String?,
+        val cast: List<Credit>,
+        val similar: List<Title>,
+    )
+
+    /** An actor (JustWatch has no photos; [personId] is JustWatch's own). */
+    data class Credit(val personId: String, val name: String, val character: String?)
     data class Season(val id: String, val number: Int, val title: String)
     data class Episode(val id: String, val number: Int, val title: String, val offers: List<Offer>)
 
@@ -96,7 +117,41 @@ object JustWatch {
       } }
     }"""
 
+    /** Search and title page fields, as tools/justwatch/jw.py --detail printed
+     *  them from the live API (2026-11-15). Posters: images.justwatch.com +
+     *  "/poster/<id>/{profile}/<slug>.{format}" with s166…s718, jpg or webp. */
+    private val TITLE_FIELDS = """id objectType
+          content(country: ${'$'}c, language: ${'$'}l) { title originalReleaseYear posterUrl externalIds { tmdbId } }"""
+
+    private val SEARCH_TITLES = """query S(${'$'}f: TitleFilter!, ${'$'}c: Country!, ${'$'}l: Language!, ${'$'}first: Int!) {
+      popularTitles(country: ${'$'}c, filter: ${'$'}f, first: ${'$'}first, sortBy: POPULAR, sortRandomSeed: 0) {
+        edges { node { $TITLE_FIELDS } }
+      }
+    }"""
+
+    private val PAGE = """query T(${'$'}id: ID!, ${'$'}c: Country!, ${'$'}l: Language!) {
+      node(id: ${'$'}id) { ... on MovieOrShow {
+        content(country: ${'$'}c, language: ${'$'}l) {
+          title originalReleaseDate runtime shortDescription posterUrl ageCertification
+          genres { translation(language: ${'$'}l) }
+          scoring { imdbScore imdbVotes tmdbScore }
+          credits { role name characterName personId }
+        }
+        similarTitlesV2(country: ${'$'}c, first: 20) { edges { node { $TITLE_FIELDS } } }
+      } }
+    }"""
+
     // ── network (call off the main thread) ──────────────────────────────
+
+    /** Titles matching [query], most popular first. [objectType] is "MOVIE" or "SHOW". */
+    fun search(query: String, objectType: String, country: String, first: Int = 30): List<Title> =
+        parseTitles(post(SEARCH_TITLES, JSONObject()
+            .put("f", JSONObject().put("searchQuery", query).put("objectTypes", JSONArray().put(objectType)))
+            .put("c", country).put("l", "en").put("first", first)))
+
+    /** A title's page: description, genres, rating, cast and similar titles. */
+    fun page(titleId: String, country: String): Page? =
+        parsePage(post(PAGE, JSONObject().put("id", titleId).put("c", country).put("l", "en")))
 
     /** The JustWatch title for a Yamtrack item: by TMDB id when there is one,
      *  else by exact title. [objectType] is "MOVIE" or "SHOW". */
@@ -124,13 +179,73 @@ object JustWatch {
         val out = mutableListOf<Title>()
         for (i in 0 until edges.length()) {
             val node = edges.optJSONObject(i)?.optJSONObject("node") ?: continue
-            val content = node.optJSONObject("content") ?: continue
-            val tmdb = content.optJSONObject("externalIds")?.let { text(it, "tmdbId") }
-            out += Title(node.optString("id"), node.optString("objectType"), content.optString("title"),
-                content.optInt("originalReleaseYear"), tmdb)
+            out += title(node) ?: continue
         }
         return out
     }
+
+    private fun title(node: JSONObject): Title? {
+        val content = node.optJSONObject("content") ?: return null
+        val tmdb = content.optJSONObject("externalIds")?.let { text(it, "tmdbId") }
+        return Title(node.optString("id"), node.optString("objectType"), content.optString("title"),
+            content.optInt("originalReleaseYear"), tmdb, posterUrl(text(content, "posterUrl")))
+    }
+
+    /** "/poster/329366258/{profile}/thunderbolts.{format}" → its [profile] jpg. */
+    fun posterUrl(path: String?, profile: String = "s332"): String? {
+        if (path.isNullOrBlank()) return null
+        val filled = path.replace("{profile}", profile).replace("{format}", "jpg")
+        return if (filled.startsWith("/")) IMAGES + filled else filled
+    }
+
+    fun parsePage(response: JSONObject): Page? {
+        val node = data(response).optJSONObject("node") ?: return null
+        val content = node.optJSONObject("content") ?: return null
+        val genres = mutableListOf<String>()
+        content.optJSONArray("genres")?.let { a ->
+            for (i in 0 until a.length()) a.optJSONObject(i)?.let { text(it, "translation") }?.let { genres += it }
+        }
+        val scoring = content.optJSONObject("scoring")
+        val tmdb = scoring?.let { score(it, "tmdbScore") }
+        val imdb = scoring?.let { score(it, "imdbScore") }
+        val cast = LinkedHashMap<String, Credit>()   // an actor can be listed twice (two characters)
+        content.optJSONArray("credits")?.let { a ->
+            for (i in 0 until a.length()) {
+                val o = a.optJSONObject(i) ?: continue
+                if (o.optString("role") != "ACTOR") continue
+                val id = o.optString("personId")
+                if (id.isNotEmpty() && !cast.containsKey(id)) cast[id] = Credit(id, o.optString("name"), text(o, "characterName"))
+            }
+        }
+        val similar = mutableListOf<Title>()
+        node.optJSONObject("similarTitlesV2")?.optJSONArray("edges")?.let { a ->
+            for (i in 0 until a.length()) a.optJSONObject(i)?.optJSONObject("node")?.let { title(it) }?.let { similar += it }
+        }
+        return Page(
+            title = content.optString("title"),
+            poster = posterUrl(text(content, "posterUrl"), "s592"),
+            synopsis = text(content, "shortDescription"),
+            genres = genres,
+            score = tmdb ?: imdb,
+            scoreSource = if (tmdb != null) "tmdb" else "imdb",
+            scoreCount = if (tmdb == null && imdb != null) scoring?.optInt("imdbVotes")?.takeIf { it > 0 } else null,
+            date = text(content, "originalReleaseDate"),
+            runtime = content.optInt("runtime").takeIf { it > 0 },
+            certification = text(content, "ageCertification"),
+            cast = cast.values.take(30),
+            similar = similar,
+        )
+    }
+
+    /** 127 → "2h 7m", 120 → "2h", 57 → "57m" (as Yamtrack writes them). */
+    fun runtimeText(minutes: Int): String = when {
+        minutes < 60 -> "${minutes}m"
+        minutes % 60 == 0 -> "${minutes / 60}h"
+        else -> "${minutes / 60}h ${minutes % 60}m"
+    }
+
+    private fun score(o: JSONObject, key: String): Double? =
+        if (o.isNull(key)) null else o.optDouble(key).takeIf { !it.isNaN() && it > 0 }
 
     /** Same TMDB id if we have one; otherwise the same title (ignoring case
      *  and punctuation), most popular first. */

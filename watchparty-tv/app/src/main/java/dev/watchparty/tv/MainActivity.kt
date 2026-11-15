@@ -21,8 +21,8 @@ import java.util.Locale
 
 /**
  * Watch Party's only activity, in the "Cinema" design: the one-time setup
- * screen until notification access is granted, then a rail (Room, Browse
- * Yamtrack, Paste a link, the room form or members) beside the content
+ * screen until notification access is granted, then a rail (Room, Browse,
+ * Paste a link, the room form or members) beside the content
  * screens (Screens.kt). On phones the rail becomes a top section. The
  * syncing itself happens in [SyncService], which keeps running while you
  * watch in the other app.
@@ -256,7 +256,7 @@ class MainActivity : Activity(), Host {
             info.addView(members, lp(MATCH).apply { topMargin = Ui.px(c, 14) })
 
             val navGroup = if (phone) Ui.row(c) else Ui.column(c)
-            for ((s, label) in listOf(Screen.ROOM to "Room", Screen.BROWSE to "Browse Yamtrack", Screen.LINK to "Paste a link")) {
+            for ((s, label) in listOf(Screen.ROOM to "Room", Screen.BROWSE to "Browse", Screen.LINK to "Paste a link")) {
                 val b = Ui.nav(c, if (phone && s == Screen.BROWSE) "Browse" else label) { go(s) }
                 navs[s] = b
                 navGroup.addView(b, if (phone) lp(0, Ui.tap(c, 72), 1f).apply { if (navGroup.childCount > 0) leftMargin = Ui.px(c, 10) }

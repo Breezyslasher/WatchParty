@@ -47,7 +47,24 @@ class YamtrackClient(baseUrl: String, private val token: String) {
         val date: String? = null,
         /** The character, for a person's known-for titles. */
         val role: String? = null,
-    )
+        /** JustWatch's id, for a title found on JustWatch (search without Yamtrack). */
+        val jwId: String? = null,
+    ) {
+        companion object {
+            /** A JustWatch title as an item: by its TMDB id when it has one, so a
+             *  Yamtrack server (if set) can fill its page; else by JustWatch's id. */
+            fun fromJustWatch(t: JustWatch.Title): Item = Item(
+                mediaId = t.tmdbId ?: t.id,
+                source = if (t.tmdbId != null) "tmdb" else "justwatch",
+                mediaType = if (t.objectType == "SHOW") "tv" else "movie",
+                title = t.title,
+                image = t.poster,
+                status = null,
+                date = t.year.takeIf { it > 0 }?.toString(),
+                jwId = t.id,
+            )
+        }
+    }
 
     /** The title page. [score] is the source's rating (TMDB's), not the user's. */
     data class Detail(

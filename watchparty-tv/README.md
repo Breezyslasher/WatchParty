@@ -4,8 +4,8 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.31.** Tested on a Sony Android TV 9 and a Samsung phone
-(2026-11-15): joining a room, **Browse Yamtrack** against a live Yamtrack
+**Status: 0.10** (search without Yamtrack, not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
+(2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
 (automatic) and a Chromecast HD (Google TV, Android 14; the settings switch
@@ -45,7 +45,7 @@ media sessions — the same thing the system uses for "now playing" and remote
 buttons. [Session Probe](../tools/session-probe) showed this works on a real TV:
 Disney+ on a Sony Android TV 9 paused, played and seeked exactly on command.
 
-1. **Starting a title.** Someone picks a title in **Browse Yamtrack** or
+1. **Starting a title.** Someone picks a title in **Browse** or
    pastes a link. Every device in the room opens it in its own app for that
    service (the link form that app takes), with the "fresh start" flags
    (`FLAG_ACTIVITY_NEW_TASK | CLEAR_TASK`) — without them an app that's
@@ -131,7 +131,7 @@ uninstall clears it.
 ## Phones
 
 The same APK runs on Android phones and tablets (it isn't TV-only), so a phone
-can be a member of the room or pick what to watch with **Browse Yamtrack**:
+can be a member of the room or pick what to watch with **Browse**:
 
 - **Different apps for the same service:** Netflix is `com.netflix.ninja` on
   Android TV and `com.netflix.mediaclient` on phones. A room item names the app
@@ -149,7 +149,7 @@ can be a member of the room or pick what to watch with **Browse Yamtrack**:
 
 ## Use
 
-The screen has a rail on the left (**Room**, **Browse Yamtrack**, **Paste a
+The screen has a rail on the left (**Room**, **Browse**, **Paste a
 link**, and the room itself) and the chosen screen on the right. On a phone
 the rail folds into a bar at the top.
 
@@ -157,7 +157,7 @@ the rail folds into a bar at the top.
    `https://relay.example.com`), the room code and a name, and press
    **Join room**. It stays in the room while you watch in other apps; the
    rail lists everyone in the room with what they're doing and their drift.
-2. To start something, use **Browse Yamtrack** (below) or **Paste a link**
+2. To start something, use **Browse** (below) or **Paste a link**
    and **Start for everyone** (typing on a TV is easiest from the Google TV
    remote app on a phone). **Room** shows what's playing.
 3. **Leave room** stops syncing. **Back** returns to the page before (a title
@@ -166,13 +166,27 @@ the rail folds into a bar at the top.
 Kodi members can be in the same room; they skip app links ("can't be played
 on this device"), and the TV app skips Kodi files.
 
-## Browse Yamtrack (pick an episode, no link needed)
+## Browse (pick an episode, no link needed)
 
-Press **Browse Yamtrack**. The first time, enter your
-Yamtrack server address and API token (typing is easiest with the Google TV
-app's phone keyboard). Then:
+Press **Browse**. It works **with or without Yamtrack**:
 
-1. **Movies** or **TV shows**, filtered by **Watching / Planning / Paused /
+- **Without Yamtrack** (0.10): **Search** finds any movie or TV show on
+  JustWatch, and its page comes from JustWatch too — description, genres,
+  release date, runtime, age rating, TMDB's rating (IMDb's if TMDB has none),
+  the cast (names only: cast cards say people's pages need Yamtrack) and
+  **More like this** (JustWatch's similar titles). Seasons, episodes and
+  services were already JustWatch's when Yamtrack had none. **Connect
+  Yamtrack** (a tab) adds your library.
+- **With Yamtrack:** enter your server address and API token under
+  **Connect Yamtrack** (typing is easiest with the Google TV app's phone
+  keyboard). Search uses Yamtrack first and JustWatch when Yamtrack finds
+  nothing or fails; a JustWatch result with a TMDB id still gets Yamtrack's
+  page.
+
+JustWatch's fields were checked against the live API with
+`tools/justwatch/jw.py --detail` (2026-11-15). Then:
+
+1. **Movies** or **TV shows** (with Yamtrack), filtered by **Watching / Planning / Paused /
    Completed / All** — your Yamtrack library — or **Search** for a movie or a
    TV show (pick which with the chips above the search box). Filters with
    nothing in them are hidden (counted with one `limit=1` request per
@@ -201,7 +215,8 @@ the `feat/add-api` work); it's only read: `GET api/v1/media/{movie|tv}/`
 (your library), `GET api/v1/search/{movie|tv}/`, and for a title's page
 `GET api/v1/media/{type}/{source}/{id}/` (with `cast/` and
 `recommendations/`) and `GET api/v1/people/{source}/{id}/` (with
-`known_for/`), with `Authorization: Bearer <token>`. Friends without Yamtrack don't need it.
+`known_for/`), with `Authorization: Bearer <token>`. Without it, Browse uses
+only JustWatch (see above).
 
 **Where the links come from:**
 
@@ -366,7 +381,8 @@ app. Then check the app can be controlled: Session Probe's
 - `SyncCore.kt` — all sync decisions, no Android code (unit-tested).
 - `RelayClient.kt` — the relay protocol v3 (join/poll/command/leave, clock offset).
 - `MediaLink.kt` — link normalization (only confirmed formats are rewritten).
-- `JustWatch.kt` — where to watch a title, its seasons and episodes, and each one's link (unit-tested).
+- `JustWatch.kt` — search and title pages without Yamtrack; where to watch a title, its seasons and
+  episodes, and each one's link (unit-tested).
 - `YamtrackClient.kt` — read-only Yamtrack API client: library, search, title details, cast,
   recommendations, people (unit-tested).
 - `Ui.kt` — the design system: colours, Figtree / JetBrains Mono (`assets/fonts`, OFL),
