@@ -56,14 +56,24 @@ Open Watch Party and press **Set up access**. It tries two ways, in order:
 2. **The settings switch.** If automatic setup can't run and the TV has a
    notification-access screen, Watch Party opens it: turn Watch Party on.
 
-   **Greyed-out switch the remote can't select (Google TV, Android 13+):**
-   click it once with a **USB or Bluetooth mouse**; after that the remote works
-   on it too. Android 13+ flags apps installed from a file (Send Files to TV, a
-   file manager) with `ACCESS_RESTRICTED_SETTINGS: deny`; on the Chromecast HD
-   (Android 14) that made the row unreachable with the remote but a mouse click
-   still toggled it. The flag is set only for installs whose package source is
-   "local file" or "downloaded file" (`InstallPackageHelper` in AOSP 14), so
-   `adb install` (source "other") doesn't get it.
+   **Why Watch Party's row reads "Allows syncing what's playing":** TV Settings
+   sorts this list by the access service's label (shown under the app name).
+   Google TV lists its own listener first — "Google TV, Required by system",
+   which Settings disables — and a disabled row can't take focus, so on the
+   Chromecast HD (Android 14) focus stayed on the screen's outer panel and the
+   remote couldn't reach any row (`uiautomator dump`: Watch Party's row
+   `enabled="true"` but nothing in the list focused). Starting the label with
+   "A" sorts Watch Party first, where the remote can select it (0.6.2, tested
+   with the remote only).
+
+   If the remote still can't reach the list on some TV, click Watch Party's
+   switch once with a **USB or Bluetooth mouse**; after that the remote works
+   too.
+
+   (Android 13+ also flags apps installed from a file — Send Files to TV, a
+   file manager — with `ACCESS_RESTRICTED_SETTINGS: deny`. On the Chromecast
+   HD that flag did not disable the row; the focus problem above was the
+   cause.)
 
 If the TV has no settings screen and no network adb (some TVs hide the screen;
 the Sony has none), turn on debugging (Settings → Device Preferences → About:

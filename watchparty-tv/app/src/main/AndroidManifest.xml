@@ -68,11 +68,17 @@
             android:foregroundServiceType="mediaPlayback" />
 
         <!-- Reads no notifications: notification access is what unlocks other
-             apps' media sessions (see SessionAccessService). -->
+             apps' media sessions (see SessionAccessService).
+             The label starts with "A" on purpose: TV Settings sorts the
+             notification-access list by this label and shows it under the
+             app name. Google TV puts its own listener ("Google TV", disabled,
+             "Required by system") first; a disabled first row can't take
+             focus, so the remote couldn't reach any row (Chromecast HD,
+             Android 14). Sorting first keeps Watch Party reachable. -->
         <service
             android:name=".SessionAccessService"
             android:exported="true"
-            android:label="Watch Party"
+            android:label="Allows syncing what's playing"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

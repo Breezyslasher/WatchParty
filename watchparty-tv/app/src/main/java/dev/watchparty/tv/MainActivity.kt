@@ -29,9 +29,9 @@ class MainActivity : Activity() {
 
     companion object {
         const val SWITCH_TIP =
-            "In the settings screen, turn on Watch Party.\n" +
-                "If the remote can't select its switch (it looks greyed out), click it once with a USB or " +
-                "Bluetooth mouse — after that the remote works on it too. Then come back here."
+            "In the settings screen, turn on Watch Party (it's at the top of the list), then come back here.\n" +
+                "If the remote can't reach the list at all, click Watch Party's switch once with a USB or " +
+                "Bluetooth mouse — after that the remote works too."
         const val ACCESS_DONE = "Done — Watch Party can now see and control what's playing."
     }
 
