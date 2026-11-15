@@ -166,7 +166,8 @@ class SyncService : Service() {
                 positionSec = if (local.positionMs >= 0) local.positionMs / 1000.0 else 0.0,
                 paused = local.play != LocalPlay.PLAYING,
                 file = local.pkg ?: "",
-                caching = local.play == LocalPlay.BUFFERING,
+                // loading a just-opened title isn't buffering the party should wait for
+                caching = local.play == LocalPlay.BUFFERING && !core.isStarting(System.currentTimeMillis()),
                 onItem = previous != null && core.onItem(previous, local),
                 corrections = core.corrections,
             ))

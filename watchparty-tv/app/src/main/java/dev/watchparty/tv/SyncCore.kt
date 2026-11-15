@@ -17,7 +17,8 @@ package dev.watchparty.tv
  *    sent to the room so everyone follows;
  *  - a just-launched app is left alone (no play, pause or seek) until it has
  *    played for STARTED_MS, or OPEN_GRACE_MS passes: seeking HBO Max's player
- *    while it started (5 s in, the room ahead) closed it on a phone.
+ *    while it started (5 s in, the room ahead) closed it on a phone. Its
+ *    loading isn't reported as buffering either (see isStarting).
  */
 
 /** A party item as the relay stores it. Android items carry their link in
@@ -101,6 +102,18 @@ class SyncCore(
 
     var corrections = 0
         private set
+
+    /**
+     * Whether the app launched for the current item is still starting up
+     * (OPEN_GRACE_MS, until it has played STARTED_MS). Its buffering then
+     * isn't reported to the room: the relay pauses everyone while a member
+     * buffers, and a TV's Netflix flipping between buffering and playing as
+     * it loaded paused the room again and again — the other device looped
+     * its first seconds until the TV caught up.
+     */
+    fun isStarting(nowMs: Long): Boolean =
+        openedFile != null && nowMs - openedAtMs < OPEN_GRACE_MS &&
+            (playingSinceMs < 0 || nowMs - playingSinceMs < STARTED_MS)
 
     /** Is the local session on the party's item? */
     fun onItem(room: RoomState, local: LocalState): Boolean {

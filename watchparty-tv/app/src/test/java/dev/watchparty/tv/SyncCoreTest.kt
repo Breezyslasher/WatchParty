@@ -135,4 +135,21 @@ class SyncCoreTest {
         assertTrue(core.tick(room(), local(0.0, LocalPlay.PAUSED), SyncCore.OPEN_GRACE_MS + 1_000, 1021.0)
             .contains(Action.Play))
     }
+
+    @Test fun startingUpIsNotBufferingForTheRoom() {
+        val core = SyncCore()
+        assertEquals(false, core.isStarting(0L))   // nothing opened yet
+        core.tick(room(), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0)
+        assertEquals(true, core.isStarting(2_000L))
+        core.tick(room(), local(0.0, LocalPlay.BUFFERING), 2_000L, 1002.0)
+        assertEquals(true, core.isStarting(3_000L))
+        core.tick(room(), local(0.5), 4_000L, 1004.0)   // playing from 4 s
+        assertEquals(true, core.isStarting(6_000L))
+        core.tick(room(), local(2.5), 6_000L, 1006.0)
+        assertEquals(false, core.isStarting(7_000L))  // played 3 s: started
+        // and never past the grace
+        val other = SyncCore()
+        other.tick(room(), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0)
+        assertEquals(false, other.isStarting(SyncCore.OPEN_GRACE_MS + 1))
+    }
 }
