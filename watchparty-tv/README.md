@@ -40,19 +40,47 @@ adb install -r WatchPartyTV.apk
 If installing fails, `adb install` prints the reason — on the Sony TV it was
 a full disk (`Requested internal only, but not enough space`).
 
-Then grant access to what's playing, once. Watch Party shows a **Grant access** button
-when the TV has a settings screen for it (many Android 11+ / Google TV devices); press it
-and switch Watch Party on. On a Chromecast with Google TV (Android 14) the switch
-wouldn't move, even after a clean install through Watch Party Setup — Android TV's
-open-source Settings doesn't block it, so it's Google TV's own Settings; the cause is
-unknown. Many TVs hide the screen entirely (the Sony Android TV 9 has none). In both
-cases use adb (on Android 11+: Wireless debugging → `adb pair`, then `adb connect`):
+### Grant access to what's playing (once)
+
+Open Watch Party and press **Set up access**. It tries two ways, in order:
+
+1. **Automatic setup, no computer.** If the TV's debugging is on, Watch Party
+   connects to the TV's own adb service and grants itself access (and log
+   access, for sharing Disney+ titles). The TV asks "Allow USB debugging?" —
+   choose *Always allow* and OK. Afterwards debugging can be turned off again.
+   This works when the TV's adb listens on the network: Android's adbd listens
+   on TCP 5555 when the device has no USB debugging port (most TVs, e.g. the
+   Sony Android TV 9) or when Network debugging is on. A TV with a USB debugging
+   port (Chromecast with Google TV) only offers *Wireless debugging*, which
+   needs a pairing code and isn't supported by automatic setup.
+2. **The settings switch.** If automatic setup can't run and the TV has a
+   notification-access screen, Watch Party opens it: turn Watch Party on.
+
+   **Greyed-out switch the remote can't select (Google TV, Android 13+):**
+   click it once with a **USB or Bluetooth mouse**; after that the remote works
+   on it too. Android 13+ flags apps installed from a file (Send Files to TV, a
+   file manager) with `ACCESS_RESTRICTED_SETTINGS: deny`; on the Chromecast HD
+   (Android 14) that made the row unreachable with the remote but a mouse click
+   still toggled it. The flag is set only for installs whose package source is
+   "local file" or "downloaded file" (`InstallPackageHelper` in AOSP 14), so
+   `adb install` (source "other") doesn't get it.
+
+If the TV has no settings screen and no network adb (some TVs hide the screen;
+the Sony has none), turn on debugging (Settings → Device Preferences → About:
+press **Build** 7 times; then Developer options → USB/Network debugging) and
+press **Set up access** again — it shows these steps itself.
+
+From a computer instead (Android 11+: Wireless debugging → `adb pair`, then
+`adb connect`):
 
 ```
 adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.SessionAccessService
 ```
 
 (On Android 8 and older: `adb shell settings put secure enabled_notification_listeners dev.watchparty.tv/dev.watchparty.tv.SessionAccessService`.)
+
+Updates installed over the app (same signing key) keep the access; only an
+uninstall clears it.
 
 ## Use
 

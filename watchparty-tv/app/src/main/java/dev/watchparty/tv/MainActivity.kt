@@ -13,7 +13,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
-import android.text.TextUtils
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -28,6 +27,14 @@ import android.widget.TextView
  */
 class MainActivity : Activity() {
 
+    companion object {
+        const val SWITCH_TIP =
+            "In the settings screen, turn on Watch Party.\n" +
+                "If the remote can't select its switch (it looks greyed out), click it once with a USB or " +
+                "Bluetooth mouse — after that the remote works on it too. Then come back here."
+        const val ACCESS_DONE = "Done — Watch Party can now see and control what's playing."
+    }
+
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var relayField: EditText
     private lateinit var roomField: EditText
@@ -37,7 +44,11 @@ class MainActivity : Activity() {
     private lateinit var joinButton: Button
     private lateinit var statusView: TextView
     private lateinit var accessView: TextView
-    private lateinit var grantButton: Button
+    private lateinit var setupButton: Button
+    private lateinit var settingsButton: Button
+    @Volatile private var setupRunning = false
+    /** Latest message from automatic setup; shown instead of the instructions. */
+    private var setupStatus: String? = null
     private lateinit var shareNote: TextView
     private lateinit var nowPlayingView: TextView
 
@@ -62,8 +73,10 @@ class MainActivity : Activity() {
 
         accessView = label("", 15f).apply { typeface = Typeface.MONOSPACE }
         root.addView(accessView)
-        grantButton = button("Grant access") { openAccessScreen() }
-        root.addView(grantButton)
+        setupButton = button("Set up access") { startSetup() }
+        root.addView(setupButton)
+        settingsButton = button("Open developer settings") { openDeveloperSettings() }
+        root.addView(settingsButton)
 
         root.addView(label("Relay", 15f))
         relayField = field("relay.example.com or 192.168.1.5:8765", prefs.getString("relay", "") ?: "")
@@ -260,28 +273,89 @@ class MainActivity : Activity() {
 
     private fun showAccess() {
         val component = ComponentName(this, SessionAccessService::class.java)
-        val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
-        val granted = TextUtils.split(enabled, ":").any { ComponentName.unflattenFromString(it) == component }
-        if (granted) {
-            accessView.visibility = View.GONE
-            grantButton.visibility = View.GONE
+        if (SelfSetup.hasAccess(this)) {
+            // say "done" once, right after setup; hide the section after that
+            val after = setupStatus
+            setupStatus = null
+            accessView.visibility = if (after != null) View.VISIBLE else View.GONE
+            if (after != null) accessView.text = if (after == SelfSetup.DONE) after else ACCESS_DONE
+            setupButton.visibility = View.GONE
+            settingsButton.visibility = View.GONE
             return
         }
+        val screen = accessScreen(component)
         accessView.visibility = View.VISIBLE
+        setupButton.visibility = View.VISIBLE
+        setupButton.isEnabled = !setupRunning
+        // only TVs without a settings switch need debugging turned on by hand
+        settingsButton.visibility =
+            if (screen == null && !SelfSetup.debuggingOn(this)) View.VISIBLE else View.GONE
+
+        val status = setupStatus
+        if (status != null) {
+            accessView.text = status
+            return
+        }
         val c = component.flattenToString()
         val adb = if (Build.VERSION.SDK_INT >= 28) "adb shell cmd notification allow_listener $c"
         else "adb shell settings put secure enabled_notification_listeners $c"
-        val screen = accessScreen(component)
-        if (screen != null) {
-            grantButton.visibility = View.VISIBLE
-            accessView.text = "One-time setup — Watch Party needs access to what's playing. " +
-                "Press Grant access and turn on Watch Party." +
-                "\nIf the switch won't move (seen on a Chromecast with Google TV) or is missing, " +
-                "run this from a computer instead:\n$adb"
-        } else {
-            grantButton.visibility = View.GONE
-            accessView.text = "One-time setup — Watch Party needs access to what's playing. " +
-                "This TV has no settings screen for it, so run this from a computer:\n$adb"
+        accessView.text = "One-time setup — Watch Party needs access to what's playing. Press Set up access.\n" +
+            (if (screen != null) "It sets everything up automatically if debugging is on; otherwise it opens " +
+                "the settings switch for you to turn on."
+            else "It sets everything up automatically and shows you how to turn on debugging for a moment " +
+                "(this TV has no settings switch for it).") +
+            "\nFrom a computer instead: $adb"
+    }
+
+    /**
+     * One button for both ways in: automatic setup through the TV's own adb
+     * first; if that can't run (debugging off, or Wireless debugging only) and
+     * the TV has a settings switch for notification access, open that.
+     */
+    private fun startSetup() {
+        if (setupRunning) return
+        setupRunning = true
+        setupButton.isEnabled = false
+        setupStatus = "Starting setup…"
+        showAccess()
+        val app = applicationContext
+        val screen = accessScreen(ComponentName(this, SessionAccessService::class.java))
+        Thread {
+            var granted = false
+            try {
+                granted = SelfSetup.run(app, quietWhenDebuggingOff = screen != null) { message ->
+                    handler.post {
+                        setupStatus = message
+                        showAccess()
+                    }
+                }
+            } finally {
+                handler.post {
+                    setupRunning = false
+                    if (!granted && screen != null) {
+                        setupStatus = SWITCH_TIP
+                        openAccessScreen(screen)
+                    }
+                    showAccess()
+                }
+            }
+        }.start()
+    }
+
+    /** Developer options if they're on, else the About screen (press Build 7 times). */
+    private fun openDeveloperSettings() {
+        val candidates = ArrayList<Intent>()
+        if (SelfSetup.developerOptionsOn(this)) candidates.add(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        candidates.add(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS))
+        candidates.add(Intent(Settings.ACTION_SETTINGS))
+        for (intent in candidates) {
+            if (intent.resolveActivity(packageManager) == null) continue
+            try {
+                startActivity(intent)
+                return
+            } catch (e: Exception) {
+                // try the next screen
+            }
         }
     }
 
@@ -300,15 +374,13 @@ class MainActivity : Activity() {
         return candidates.firstOrNull { it.resolveActivity(packageManager) != null }
     }
 
-    private fun openAccessScreen() {
-        val screen = accessScreen(ComponentName(this, SessionAccessService::class.java)) ?: return
+    private fun openAccessScreen(screen: Intent) {
         try {
             startActivity(screen)
         } catch (e: Exception) {
-            accessView.text = "Couldn't open the settings screen (${e.javaClass.simpleName}). " +
-                "Use the adb command instead:\nadb shell cmd notification allow_listener " +
+            setupStatus = "Couldn't open the settings screen (${e.javaClass.simpleName}). " +
+                "From a computer: adb shell cmd notification allow_listener " +
                 ComponentName(this, SessionAccessService::class.java).flattenToString()
-            grantButton.visibility = View.GONE
         }
     }
 
