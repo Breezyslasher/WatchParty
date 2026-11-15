@@ -143,4 +143,22 @@ class JustWatchTest {
         assertEquals("https://www.youtube.com/watch?v=daFKP4qASjU",
             JustWatch.webLinkOf("intent://www.youtube.com/watch?v=daFKP4qASjU#Intent;launchFlags=0x00800000;scheme=https;end"))
     }
+
+    @Test fun offersCarryTheServicesIcon() {
+        val node = JSONObject().put("web", org.json.JSONArray().put(JSONObject()
+            .put("monetizationType", "FLATRATE")
+            .put("deeplinkURL", "https://www.disneyplus.com/play/91310366")
+            .put("package", JSONObject().put("technicalName", "disneyplus").put("clearName", "Disney Plus")
+                .put("icon", "/icon/147638351/s100/disneyplus.png"))))
+        assertEquals("https://images.justwatch.com/icon/147638351/s100/disneyplus.png", JustWatch.parseOffers(node).single().icon)
+    }
+
+    @Test fun aSoleServiceIsOnlyOneLink() {
+        val disney = JustWatch.Offer("disneyplus", "Disney Plus", "https://www.disneyplus.com/play/1")
+        assertEquals(disney, JustWatch.soleOffer(listOf(disney)))
+        // the same link under two plans is still one service
+        assertEquals(disney, JustWatch.soleOffer(listOf(disney, disney.copy(technicalName = "disneyplusads"))))
+        assertEquals(null, JustWatch.soleOffer(listOf(disney, JustWatch.Offer("netflix", "Netflix", "https://www.netflix.com/watch/2"))))
+        assertEquals(null, JustWatch.soleOffer(emptyList()))
+    }
 }

@@ -881,7 +881,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         fill(d, title, sub, offers)
     }
 
-    private fun fill(d: ServiceDialog, title: String, sub: String, offers: List<JustWatch.Offer>) {
+    private fun fill(d: ServiceDialog, title: String, sub: String, offers: List<JustWatch.Offer>, autoStart: Boolean = true) {
         if (offers.isEmpty()) {
             d.setServices(emptyList())
             d.hint("No streaming service has this in ${host.country}.")
@@ -898,8 +898,14 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
                 autoPlays(o.link) -> "Starts playing"
                 else -> "Opens the app. Everyone presses Play."
             }
-            Ui.serviceCard(c, serviceName(o), note, dimmed = pkg == null) { start(d, title, sub, o) }
+            Ui.serviceCard(c, serviceName(o), note, o.icon, dimmed = pkg == null) { start(d, title, sub, o) }
         })
+        // one service, and its app is here: nothing to choose, start it
+        val sole = JustWatch.soleOffer(offers)
+        if (autoStart && sole != null && installedPackage(sole) != null && SyncService.running) {
+            d.hint("Starting on ${serviceName(sole)}…")
+            start(d, title, sub, sole)
+        }
     }
 
     private fun installedPackage(o: JustWatch.Offer): String? {

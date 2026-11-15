@@ -28,8 +28,14 @@ object JustWatch {
     data class Season(val id: String, val number: Int, val title: String)
     data class Episode(val id: String, val number: Int, val title: String, val offers: List<Offer>)
 
-    /** A service that streams the title, with the link that starts it. */
-    data class Offer(val technicalName: String, val clearName: String, val link: String)
+    /** A service that streams the title, with the link that starts it and its logo (a URL). */
+    data class Offer(val technicalName: String, val clearName: String, val link: String, val icon: String? = null)
+
+    /** JustWatch's icons are paths on this host (as in Yamtrack's providers/justwatch.py). */
+    private const val IMAGES = "https://images.justwatch.com"
+
+    /** The only service, when there's exactly one (the same link twice counts once). */
+    fun soleOffer(offers: List<Offer>): Offer? = offers.distinctBy { it.link }.singleOrNull()
 
     // ── queries (the shapes run by tools/justwatch/jw.py) ─────────────────
 
@@ -42,7 +48,7 @@ object JustWatch {
 
     private val OFFER_FIELDS = """
         web: offers(country: ${'$'}c, platform: WEB) {
-          monetizationType standardWebURL deeplinkURL(platform: WEB) package { technicalName clearName }
+          monetizationType standardWebURL deeplinkURL(platform: WEB) package { technicalName clearName icon(profile: S100, format: PNG) }
         }
         atv: offers(country: ${'$'}c, platform: ANDROID_TV) {
           monetizationType deeplinkURL(platform: ANDROID_TV) package { technicalName clearName }
@@ -160,7 +166,8 @@ object JustWatch {
                 standardWeb = w?.let { text(it, "standardWebURL") },
             ) ?: continue
             // "Netflix" and "Netflix Standard with Ads" are the same app and link
-            if (out.values.none { it.link == link }) out[technical] = Offer(technical, clear, link)
+            val icon = (w ?: a)?.optJSONObject("package")?.let { text(it, "icon") }?.let { if (it.startsWith("/")) IMAGES + it else it }
+            if (out.values.none { it.link == link }) out[technical] = Offer(technical, clear, link, icon)
         }
         return out.values.toList()
     }

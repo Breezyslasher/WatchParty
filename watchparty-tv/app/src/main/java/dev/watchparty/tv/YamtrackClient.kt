@@ -244,7 +244,9 @@ class YamtrackClient(baseUrl: String, private val token: String) {
                 val raw = text(p, "tv_link") ?: text(p, "link") ?: continue
                 val link = MediaLink.normalize(raw)?.link ?: continue
                 val name = p.optString("provider_name")
-                if (out.none { it.link == link }) out += JustWatch.Offer(JustWatch.simplify(name), name, link)
+                // the logo: TMDB's (sized down) or JustWatch's icon
+                val icon = posterUrl(text(p, "image"), "w92")
+                if (out.none { it.link == link }) out += JustWatch.Offer(JustWatch.simplify(name), name, link, icon)
             }
             return out
         }

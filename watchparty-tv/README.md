@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.4.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.5.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -159,9 +159,11 @@ app's phone keyboard). Then:
    their photo, biography and the titles they're known for — and **More like
    this**. Every title there opens its own page; **Back** returns to the
    page before.
-3. The services open in a dialog in the middle of the screen: pick one.
-   Services whose app isn't on this TV are dimmed; other TVs in the room may
-   still have it. Back closes the dialog.
+3. The services open in a dialog in the middle of the screen, with their
+   logos (Yamtrack's, else JustWatch's icon): pick one. Services whose app
+   isn't on this TV are dimmed; other TVs in the room may still have it.
+   Back closes the dialog. When there's only one service and its app is on
+   this TV (and you're in a room), it starts right away.
 4. Every TV in the room starts it, the same as **Start for everyone**.
 
 Needs a Yamtrack server with the API (`api/v1/`, Yamtrack's `dev` branch or

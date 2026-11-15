@@ -290,23 +290,40 @@ object Ui {
         setOnClickListener { onClick() }
     }
 
-    /** Service cards: 112px, surface, 34/700 name over a 22 muted note, ring 5 accent, scale 1.02. */
-    fun serviceCard(c: Context, name: String, noteText: String, dimmed: Boolean, onClick: () -> Unit): Tile =
+    /** Service cards: 112px, the service's logo (80px, radius 18; its initial until it loads), 34/700 name
+     *  over a 22 muted note, ring 5 accent, scale 1.02. */
+    fun serviceCard(c: Context, name: String, noteText: String, logo: String?, dimmed: Boolean, onClick: () -> Unit): Tile =
         Tile(c).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            fill = SURFACE
+            fill = CHIP
             radius = pxf(c, 16)
             ring = ACCENT
             ringWidth = pxf(c, 5)
             focusScale = 1.02f
-            setPadding(px(c, 36), px(c, 8), px(c, 36), px(c, 8))
-            addView(oneLine(text(c, name, 34, 700)))
-            addView(text(c, noteText, 22, 400, MUTED).apply {
+            setPadding(px(c, 20), px(c, 16), px(c, 32), px(c, 16))
+            val badge = FrameLayout(c).apply {
+                background = rounded(c, LINE, 18)
+                outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) =
+                        outline.setRoundRect(0, 0, view.width, view.height, pxf(c, 18))
+                }
+                clipToOutline = true
+            }
+            badge.addView(text(c, name.take(1).uppercase(Locale.getDefault()), 36, 800, MUTED).apply { gravity = Gravity.CENTER },
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            val img = ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+            badge.addView(img, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            addView(badge, LinearLayout.LayoutParams(px(c, 80), px(c, 80)))
+            if (logo != null) Posters.load(logo, img, px(c, 80))
+            val texts = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL }
+            texts.addView(oneLine(text(c, name, 34, 700)))
+            texts.addView(text(c, noteText, 22, 400, MUTED).apply {
                 maxLines = 2
                 ellipsize = TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(c, 6) })
+            addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = px(c, 24) })
             minimumHeight = tap(c, 112)
             dim = if (dimmed) 0.55f else 1f
             setOnClickListener { onClick() }

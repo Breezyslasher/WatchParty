@@ -51,6 +51,7 @@ class YamtrackClientTest {
             "link": "https://www.themoviedb.org/movie/603-the-matrix/watch?locale=US",
             "no_charge": [
                 {"provider_id": 8, "provider_name": "Netflix", "display_priority": 0,
+                 "image": "https://image.tmdb.org/t/p/w500/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg",
                  "link": "https://www.netflix.com/title/20557937",
                  "tv_link": "https://www.netflix.com/watch/20557937"},
                 {"provider_id": 337, "provider_name": "Disney Plus", "display_priority": 1,
@@ -67,7 +68,8 @@ class YamtrackClientTest {
         }"""))
         assertEquals(
             listOf(
-                JustWatch.Offer("netflix", "Netflix", "https://www.netflix.com/watch/20557937"),
+                JustWatch.Offer("netflix", "Netflix", "https://www.netflix.com/watch/20557937",
+                    "https://image.tmdb.org/t/p/w92/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg"),
                 // no tv_link: the web link, through MediaLink (Disney+ page → /play/)
                 JustWatch.Offer("disneyplus", "Disney Plus",
                     "https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9"),
