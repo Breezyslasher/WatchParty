@@ -275,7 +275,13 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         scroll.isFocusable = false
         grid.setPadding(Ui.px(c, 12), Ui.px(c, 12), Ui.px(c, 12), Ui.px(c, 64))
         scroll.addView(grid, FrameLayout.LayoutParams(MATCH, WRAP))
-        addView(scroll, lp(MATCH, 0, 1f).apply {
+        // a view is clipped by its parent: this frame keeps posters scrolled up
+        // out of the grid from drawing over the tabs and chips
+        val gridBox = FrameLayout(c).apply {
+            clipChildren = true
+            addView(scroll, FrameLayout.LayoutParams(MATCH, MATCH))
+        }
+        addView(gridBox, lp(MATCH, 0, 1f).apply {
             topMargin = Ui.px(c, 20)
             leftMargin = -Ui.px(c, 12)
             rightMargin = -Ui.px(c, 12)

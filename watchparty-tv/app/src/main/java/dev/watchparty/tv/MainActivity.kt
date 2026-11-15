@@ -84,7 +84,18 @@ class MainActivity : Activity(), Host {
         super.onCreate(savedInstanceState)
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         window.decorView.setBackgroundColor(Ui.BG)
-        root = FrameLayout(this).apply { setBackgroundColor(Ui.BG) }
+        root = FrameLayout(this).apply {
+            setBackgroundColor(Ui.BG)
+            // Android 15 draws apps targeting SDK 35 edge to edge, under the status
+            // and navigation bars: keep everything inside them (and above the
+            // keyboard, which these insets include). TVs report none.
+            @Suppress("DEPRECATION")
+            setOnApplyWindowInsetsListener { v, insets ->
+                v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                insets
+            }
+        }
         toastView = Ui.text(this, "", 28, 600, Ui.BG).apply {
             background = Ui.rounded(this@MainActivity, Ui.TEXT, 16)
             setPadding(Ui.px(context, 36), Ui.px(context, 24), Ui.px(context, 36), Ui.px(context, 24))
