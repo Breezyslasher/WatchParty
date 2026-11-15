@@ -54,6 +54,10 @@ object MediaLink {
     // Apple TV: the app claims all of tv.apple.com. A movie page link opens the
     // page; the same link with ?action=play starts it (after the profile picker).
     private val APPLE_MOVIE = p("^https?://tv\\.apple\\.com/([a-z]{2})/movie/([^/?#]+)/(umc\\.[A-Za-z0-9.]+)$Q")
+    // An episode (JustWatch: .../episode/<name>/<umc id>?showId=...&playableId=...)
+    // opened its page on a phone; it gets ?action=play too, keeping showId and
+    // playableId (they say which show and which playable) and dropping tracking.
+    private val APPLE_EPISODE = p("^https?://tv\\.apple\\.com/([a-z]{2})/episode/([^/?#]+)/(umc\\.[A-Za-z0-9.]+)(?:\\?([^#]*))?(?:#.*)?$")
 
     private fun p(regex: String): Pattern = Pattern.compile(regex)
 
@@ -100,6 +104,14 @@ object MediaLink {
         APPLE_MOVIE.match(text)?.let {
             return Shared("https://tv.apple.com/${it.group(1)}/movie/${it.group(2)}/${it.group(3)}?action=play",
                 APPLE_TV_PACKAGE, "Apple TV movie")
+        }
+        APPLE_EPISODE.match(text)?.let {
+            val keep = (it.group(4) ?: "").split('&').filter { kv ->
+                kv.startsWith("showId=") || kv.startsWith("playableId=")
+            }
+            val query = (keep + "action=play").joinToString("&")
+            return Shared("https://tv.apple.com/${it.group(1)}/episode/${it.group(2)}/${it.group(3)}?$query",
+                APPLE_TV_PACKAGE, "Apple TV episode")
         }
         CRUNCHYROLL.match(text)?.let {
             return Shared("https://www.crunchyroll.com/watch/${it.group(1)}${it.group(2) ?: ""}", CRUNCHYROLL_PACKAGE,

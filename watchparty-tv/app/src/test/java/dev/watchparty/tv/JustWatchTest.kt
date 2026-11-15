@@ -115,7 +115,7 @@ class JustWatchTest {
         assertEquals("https://www.disneyplus.com/play/91310366-d44b-44a4-bdc4-71f999472826", offers[0].link)
         assertEquals("https://play.hbomax.com/video/watch/dae9e532-3714-4f2e-b758-fb9a13def902", offers[1].link)
         assertEquals("https://tv.apple.com/us/episode/good-news-about-hell/umc.cmc.s80mx1ic96pu6ewupz8pfasf" +
-            "?showId=umc.cmc.1srk2goyh2q2zdxcx605w8vtx&playableId=tvs.sbd.4000%3AVSEVR0560101", offers[2].link)
+            "?showId=umc.cmc.1srk2goyh2q2zdxcx605w8vtx&playableId=tvs.sbd.4000%3AVSEVR0560101&action=play", offers[2].link)
         assertEquals("https://watch.amazon.com/watch?asin=B0CH88VRKB&time=0&territory=US", offers[3].link)
     }
 

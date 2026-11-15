@@ -258,11 +258,16 @@ class SyncService : Service() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         for ((key, value) in launch.extras) intent.putExtra(key, value)
         // what the app is playing now (e.g. the movie before), to tell it apart from the new title
-        val before = if (pkg in RESEND_IF_OPEN) titleOf(activeController(pkg)) else null
+        // HBO Max only has a media session while its player is open (dumpsys on a
+        // phone): a session now means it's open, the case where it ignores the link
+        val openBefore = if (pkg in RESEND_IF_OPEN) activeController(pkg) else null
+        val before = titleOf(openBefore)
         try {
             startActivity(intent)
             note = "Opening in ${appName(pkg)}…"
-            if (pkg in RESEND_IF_OPEN) resendIfNotPlaying(launch, pkg, before)
+            // not open: it starts the link itself (still loading at 8 s, with no session
+            // yet — a resend then interrupted it), so only resend when it was open
+            if (openBefore != null) resendIfNotPlaying(launch, pkg, before)
         } catch (e: Exception) {
             // the app doesn't take this link (e.g. Starz on phones): open it at its
             // home screen; once someone plays, sync takes over

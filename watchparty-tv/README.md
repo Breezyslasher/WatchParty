@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.15.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.16.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -241,6 +241,7 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 | Disney+ (phone) | `com.disney.disneyplus` | the same links | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | Hulu (phone) | (found by Android) | JustWatch's links | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | Pluto TV (phone) | `tv.pluto.android` | `pluto.tv/us/on-demand/movies/<id>`; some shows only `pluto.tv/us/shows/<show>/` | same | ✓ movies start playing; a show link opens the show's page (Samsung phone, 2026-11-15) |
+| Apple TV (phone) | `com.apple.atve.androidtv.appletv` | movies as above; an episode `tv.apple.com/<cc>/episode/<name>/<umc id>?showId=…&playableId=…` | the same + `action=play` | ✓ movies start playing; episodes without `action=play` opened their page — with it: not yet tried (Samsung phone, 2026-11-15) |
 | Tubi | (found by Android) | `tubitv.com/movies/<id>`; an episode `tubitv.com/tv-shows/<episode id>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
 | Paramount+ | (found by Android) | `paramountplus.com/movies/<name>/<id>`; an episode `paramountplus.com/shows/<show>/video/<id>/<name>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
 | Crunchyroll | `com.crunchyroll.crunchyroid` | `crunchyroll.com/watch/<id>/…` | `crunchyroll://watch/<id>` | opens the app only — the app claims no web links |
@@ -254,10 +255,11 @@ be the movie from before), Watch Party sends it once more and says so on the
 status line (4 s was
 sometimes too soon; adb on a
 Samsung phone, 2026-11-15; its filters claim all of `play.hbomax.com`).
-**HBO Max on a phone shows no media session** (`dumpsys media_session`
-lists none for `com.wbd.stream` while it plays), so Watch Party can't see
-whether it started, and can't pause, play or seek it there: sync doesn't
-work with HBO Max on that phone. Netflix needs the `source=30` extra: the same
+HBO Max only has a media session while its player is open (`dumpsys
+media_session`: a media3 session, PLAYING, with the episode's title), so
+the resend only happens when it had one before the link — HBO Max open in
+its player, the case where it ignores links. When it wasn't open, it was
+still loading after 8 s and a resend interrupted it. Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for

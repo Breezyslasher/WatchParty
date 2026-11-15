@@ -119,4 +119,16 @@ class MediaLinkTest {
         assertEquals(emptyList<String>(), MediaLink.alternatives("https://www.starz.com/us/en/play/72168"))
         assertEquals(emptyList<String>(), MediaLink.alternatives("https://www.disneyplus.com/play/x"))
     }
+
+    @Test fun appleTvEpisodeLinksGetActionPlayAndKeepTheirIds() {
+        // JustWatch's episode link (The Office S1 E1, from a phone's log 2026-11-15) plus tracking
+        val s = MediaLink.normalize("https://tv.apple.com/us/episode/pilot/umc.cmc.5sc6v0g2nj8tk7nvyc7wejees" +
+            "?showId=umc.cmc.52w04zy67tiv11p8xvbc57wmc&playableId=tvs.sbd.4000%3AA0070401001&at=1000l3V2&ct=app_tvplus")!!
+        assertEquals("https://tv.apple.com/us/episode/pilot/umc.cmc.5sc6v0g2nj8tk7nvyc7wejees" +
+            "?showId=umc.cmc.52w04zy67tiv11p8xvbc57wmc&playableId=tvs.sbd.4000%3AA0070401001&action=play", s.link)
+        assertEquals(MediaLink.APPLE_TV_PACKAGE, s.knownPackage)
+        // without its ids
+        assertEquals("https://tv.apple.com/us/episode/pilot/umc.cmc.5sc6v0g2nj8tk7nvyc7wejees?action=play",
+            MediaLink.normalize("https://tv.apple.com/us/episode/pilot/umc.cmc.5sc6v0g2nj8tk7nvyc7wejees")!!.link)
+    }
 }
