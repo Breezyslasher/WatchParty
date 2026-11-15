@@ -19,6 +19,7 @@ object Apps {
         "appletvplus" to MediaLink.APPLE_TV_PACKAGE,
         "appletv" to MediaLink.APPLE_TV_PACKAGE,
         "amazonprime" to "com.amazon.amazonvideo.livingroom",
+        "amazonprimevideo" to "com.amazon.amazonvideo.livingroom",
         "amazonprimevideowithads" to "com.amazon.amazonvideo.livingroom",
         "youtube" to "com.google.android.youtube.tv",
         "youtubefree" to "com.google.android.youtube.tv",

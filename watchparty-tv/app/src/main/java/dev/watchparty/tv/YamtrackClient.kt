@@ -47,6 +47,16 @@ class YamtrackClient(baseUrl: String, private val token: String) {
     fun search(mediaType: String, text: String): Page =
         parseSearch(get("api/v1/search/$mediaType/?search=" + URLEncoder.encode(text, "UTF-8") + "&limit=$PAGE_SIZE"))
 
+    /**
+     * Streaming services for a movie or show, with Yamtrack's JustWatch
+     * links (`tv_link`, else `link`) — empty when the server has
+     * JUSTWATCH_ENABLED off (links are then null).
+     *   GET api/v1/media/{type}/{source}/{id}/providers/?region=
+     */
+    fun providers(mediaType: String, source: String, mediaId: String, region: String): List<JustWatch.Offer> =
+        parseProviders(get("api/v1/media/$mediaType/$source/$mediaId/providers/?region=" +
+            URLEncoder.encode(region, "UTF-8")))
+
     private fun get(path: String): JSONObject {
         val conn = URL(base + path).openConnection() as HttpURLConnection
         try {
@@ -107,6 +117,24 @@ class YamtrackClient(baseUrl: String, private val token: String) {
             }
             return Page(items, total(response, items.size))
         }
+
+        /** The no-charge (streaming) providers that have a link: `tv_link`
+         *  (starts the title) else `link`, through MediaLink's fixes. */
+        fun parseProviders(response: JSONObject): List<JustWatch.Offer> {
+            val providers = response.optJSONArray("no_charge") ?: return emptyList()
+            val out = mutableListOf<JustWatch.Offer>()
+            for (i in 0 until providers.length()) {
+                val p = providers.optJSONObject(i) ?: continue
+                val raw = text(p, "tv_link") ?: text(p, "link") ?: continue
+                val link = MediaLink.normalize(raw)?.link ?: continue
+                val name = p.optString("provider_name")
+                if (out.none { it.link == link }) out += JustWatch.Offer(JustWatch.simplify(name), name, link)
+            }
+            return out
+        }
+
+        private fun text(o: JSONObject, key: String): String? =
+            if (o.isNull(key)) null else o.optString(key).takeIf { it.isNotEmpty() }
 
         /** TMDB's full-size poster ("/t/p/original/") → a list-sized one. */
         fun posterUrl(image: String?): String? {

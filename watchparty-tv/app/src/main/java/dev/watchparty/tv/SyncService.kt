@@ -152,14 +152,14 @@ class SyncService : Service() {
             val previous = lastRoom
             var controller = sessionFor(previous)
             var local = localState(controller)
-            val room = c.poll(
+            val room = localize(c.poll(
                 positionSec = if (local.positionMs >= 0) local.positionMs / 1000.0 else 0.0,
                 paused = local.play != LocalPlay.PLAYING,
                 file = local.pkg ?: "",
                 caching = local.play == LocalPlay.BUFFERING,
                 onItem = previous != null && core.onItem(previous, local),
                 corrections = core.corrections,
-            )
+            ))
             lastRoom = room
             lastError = null
             if (room.item?.androidPackage != previous?.item?.androidPackage) {
@@ -187,6 +187,29 @@ class SyncService : Service() {
     }
 
     @Volatile private var lastRoom: RoomState? = null
+
+    private var localizedKey: String? = null
+    private var localizedPkg: String? = null
+
+    /**
+     * The room's item names the app of whoever started it, but TVs and phones
+     * can use different apps for the same service (Netflix: com.netflix.ninja
+     * on Android TV, com.netflix.mediaclient on phones). If that app isn't
+     * installed here, use the app that opens the link on this device, so
+     * opening the link and following its media session both work.
+     */
+    private fun localize(room: RoomState): RoomState {
+        val item = room.item ?: return room
+        val pkg = item.androidPackage ?: return room
+        if (!item.file.startsWith("https://") && !item.file.startsWith("http://")) return room
+        val key = pkg + "\n" + item.file
+        if (localizedKey != key) {
+            localizedKey = key
+            localizedPkg = if (Apps.isInstalled(this, pkg)) pkg else Apps.appFor(this, item.file) ?: pkg
+        }
+        val local = localizedPkg ?: pkg
+        return if (local == pkg) room else room.copy(item = item.copy(androidPackage = local))
+    }
 
     private fun perform(a: Action, controller: MediaController?, c: RelayClient) {
         Log.i(TAG, "action: $a")

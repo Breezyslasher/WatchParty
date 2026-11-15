@@ -220,6 +220,19 @@ class BrowseActivity : Activity() {
         Thread {
             try {
                 val tmdb = if (item.source == "tmdb") item.mediaId else null
+                if (!show && tmdb != null) {
+                    // Yamtrack's own JustWatch links (cached on the server);
+                    // none when the server has JustWatch off → ask JustWatch
+                    val fromYamtrack = try {
+                        client().providers("movie", "tmdb", tmdb, country)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                    if (fromYamtrack.isNotEmpty()) {
+                        ui { chooseOffer(item.title, fromYamtrack) }
+                        return@Thread
+                    }
+                }
                 val title = JustWatch.findTitle(item.title, tmdb, if (show) "SHOW" else "MOVIE", country)
                 if (title == null) {
                     ui { statusView.text = "JustWatch doesn't list \"${item.title}\" in $country." }

@@ -4,10 +4,11 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.7.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
+**Status: 0.7.1.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
 TV, Android 14): joining rooms, announcing titles, and **Set up access** on
 both (automatic on the Sony, the settings switch with the remote on the
-Chromecast). New in 0.7 and not yet tried on a TV: **Browse Yamtrack**.
+Chromecast). New in 0.7 and not yet tried on a device: **Browse Yamtrack**,
+and phones (see [Phones](#phones)).
 Syncing two TVs in one room end to end is still being tested.
 The sync logic, link handling, relay client and adb client are unit-tested
 (the relay tests against the real relay), and every app link below was
@@ -97,6 +98,26 @@ adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.Se
 Updates installed over the app (same signing key) keep the access; only an
 uninstall clears it.
 
+## Phones
+
+The same APK runs on Android phones and tablets (it isn't TV-only), so a phone
+can be a member of the room or pick what to watch with **Browse Yamtrack**:
+
+- **Different apps for the same service:** Netflix is `com.netflix.ninja` on
+  Android TV and `com.netflix.mediaclient` on phones. A room item names the app
+  of whoever started it; if that app isn't installed, Watch Party uses the app
+  that opens the link on this device, for opening it and for following its
+  playback. Disney+ (`com.disney.disneyplus`) and HBO Max (`com.wbd.stream`)
+  use the same package on both.
+- **Access:** phones have a USB debugging port, so automatic setup can't reach
+  adb over the network; **Set up access** opens the notification-access
+  switch instead. On Android 13+, a sideloaded app's switch is blocked until
+  *Settings → Apps → Watch Party → ⋮ → Allow restricted settings*.
+- **Not yet tried on a phone:** Watch Party 0.7.x itself. Session Probe
+  controlled Disney+ and Vita_plex on a phone, so syncing works there; which
+  links start playback in the phone apps (e.g. Netflix without the TV app's
+  `source=30` extra) is untested.
+
 ## Use
 
 1. Open **Watch Party**, enter the relay address (e.g. `192.168.1.5:8765` or
@@ -129,9 +150,18 @@ the `feat/add-api` work); it's only read: `GET api/v1/media/{movie|tv}/`
 (your library), `GET api/v1/search/{movie|tv}/`, with
 `Authorization: Bearer <token>`. Friends without Yamtrack don't need it.
 
-**Where the links come from:** JustWatch, matched by the TMDB id Yamtrack
-gives each title (only the title and its ids are sent). JustWatch has a link
-for **each episode** (checked with `tools/justwatch/jw.py` on GitHub Actions,
+**Where the links come from:**
+
+- **Movies:** Yamtrack's own providers endpoint
+  (`GET api/v1/media/movie/tmdb/{id}/providers/?region=`), using each
+  service's `tv_link` (else `link`) — Yamtrack looks them up on JustWatch and
+  caches them, when the server has `JUSTWATCH_ENABLED` on. If it returns no
+  links (JustWatch off, or an older server), Watch Party asks JustWatch itself.
+- **Episodes:** Yamtrack's API has no per-episode links yet (its season
+  endpoint is TMDB-only), so Watch Party asks JustWatch directly, matched by
+  the TMDB id Yamtrack gives each show (only the title and its ids are sent).
+
+JustWatch has a link for **each episode** (checked with `tools/justwatch/jw.py` on GitHub Actions,
 US, 2026-11-15):
 
 | Service | Episode link | Each episode different? |

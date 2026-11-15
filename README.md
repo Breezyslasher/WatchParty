@@ -8,7 +8,7 @@ sync — pause, play and seek on one TV and the others follow.
 
 | Folder | What it is |
 |---|---|
-| [`watchparty-tv/`](watchparty-tv) | **Watch Party for Android TV** — the app. Joins a room, opens titles in their apps, keeps them in sync. Start here. |
+| [`watchparty-tv/`](watchparty-tv) | **Watch Party for Android TV** (also runs on phones) — the app. Joins a room, opens titles in their apps, keeps them in sync. Start here. |
 | [`tools/session-probe/`](tools/session-probe) | Test app that showed a TV app can read and control another app's playback (Disney+ on a Sony Android TV 9). Also has adb commands to pause/seek from a computer. |
 | [`tools/probe/`](tools/probe) | `collect.py`: plays through many streaming apps and reports which ones expose what's playing. |
 | [`tools/justwatch/`](tools/justwatch) | `jw.py`: looks up a title's links on JustWatch, per service and platform. Runs from the *JustWatch link lookup* GitHub Actions workflow. |
@@ -35,6 +35,6 @@ under `service.watchparty` — Kodi and Android TV members can share a room.
 
 ## Status
 
-Watch Party TV 0.7 is tested on a Sony Android TV 9 and a Chromecast HD
+Watch Party TV 0.7.1 is tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14). See [watchparty-tv/README.md](watchparty-tv/README.md)
 for which apps' links start playback and what's still being tested.
