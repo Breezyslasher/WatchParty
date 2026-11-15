@@ -1,0 +1,10 @@
+{
+  "name": "watchparty-browser",
+  "private": true,
+  "type": "module",
+  "description": "Tests for the Watch Party browser extension (the extension itself is extension/, loaded unpacked).",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "e2e": "node test/e2e.mjs"
+  }
+}

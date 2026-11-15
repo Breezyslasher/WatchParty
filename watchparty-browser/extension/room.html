@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watch Party</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="room.css">
+</head>
+<body>
+  <main>
+    <header>
+      <span class="dot" id="dot"></span>
+      <h1>Watch Party</h1>
+    </header>
+
+    <section id="joinForm" class="card">
+      <h2>Join a room</h2>
+      <p class="hint">The same relay and room code as your TVs, phones and Kodi.</p>
+      <label>Relay <input id="relay" placeholder="relay.example.com or 192.168.1.5:8765" autocomplete="off"></label>
+      <label>Room code <input id="room" class="mono" placeholder="MOVIE7" autocomplete="off"></label>
+      <label>Your name <input id="name" placeholder="Laptop" autocomplete="off"></label>
+      <button id="join" class="primary">Join room</button>
+    </section>
+
+    <section id="inRoom" class="card" hidden>
+      <div class="row">
+        <div>
+          <div class="label">In room</div>
+          <div class="big mono" id="roomCode"></div>
+        </div>
+        <button id="leave">Leave room</button>
+      </div>
+      <div class="label space">Now playing</div>
+      <div id="nowPlaying" class="now">Nothing yet</div>
+      <div id="nowService" class="faint"></div>
+      <div class="label space">In the room</div>
+      <ul id="members"></ul>
+    </section>
+
+    <section id="start" class="card" hidden>
+      <h2>Start for everyone</h2>
+      <p class="hint">Open a movie or episode on a streaming site in another tab, then share it. Everyone's TV,
+        phone or browser opens the same title.</p>
+      <div class="row wrap">
+        <select id="tabs"></select>
+        <button id="shareTab" class="primary">Share this tab</button>
+      </div>
+      <div class="row wrap space">
+        <input id="link" placeholder="…or paste a title's link">
+        <button id="shareLink">Start</button>
+      </div>
+    </section>
+
+    <p id="status" class="status">Not in a room</p>
+    <p class="faint small">Keep this tab open while you watch: it keeps the browser in sync. The title plays in
+      its own tab.</p>
+  </main>
+  <script type="module" src="room.js"></script>
+</body>
+</html>

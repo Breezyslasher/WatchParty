@@ -9,13 +9,15 @@ sync — pause, play and seek on one TV and the others follow.
 | Folder | What it is |
 |---|---|
 | [`watchparty-tv/`](watchparty-tv) | **Watch Party for Android TV** (also runs on phones) — the app. Joins a room, opens titles in their apps, keeps them in sync. Start here. |
+| [`watchparty-browser/`](watchparty-browser) | **Watch Party for browsers** — a Chrome / Firefox extension that joins the same rooms and syncs Netflix, Disney+ etc. playing in a browser. |
 | [`tools/session-probe/`](tools/session-probe) | Test app that showed a TV app can read and control another app's playback (Disney+ on a Sony Android TV 9). Also has adb commands to pause/seek from a computer. |
 | [`tools/probe/`](tools/probe) | `collect.py`: plays through many streaming apps and reports which ones expose what's playing. |
 | [`tools/justwatch/`](tools/justwatch) | `jw.py`: looks up a title's links on JustWatch, per service and platform. Runs from the *JustWatch link lookup* GitHub Actions workflow. |
 
 The **relay** (the small server rooms run on) and the **Kodi addon** live in
 [Breezyslasher/kodi-addons](https://github.com/Breezyslasher/kodi-addons),
-under `service.watchparty` — Kodi and Android TV members can share a room.
+under `service.watchparty` — Kodi, Android TV, phone and browser members can
+share a room.
 
 ## Quick start
 
@@ -30,8 +32,10 @@ under `service.watchparty` — Kodi and Android TV members can share a room.
 3. Open it, press **Set up access** once (see
    [watchparty-tv/README.md](watchparty-tv/README.md#grant-access-to-whats-playing-once)),
    then enter the relay address and a room code and press **Join room**.
-4. Press **Browse Yamtrack** to pick a movie or episode from your Yamtrack
-   library (or search), or paste a title's link in **Start for everyone**.
+4. Press **Browse** to search for a movie or episode (or pick one from your
+   Yamtrack library), or paste a title's link in **Start for everyone**.
+5. On a computer, the [browser extension](watchparty-browser) joins the same
+   room and plays along in a browser tab.
 
 ## Status
 

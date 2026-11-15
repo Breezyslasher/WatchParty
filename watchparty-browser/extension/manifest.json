@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Watch Party",
+  "version": "0.1.0",
+  "description": "Watch together in sync with Watch Party rooms: browsers, Android TVs, phones and Kodi.",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": { "default_title": "Watch Party", "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" } },
+  "background": { "service_worker": "background.js", "scripts": ["background.js"] },
+  "permissions": ["tabs", "storage"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "host_permissions": [
+    "https://*.netflix.com/*", "https://*.disneyplus.com/*", "https://*.hbomax.com/*", "https://*.max.com/*",
+    "https://*.primevideo.com/*", "https://watch.amazon.com/*", "https://*.amazon.com/*", "https://*.hulu.com/*",
+    "https://*.peacocktv.com/*", "https://*.paramountplus.com/*", "https://tv.apple.com/*", "https://*.youtube.com/*",
+    "https://*.crunchyroll.com/*", "https://*.tubitv.com/*", "https://pluto.tv/*", "https://*.pluto.tv/*",
+    "https://*.starz.com/*", "https://*.plex.tv/*", "https://*.discoveryplus.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.netflix.com/*", "https://*.disneyplus.com/*", "https://*.hbomax.com/*", "https://*.max.com/*",
+        "https://*.primevideo.com/*", "https://watch.amazon.com/*", "https://*.amazon.com/*", "https://*.hulu.com/*",
+        "https://*.peacocktv.com/*", "https://*.paramountplus.com/*", "https://tv.apple.com/*", "https://*.youtube.com/*",
+        "https://*.crunchyroll.com/*", "https://*.tubitv.com/*", "https://pluto.tv/*", "https://*.pluto.tv/*",
+        "https://*.starz.com/*", "https://*.plex.tv/*", "https://*.discoveryplus.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.netflix.com/*"],
+      "js": ["netflix-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": { "id": "watchparty@breezyslasher.github.io", "strict_min_version": "128.0" }
+  }
+}

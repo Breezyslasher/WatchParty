@@ -1,0 +1,172 @@
+// Which streaming site a link is, and the link to share with the room.
+//
+// The room stores ordinary https links, the same ones Watch Party's Android
+// app shares (its MediaLink.kt rules are ported here), so a browser, a TV and
+// a phone can start the same title. Kodi members skip https links.
+
+const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})';
+const Q = '(?:[/?#].*)?$';   // the rest of the URL: ignored (tracking etc.)
+
+/** Site → service key, by host name (a host or any subdomain of it). */
+const SERVICES = [
+  ['netflix.com', 'netflix'],
+  ['disneyplus.com', 'disneyplus'],
+  ['hbomax.com', 'hbomax'],
+  ['max.com', 'hbomax'],
+  ['primevideo.com', 'primevideo'],
+  ['watch.amazon.com', 'primevideo'],
+  ['hulu.com', 'hulu'],
+  ['peacocktv.com', 'peacock'],
+  ['paramountplus.com', 'paramountplus'],
+  ['tv.apple.com', 'appletv'],
+  ['youtube.com', 'youtube'],
+  ['crunchyroll.com', 'crunchyroll'],
+  ['tubitv.com', 'tubi'],
+  ['pluto.tv', 'pluto'],
+  ['starz.com', 'starz'],
+  ['plex.tv', 'plex'],
+  ['discoveryplus.com', 'discoveryplus'],
+];
+
+/** An Android app for each service, sent with what a browser shares: Watch
+ *  Party's Android app opens an item only when it names a package, and when
+ *  that one isn't installed it uses the app that opens the link (or one
+ *  named like the service) instead — so these only need to be plausible.
+ *  The ones the Android app knows, or that were seen on a device. */
+const ANDROID = {
+  netflix: 'com.netflix.ninja',
+  disneyplus: 'com.disney.disneyplus',
+  hbomax: 'com.wbd.stream',
+  primevideo: 'com.amazon.amazonvideo.livingroom',
+  hulu: 'com.hulu.livingroomplus',
+  peacock: 'com.peacocktv.peacockandroid',
+  paramountplus: 'com.cbs.ott',
+  appletv: 'com.apple.atve.androidtv.appletv',
+  youtube: 'com.google.android.youtube.tv',
+  crunchyroll: 'com.crunchyroll.crunchyroid',
+  tubi: 'com.tubitv',
+  pluto: 'tv.pluto.android',
+  starz: 'com.bydeluxe.d3.android.program.starz',
+  plex: 'com.plexapp.android',
+  discoveryplus: 'com.discovery.discoveryplus.mobile',
+};
+
+/** Names for the room page and shared labels. */
+export const SERVICE_NAMES = {
+  netflix: 'Netflix', disneyplus: 'Disney+', hbomax: 'HBO Max', primevideo: 'Prime Video',
+  hulu: 'Hulu', peacock: 'Peacock', paramountplus: 'Paramount+', appletv: 'Apple TV',
+  youtube: 'YouTube', crunchyroll: 'Crunchyroll', tubi: 'Tubi', pluto: 'Pluto TV',
+  starz: 'Starz', plex: 'Plex', discoveryplus: 'Discovery+',
+};
+
+function host(url) {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch (e) {
+    return '';
+  }
+}
+
+/** The service a link belongs to ("netflix", …), or null. */
+export function serviceOf(url) {
+  const h = host(url);
+  if (!h) return null;
+  for (const [site, key] of SERVICES) {
+    if (h === site || h.endsWith('.' + site)) return key;
+  }
+  // Prime Video on amazon.com: /gp/video/…
+  if ((h === 'amazon.com' || h.endsWith('.amazon.com')) && /\/gp\/video\//.test(url)) return 'primevideo';
+  return null;
+}
+
+export function androidPackage(service) {
+  return ANDROID[service] || null;
+}
+
+/** Peacock's deeplink that starts pvid (as the Android app shares it). */
+export function peacockPlay(pvid, type) {
+  return 'https://www.peacocktv.com/deeplink?deeplinkData=' +
+    encodeURIComponent(JSON.stringify({ pvid, type, action: 'PLAY' }));
+}
+
+const TRACKING = /^(utm_|trackId|tctx|ref|ref_|src|source|irclickid|clickid)/i;
+
+/**
+ * The link to share for a title's page or player URL: the forms the Android
+ * app uses where it has a rule (they start playback on TVs and phones), else
+ * the URL without tracking parameters. null if it isn't a web link.
+ */
+export function normalize(raw) {
+  const text = (raw || '').trim();
+  if (!/^https?:\/\//.test(text)) return null;
+  let m;
+  // affiliate redirects (*.pxf.io, *.sjv.io) wrap the real link in u=
+  if ((m = text.match(/^https?:\/\/(?:[a-z0-9-]+\.)*(?:pxf|sjv)\.io\/[^?#]*\?([^#]*)/))) {
+    const u = new URLSearchParams(m[1]).get('u');
+    if (u && /^https?:\/\//.test(u)) return normalize(u);
+  }
+  if ((m = text.match(new RegExp(`^https?://(?:www\\.)?disneyplus\\.com/(?:[a-z]{2}-[a-z]{2}/)?(?:play/|browse/entity-)${UUID}${Q}`)))) {
+    return `https://www.disneyplus.com/play/${m[1].toLowerCase()}`;
+  }
+  if ((m = text.match(new RegExp(`^https?://(?:www\\.)?starz\\.com/([a-z]{2})/([a-z]{2})/(?:play|movies)/(\\d+)${Q}`)))) {
+    return `https://www.starz.com/${m[1]}/${m[2]}/play/${m[3]}`;
+  }
+  if ((m = text.match(new RegExp(`^https?://(?:www\\.)?netflix\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:title|watch)/(\\d+)${Q}`)))) {
+    return `https://www.netflix.com/watch/${m[1]}`;
+  }
+  if ((m = text.match(new RegExp(`^https?://(?:www\\.|play\\.)?(?:hbo)?max\\.com/video/watch/(${UUID}(?:/${UUID})?)${Q}`)))) {
+    return `https://play.hbomax.com/video/watch/${m[1].toLowerCase()}`;
+  }
+  if ((m = text.match(new RegExp(`^https?://(?:www\\.|play\\.)?discoveryplus\\.com/video/watch/(${UUID}(?:/${UUID})?)${Q}`)))) {
+    return `https://play.discoveryplus.com/video/watch/${m[1].toLowerCase()}`;
+  }
+  if ((m = text.match(new RegExp(`^https?://tv\\.apple\\.com/([a-z]{2})/movie/([^/?#]+)/(umc\\.[A-Za-z0-9.]+)${Q}`)))) {
+    return `https://tv.apple.com/${m[1]}/movie/${m[2]}/${m[3]}?action=play`;
+  }
+  if ((m = text.match(/^https?:\/\/tv\.apple\.com\/([a-z]{2})\/episode\/([^/?#]+)\/(umc\.[A-Za-z0-9.]+)(?:\?([^#]*))?(?:#.*)?$/))) {
+    const keep = (m[4] || '').split('&').filter(kv => kv.startsWith('showId=') || kv.startsWith('playableId='));
+    return `https://tv.apple.com/${m[1]}/episode/${m[2]}/${m[3]}?${[...keep, 'action=play'].join('&')}`;
+  }
+  if ((m = text.match(/^https?:\/\/(?:www\.)?peacocktv\.com\/watch\/asset\/(movies|tv)\/([^?#]*)\/([0-9a-f-]{36})(?:[/?#].*)?$/))) {
+    const episode = m[1] === 'tv' && m[2].includes('/episodes/');
+    if (m[1] === 'movies' || episode) return peacockPlay(m[3], episode ? 'EPISODE' : 'PROGRAMME');
+  }
+  if ((m = text.match(/^https?:\/\/(?:www\.)?crunchyroll\.com\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?watch\/([A-Z0-9]+)(\/[^?#]*)?(?:[?#].*)?$/))) {
+    return `https://www.crunchyroll.com/watch/${m[1]}${m[2] || ''}`;
+  }
+  // anything else: drop tracking parameters, keep the rest (YouTube's v=, Amazon's asin=, …)
+  try {
+    const url = new URL(text);
+    for (const key of [...url.searchParams.keys()]) if (TRACKING.test(key)) url.searchParams.delete(key);
+    url.hash = '';
+    return url.toString();
+  } catch (e) {
+    return text;
+  }
+}
+
+/** A tab title without the site's suffix: "Thunderbolts* | Disney+" → "Thunderbolts*". */
+export function cleanTitle(title, service) {
+  let t = (title || '').trim();
+  const name = SERVICE_NAMES[service];
+  t = t.replace(/^(Watch|Watching)\s+/i, '');
+  for (const sep of [' | ', ' - ', ' – ', ' — ', ' · ']) {
+    const at = t.lastIndexOf(sep);
+    if (at > 0) {
+      const tail = t.slice(at + sep.length).toLowerCase();
+      if ((name && tail.includes(name.toLowerCase().replace('+', ''))) ||
+          /netflix|disney|max|prime|hulu|peacock|paramount|apple|youtube|crunchyroll|tubi|pluto|starz|plex|discovery/.test(tail)) {
+        t = t.slice(0, at).trim();
+      }
+    }
+  }
+  return t || (name ? `${name} title` : 'A title');
+}
+
+/** The relay item for a shared title (the Android app's appItem shape). */
+export function roomItem(link, label, service) {
+  const item = { file: link, label, title: label };
+  const pkg = androidPackage(service);
+  if (pkg) item.ids = { android: pkg };
+  return item;
+}
