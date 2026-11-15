@@ -175,7 +175,6 @@ object MediaLink {
         return Shared(text, null, hostOf(text))
     }
 
-    /** How this TV should open a room link in [pkg]. */
     /** How to launch [link] in [pkg]; [appTakesLink]: the app claims the link
      *  as is (a phone's Crunchyroll app does; the TV app doesn't). */
     fun launchFor(link: String, pkg: String, appTakesLink: Boolean = false): Launch {

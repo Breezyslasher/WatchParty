@@ -321,7 +321,8 @@ is on both, Discovery+ gets that play link; a movie only on Discovery+ opens
 its page ("Opens the movie's page: press Play").
 
 **Netflix on the TV** needs the `source=30` extra: the same link without it
-only opened the app. (It's sent to the phone app too.)
+only opened the app. The phone app (`com.netflix.mediaclient`) gets the plain link, which
+starts playing.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
 Starz is `starz.com/movies/<id>` (episodes: `starz.com/series/<id>/episodes/<id>`).
