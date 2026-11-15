@@ -35,8 +35,11 @@ class SyncService : Service() {
         private const val CHANNEL = "sync"
         private const val NOTIFICATION_ID = 1
         private const val POLL_MS = 1_000L
-        /** Apps that need a link sent twice when already open (see resendIfNotPlaying). */
-        private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE)
+        /** Warner Bros. Discovery's apps (same player, play.<app>.com/video/watch/<id>
+         *  links): on a phone a plain launch, and the link sent twice when the
+         *  player is already open (see openLink, resendIfNotPlaying). HBO Max
+         *  confirmed; Discovery+ showed the same failure. */
+        private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE, "com.discovery.discoveryplus.mobile")
         private const val RESEND_AFTER_MS = 8_000L
 
         const val EXTRA_RELAY = "relay"

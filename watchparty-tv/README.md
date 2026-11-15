@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.20.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.21.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -269,7 +269,11 @@ launched plain (no fresh task) unless its player is open: with a fresh task
 its player opened and closed, or it showed its home screen; a plain launch
 played it whenever the player wasn't already open (adb). TVs keep the fresh
 task. ✓ Confirmed with 0.9.19 on a Samsung phone (2026-11-15): HBO Max
-episodes start both when HBO Max was closed and when its player was open. Netflix needs the `source=30` extra: the same
+episodes start both when HBO Max was closed and when its player was open.
+Discovery+ (`com.discovery.discoveryplus.mobile`, the same Warner Bros.
+Discovery player and `play.discoveryplus.com/video/watch/<id>` links) failed
+the same way with the fresh task and gets the same treatment (not yet
+confirmed). Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
