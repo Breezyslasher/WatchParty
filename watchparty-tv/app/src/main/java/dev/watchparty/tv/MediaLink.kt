@@ -36,6 +36,11 @@ object MediaLink {
     private val DISNEY = p("^https?://(?:www\\.)?disneyplus\\.com/(?:[a-z]{2}-[a-z]{2}/)?(?:play/|browse/entity-)$UUID$Q")
     // Starz: /play/<id> starts playback; the /movies/<id> page uses the same id.
     private val STARZ = p("^https?://(?:www\\.)?starz\\.com/([a-z]{2})/([a-z]{2})/(?:play|movies)/(\\d+)$Q")
+    // Starz's Android TV links (JustWatch's ANDROID_TV deeplink, Yamtrack's tv_link):
+    // starz.com/movies/<id> and starz.com/series/<id>/episodes/<id>. The TV app
+    // claims them; the phone app only claims www.starz.com/us/<lang>/... (its
+    // intent filters: /us/*/play/*, /us/*/movies*, /us/*/series*, ...).
+    private val STARZ_TV = p("^https?://(?:www\\.)?starz\\.com/(movies|series)/(\\d+)(/episodes/\\d+)?$Q")
     // Netflix: /title/<id> and /watch/<id> share the id.
     private val NETFLIX = p("^https?://(?:www\\.)?netflix\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:title|watch)/(\\d+)$Q")
     // HBO Max: the TV app only claims play.hbomax.com / play.max.com, so
@@ -53,6 +58,23 @@ object MediaLink {
     private fun p(regex: String): Pattern = Pattern.compile(regex)
 
     private fun Pattern.match(text: String): Matcher? = matcher(text).takeIf { it.matches() }
+
+    /**
+     * Other forms of [link] for an app that doesn't take it as given, best
+     * first — each device opens the first one its app claims. Starz's TV
+     * links become the web links the phone app takes: a movie's /play/ link
+     * (starts it), then its page; an episode under /us/en/series/.
+     */
+    fun alternatives(link: String): List<String> {
+        STARZ_TV.match(link.trim())?.let {
+            val id = it.group(2)
+            return if (it.group(1) == "movies") listOf(
+                "https://www.starz.com/us/en/play/$id",
+                "https://www.starz.com/us/en/movies/$id",
+            ) else listOf("https://www.starz.com/us/en/series/$id${it.group(3) ?: ""}")
+        }
+        return emptyList()
+    }
 
     /** Normalize a pasted link; null if it isn't a web link. */
     fun normalize(raw: String): Shared? {

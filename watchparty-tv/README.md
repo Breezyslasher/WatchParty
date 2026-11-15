@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.6.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.7.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -239,6 +239,16 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 HBO Max show pages use a *different* id from the watch link, so for HBO Max
 copy the link while it plays. Netflix needs the `source=30` extra: the same
 link without it only opened the app.
+
+**Starz on phones:** the Android TV link JustWatch and Yamtrack give for
+Starz is `starz.com/movies/<id>` (episodes: `starz.com/series/<id>/episodes/<id>`).
+The TV app takes it; the phone app (`com.bydeluxe.d3.android.program.starz`)
+only takes `www.starz.com/us/<lang>/…` (its intent filters, from `adb shell
+dumpsys package`). Each device opens the form its app takes: the link as
+shared, else `www.starz.com/us/en/play/<id>`, then `/us/en/movies/<id>` (an
+episode: `/us/en/series/<id>/episodes/<id>`). Not yet confirmed: that the
+TV link's id is the web id (Starz ids look global: series, season and
+episode ids never overlap).
 
 **Apps that don't claim their links:** some apps don't open their website's
 links (Starz on phones), so Android can't say which app is the service's.

@@ -40,11 +40,17 @@ object Apps {
             ?: serviceOfLink(link)?.let { appByName(context, it) }
             ?: technicalName?.let { PACKAGES[it] }
 
-    /** Whether [pkg] says it opens [link] (else it can only be opened at its home screen). */
+    /** Whether [pkg] opens [link] (the same VIEW intent SyncService sends). */
     fun claimsLink(context: Context, link: String, pkg: String): Boolean {
-        val view = Intent(Intent.ACTION_VIEW, Uri.parse(link)).addCategory(Intent.CATEGORY_BROWSABLE).setPackage(pkg)
-        return context.packageManager.queryIntentActivities(view, 0).isNotEmpty()
+        val view = Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(pkg)
+        return context.packageManager.queryIntentActivities(view, PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
     }
+
+    /** The form of [link] that [pkg] opens: the link itself, else one of
+     *  MediaLink.alternatives (Starz's TV links on a phone); null if none —
+     *  then the app can only be opened at its home screen. */
+    fun linkFor(context: Context, link: String, pkg: String): String? =
+        (listOf(link) + MediaLink.alternatives(link)).firstOrNull { claimsLink(context, it, pkg) }
 
     /** An installed app (one with a launcher icon) whose name matches [service]. */
     fun appByName(context: Context, service: String): String? {

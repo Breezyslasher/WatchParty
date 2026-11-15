@@ -896,7 +896,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             val note = when {
                 pkg == null -> "Not on this ${if (phone) "phone" else "TV"}. Others in the room may have it."
                 // the app doesn't take its website's links: it opens at its home screen
-                !Apps.claimsLink(c, o.link, pkg) -> "Opens the app: find it, then press Play."
+                Apps.linkFor(c, o.link, pkg) == null -> "Opens the app: find it, then press Play."
                 autoPlays(o.link) -> "Starts playing"
                 else -> "Opens the app. Everyone presses Play."
             }

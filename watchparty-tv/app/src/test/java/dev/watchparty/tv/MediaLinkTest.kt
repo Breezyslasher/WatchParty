@@ -107,4 +107,15 @@ class MediaLinkTest {
         assertNull(MediaLink.normalize("Thunderbolts"))
         assertNull(MediaLink.normalize("smb://nas/movie.mkv"))
     }
+
+    @Test fun starzTvLinksHaveTheWebFormsThePhoneAppTakes() {
+        // JustWatch ANDROID_TV / Yamtrack tv_link forms (2026-11-15)
+        assertEquals(listOf("https://www.starz.com/us/en/play/72168", "https://www.starz.com/us/en/movies/72168"),
+            MediaLink.alternatives("https://starz.com/movies/72168"))
+        assertEquals(listOf("https://www.starz.com/us/en/series/69342/episodes/73283"),
+            MediaLink.alternatives("https://starz.com/series/69342/episodes/73283"))
+        // web links and other services have none
+        assertEquals(emptyList<String>(), MediaLink.alternatives("https://www.starz.com/us/en/play/72168"))
+        assertEquals(emptyList<String>(), MediaLink.alternatives("https://www.disneyplus.com/play/x"))
+    }
 }
