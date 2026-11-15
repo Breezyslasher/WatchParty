@@ -1000,6 +1000,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
                 link.contains("tubitv.com/movies/") || link.contains("tubitv.com/tv-shows/") ||
                 link.contains("crunchyroll.com/watch/") ||
                 link.contains("discoveryplus.com/video/watch/") ||
+                (link.contains("pluto.tv/") && (link.contains("/on-demand/movies/") || link.contains("/episode/"))) ||
                 link.contains("paramountplus.com/movies/") ||
                 (link.contains("paramountplus.com/shows/") && link.contains("/video/"))
     }

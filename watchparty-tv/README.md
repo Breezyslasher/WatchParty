@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.24.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.25.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -241,7 +241,7 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 | Netflix (phone) | `com.netflix.mediaclient` | `netflix.com/watch/<id>` (an episode: its own web `/watch/<id>`) | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | Disney+ (phone) | `com.disney.disneyplus` | the same links | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | Hulu (phone) | (found by Android) | JustWatch's links | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
-| Pluto TV (phone) | `tv.pluto.android` | `pluto.tv/us/on-demand/movies/<id>`; an episode `pluto.tv/on-demand/series/<show>/season/<n>/episode/<name>`, but for some shows only the show's page `pluto.tv/us/shows/<show>/` (JustWatch, e.g. The King of Queens, The Twilight Zone) | same | ✓ movies start playing; a show link opens the show's page; episode links not yet tried (Samsung phone, 2026-11-15) |
+| Pluto TV (phone) | `tv.pluto.android` | `pluto.tv/us/on-demand/movies/<id>`; an episode `pluto.tv/on-demand/series/<show>/season/<n>/episode/<name>`, but for some shows only the show's page `pluto.tv/us/shows/<show>/` (JustWatch, e.g. The King of Queens, The Twilight Zone) | same | ✓ movies and episode links start playing; a show link opens the show's page (Samsung phone, 2026-11-15) |
 | Apple TV (phone) | `com.apple.atve.androidtv.appletv` | movies as above; an episode `tv.apple.com/<cc>/episode/<name>/<umc id>?showId=…&playableId=…` | the same + `action=play` | ✓ movies and episodes start playing (episodes only with `action=play`; without it they opened their page) (Samsung phone, 2026-11-15) |
 | Tubi | (found by Android) | `tubitv.com/movies/<id>`; an episode `tubitv.com/tv-shows/<episode id>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
 | Paramount+ | (found by Android) | `paramountplus.com/movies/<name>/<id>`; an episode `paramountplus.com/shows/<show>/video/<id>/<name>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
