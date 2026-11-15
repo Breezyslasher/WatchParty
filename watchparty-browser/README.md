@@ -5,7 +5,7 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.1.0, not yet tried on a real streaming site.** Tested end to end
+**Status: 0.2.0, not yet tried on a real streaming site.** Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.
 
@@ -29,10 +29,11 @@ Not in an extension store yet; load it from this folder:
    opens in its own tab (the "player tab") and follows the room: play, pause
    and seek on any device and the browser follows; pause or seek in the
    browser and everyone follows.
-4. To start something yourself, open the movie or episode on a streaming site
-   in another tab and press **Share this tab** on the room page (or paste a
-   link and press **Start**). Everyone's TV, phone or browser opens the same
-   title.
+4. To start something yourself, **search** under *Find something to watch*
+   (movies or TV shows), open a title, pick the season and episode, and press
+   **Start** on a service. Or open the title on a streaming site in another
+   tab and press **Share this tab**, or paste a link. Everyone's TV, phone or
+   browser opens the same title.
 
 Keep the room page open while watching: it is what keeps the browser in sync.
 
@@ -54,6 +55,18 @@ Keep the room page open while watching: it is what keeps the browser in sync.
   `play.hbomax.com`, Apple TV `?action=play`, Peacock's play deeplink, …), so
   TVs and phones start the same title. A shared item names the service's
   Android app, which Watch Party's Android app needs to open it.
+- `browse.js`, `justwatch.js`, `hbomax.js` — search and title pages: a port
+  of the Android app's Browse without Yamtrack (`JustWatch.kt`, `HboMax.kt`):
+  the same JustWatch queries and the same choice of each service's link
+  (Netflix's web `/watch/<episode>`, else the Android TV link as https, …), the
+  HBO Max "(with ASL)" swap, Discovery+ movies via HBO Max's video id, and
+  services that only have the show's page marked. So a title started in a
+  browser is the exact link a TV or phone would share, and opens the same way
+  on all of them. The country comes from the browser's language (US
+  otherwise) and can be changed. JustWatch answered requests with a Chrome and
+  a Firefox extension's `Origin` (checked from GitHub Actions, 2026-11-15).
+  Links TVs share in a TV-only form open in their web form in the browser
+  (Starz's `starz.com/movies/<id>` → `/us/en/play/<id>`, as on phones).
 - `content.js` — on the streaming sites: finds the title's `<video>` (also in
   open shadow roots; the largest one with media) and reports its position and
   state, and plays, pauses and seeks it.
@@ -95,5 +108,8 @@ Start a relay first for the last two (`python3 relay_standalone.py --port
 it loads the extension into Chromium, answers `https://www.disneyplus.com/…`
 and `https://www.netflix.com/…` with a test page playing a generated video,
 and has a scripted member start a title, seek, pause and play; then pauses and
-seeks in the browser, and shares a second tab. Passed against a relay on
+seeks in the browser, and shares a second tab. It also answers JustWatch's
+API with responses shaped like the live ones, searches, starts a movie and an
+episode from Browse, and checks the room gets the Android app's link and
+label (`Andor · S1 · E1 · Kassa`). Passed against a relay on
 `127.0.0.1` and on a LAN address over plain http (2026-11-15).

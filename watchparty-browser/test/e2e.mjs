@@ -85,6 +85,49 @@ await context.route(/^https:\/\/www\.(disneyplus|netflix)\.com\//, async route =
   return route.fulfill({ status: 200, contentType: 'text/html', body: page(url.hostname.includes('netflix') ? 'Iron Man - Netflix' : 'Thunderbolts* | Disney+') });
 });
 
+// JustWatch's API, answered with responses shaped like the live API's (see justwatch.test.js)
+const icon = fs.readFileSync(path.join(ext, 'icons', 'icon128.png'));
+await context.route(/^https:\/\/images\.justwatch\.com\//, route => route.fulfill({ status: 200, contentType: 'image/png', body: icon }));
+const intent = url => `intent://${url.replace('https://', '')}#Intent;launchFlags=0x00800000;scheme=https;end`;
+const offers = (disneyId, extra = []) => ({
+  web: [{ monetizationType: 'FLATRATE', deeplinkURL: `https://www.disneyplus.com/play/${disneyId}`, standardWebURL: null,
+    package: { technicalName: 'disneyplus', clearName: 'Disney Plus', icon: '/icon/313118777/{profile}/disneyplus.{format}' } }, ...extra],
+  atv: [{ monetizationType: 'FLATRATE', deeplinkURL: intent(`https://www.disneyplus.com/play/${disneyId}`),
+    package: { technicalName: 'disneyplus', clearName: 'Disney Plus' } }],
+});
+const pluto = { monetizationType: 'FREE', deeplinkURL: null, standardWebURL: 'https://pluto.tv/us/shows/andor',
+  package: { technicalName: 'plutotv', clearName: 'Pluto TV', icon: '/icon/1/{profile}/pluto.{format}' } };
+const jwNode = (id, objectType, title, year, tmdbId) =>
+  ({ id, objectType, content: { title, originalReleaseYear: year, posterUrl: `/poster/1/{profile}/${id}.{format}`, externalIds: { tmdbId } } });
+const jwRequests = [];
+await context.route('https://apis.justwatch.com/graphql', async route => {
+  const { query, variables } = route.request().postDataJSON();
+  jwRequests.push(route.request().headers()['origin'] || '');
+  let data;
+  if (query.includes('popularTitles')) {
+    data = { popularTitles: { edges: variables.f.objectTypes[0] === 'SHOW'
+      ? [{ node: jwNode('ts281017', 'SHOW', 'Andor', 2022, '83867') }]
+      : [{ node: jwNode('tm1238268', 'MOVIE', 'Thunderbolts*', 2025, '986056') }, { node: jwNode('tm1633861', 'MOVIE', 'Thunderbolts* | A Special Look', 2025, '1477884') }] } };
+  } else if (query.includes('similarTitlesV2')) {
+    const show = variables.id.startsWith('ts');
+    data = { node: { content: { title: show ? 'Andor' : 'Thunderbolts*', originalReleaseDate: show ? '2022-09-21' : '2025-04-30',
+      runtime: show ? 45 : 127, ageCertification: show ? 'TV-14' : 'PG-13', posterUrl: `/poster/1/{profile}/${variables.id}.{format}`,
+      shortDescription: show ? 'The tale of the burgeoning rebellion against the Empire.' : 'After finding themselves ensnared in a death trap, an unconventional team of antiheroes must go on a dangerous mission.',
+      genres: [{ translation: 'Action & Adventure' }, { translation: 'Science-Fiction' }],
+      scoring: { imdbScore: 7.1, imdbVotes: 313489, tmdbScore: show ? 8.4 : 7.294 } },
+      similarTitlesV2: { edges: ['Captain America: Brave New World', 'Deadpool & Wolverine', 'TRON: Ares'].map((t, i) => ({ node: jwNode(`tm9${i}`, 'MOVIE', t, 2025, null) })) } } };
+  } else if (query.includes('seasons(')) {
+    data = { node: { seasons: [{ id: 'tss1', content: { seasonNumber: 1, title: 'Season 1' } }, { id: 'tss2', content: { seasonNumber: 2, title: 'Season 2' } }] } };
+  } else if (query.includes('episodes(')) {
+    const titles = ['Kassa', 'That Would Be Me', 'Reckoning'];
+    data = { node: { episodes: titles.map((t, i) => ({ id: `tse${i + 1}`, content: { episodeNumber: i + 1, title: t },
+      ...offers(`9131036${i}-d44b-44a4-bdc4-71f999472826`, [pluto]) })) } };
+  } else if (query.includes('offers(')) {
+    data = { node: offers('f51dce23-7d8f-490a-9f0c-be1b5432c2a9') };
+  }
+  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data }) });
+});
+
 const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
 const extId = new URL(worker.url()).host;
 ok(!!extId, `extension loaded (${extId})`);
@@ -169,9 +212,42 @@ ok(raw.state.item.ids && raw.state.item.ids.android === 'com.netflix.ninja', 'th
 
 if (SHOTS) {
   fs.mkdirSync(SHOTS, { recursive: true });
-  await roomPage.setViewportSize({ width: 760, height: 900 });
-  await roomPage.screenshot({ path: path.join(SHOTS, 'room.png') });
+  await roomPage.screenshot({ path: path.join(SHOTS, 'room.png'), fullPage: true });
 }
+
+// 6. Browse: search JustWatch, start a movie — the room gets the link the Android app would share
+await roomPage.fill('#query', 'Thunderbolts');
+await roomPage.click('#search');
+await until('search results', () => roomPage.$$eval('#results .poster', ps => ps.length === 2));
+ok(true, 'searched JustWatch (movies)');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, 'browse-results.png'), fullPage: true });
+await roomPage.click('#results .poster');
+await until('title page details', () => roomPage.isVisible('text=7.3'));
+await until('services', () => roomPage.isVisible('.service >> text=Disney Plus'));
+ok(true, 'the title page shows the rating and where to watch');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, 'browse-title.png'), fullPage: true });
+await roomPage.click('.service button');
+const movie = 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9';
+await until('room has the movie', () => state && state.item && state.item.file === movie);
+ok(state.item.label === 'Thunderbolts*', `started "${state.item.label}" from Browse as ${state.item.file}`);
+await until('the browser opened it', () => context.pages().some(p => p.url() === movie));
+ok(true, 'and the browser opened it itself');
+
+// 7. a show: season, episode, service — labelled as the Android app labels it
+await roomPage.click('#types button[data-type="SHOW"]');
+await roomPage.fill('#query', 'Andor');
+await roomPage.click('#search');
+await until('show result', () => roomPage.$$eval('#results .poster', ps => ps.length === 1));
+await roomPage.click('#results .poster');
+await until('episodes', () => roomPage.isVisible('.ep >> text=Kassa'));
+await roomPage.click('.ep >> text=Kassa');
+await until('episode services', () => roomPage.isVisible('.where .service >> text=Disney Plus'));
+ok(await roomPage.isVisible(".where >> text=Opens the show's page"), "Pluto's show-level link is marked, as on Android");
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, 'browse-episode.png'), fullPage: true });
+await roomPage.click('.where .service:has-text("Disney Plus") button');
+await until('room has the episode', () => state && state.item && state.item.file.includes('91310360'));
+ok(state.item.label === 'Andor · S1 · E1 · Kassa', `started "${state.item.label}"`);
+ok(jwRequests.length > 0 && jwRequests.every(o => o.startsWith('chrome-extension://')), `JustWatch was asked from the extension (Origin ${jwRequests[0]})`);
 
 polling = false;
 await other.leave();

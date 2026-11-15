@@ -1,7 +1,7 @@
 // The Android app's MediaLink rules (MediaLinkTest's cases) and the browser's own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, serviceOf, cleanTitle, roomItem, androidPackage } from '../extension/links.js';
+import { normalize, serviceOf, cleanTitle, roomItem, androidPackage, browserLink } from '../extension/links.js';
 
 test('links become the forms the Android app shares', () => {
   const cases = [
@@ -57,4 +57,10 @@ test("room items name an Android app, as the Android app's do", () => {
     { file: 'https://www.netflix.com/watch/1', label: 'X', title: 'X', ids: { android: 'com.netflix.ninja' } });
   assert.equal(androidPackage('disneyplus'), 'com.disney.disneyplus');
   assert.deepEqual(roomItem('https://example.com/x', 'Y', null), { file: 'https://example.com/x', label: 'Y', title: 'Y' });
+});
+
+test("TVs' Starz links open as the website's play links", () => {
+  assert.equal(browserLink('https://www.starz.com/movies/71196'), 'https://www.starz.com/us/en/play/71196');
+  assert.equal(browserLink('https://www.starz.com/series/55555/episodes/66666'), 'https://www.starz.com/us/en/play/66666');
+  assert.equal(browserLink('https://www.netflix.com/watch/1'), 'https://www.netflix.com/watch/1');
 });

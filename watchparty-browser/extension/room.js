@@ -5,7 +5,8 @@
 
 import { SyncCore, PLAYING, PAUSED, BUFFERING, OTHER } from './sync-core.js';
 import { RelayClient, RelayError, normalizeBase } from './relay.js';
-import { serviceOf, normalize, cleanTitle, roomItem, SERVICE_NAMES } from './links.js';
+import { serviceOf, normalize, cleanTitle, roomItem, browserLink, SERVICE_NAMES } from './links.js';
+import { initBrowse } from './browse.js';
 
 const $ = id => document.getElementById(id);
 const NONE = { service: null, play: OTHER, positionMs: -1, title: '' };
@@ -220,7 +221,8 @@ async function perform(a, room) {
   }
 }
 
-async function openInPlayerTab(link) {
+async function openInPlayerTab(roomLink) {
+  const link = browserLink(roomLink);
   if (playerTabId != null) {
     try {
       await chrome.tabs.update(playerTabId, { url: link, active: true });
@@ -314,6 +316,15 @@ async function shareLink() {
     setStatus(`Couldn't share: ${e.message}`, true);
   }
 }
+
+// Browse (JustWatch): a picked title goes to the room like a shared link
+initBrowse({
+  inRoom: () => joined,
+  start: async (link, label) => {
+    lastRoom = await client.command('open', 0, roomItem(link, label, serviceOf(link)));
+    setNote(`Started for everyone: ${label}`);
+  },
+});
 
 // ── showing the room ─────────────────────────────────────────────────────
 

@@ -94,16 +94,16 @@ const TRACKING = /^(utm_|trackId|tctx|ref|ref_|src|source|irclickid|clickid)/i;
 /**
  * The link to share for a title's page or player URL: the forms the Android
  * app uses where it has a rule (they start playback on TVs and phones), else
- * the URL without tracking parameters. null if it isn't a web link.
+ * the URL without tracking parameters ([strip]). null if it isn't a web link.
  */
-export function normalize(raw) {
+export function normalize(raw, { strip = true } = {}) {
   const text = (raw || '').trim();
   if (!/^https?:\/\//.test(text)) return null;
   let m;
   // affiliate redirects (*.pxf.io, *.sjv.io) wrap the real link in u=
   if ((m = text.match(/^https?:\/\/(?:[a-z0-9-]+\.)*(?:pxf|sjv)\.io\/[^?#]*\?([^#]*)/))) {
     const u = new URLSearchParams(m[1]).get('u');
-    if (u && /^https?:\/\//.test(u)) return normalize(u);
+    if (u && /^https?:\/\//.test(u)) return normalize(u, { strip });
   }
   if ((m = text.match(new RegExp(`^https?://(?:www\\.)?disneyplus\\.com/(?:[a-z]{2}-[a-z]{2}/)?(?:play/|browse/entity-)${UUID}${Q}`)))) {
     return `https://www.disneyplus.com/play/${m[1].toLowerCase()}`;
@@ -134,7 +134,10 @@ export function normalize(raw) {
   if ((m = text.match(/^https?:\/\/(?:www\.)?crunchyroll\.com\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?watch\/([A-Z0-9]+)(\/[^?#]*)?(?:[?#].*)?$/))) {
     return `https://www.crunchyroll.com/watch/${m[1]}${m[2] || ''}`;
   }
-  // anything else: drop tracking parameters, keep the rest (YouTube's v=, Amazon's asin=, …)
+  // anything else: as given (strip: false — JustWatch's links, exactly as the
+  // Android app shares them), or without tracking parameters (a tab's URL;
+  // YouTube's v=, Amazon's asin= etc. are kept)
+  if (!strip) return text;
   try {
     const url = new URL(text);
     for (const key of [...url.searchParams.keys()]) if (TRACKING.test(key)) url.searchParams.delete(key);
@@ -143,6 +146,21 @@ export function normalize(raw) {
   } catch (e) {
     return text;
   }
+}
+
+/**
+ * The form of a room link to open in a browser. Starz's Android TV links
+ * (starz.com/movies/<id>, starz.com/series/<id>/episodes/<id> — what TVs
+ * share) become the website's /us/en/play/<id>, the form the Android app
+ * gives phones (its MediaLink.alternatives). Others open as they are.
+ */
+export function browserLink(link) {
+  const m = link.trim().match(/^https?:\/\/(?:www\.)?starz\.com\/(movies|series)\/(\d+)(\/episodes\/(\d+))?(?:[/?#].*)?$/);
+  if (m) {
+    if (m[1] === 'movies') return `https://www.starz.com/us/en/play/${m[2]}`;
+    return m[4] ? `https://www.starz.com/us/en/play/${m[4]}` : `https://www.starz.com/us/en/series/${m[2]}`;
+  }
+  return link;
 }
 
 /** A tab title without the site's suffix: "Thunderbolts* | Disney+" → "Thunderbolts*". */
