@@ -26,6 +26,11 @@ on:
         description: 'Shows only: "SEASONS,EPISODES" to list episode links, e.g. "1,2"'
         required: false
         default: ''
+      detail:
+        description: 'Print title page fields (description, genres, rating, cast) instead of links'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -43,6 +48,7 @@ jobs:
           KIND: ${{ inputs.kind }}
           PLATFORMS: ${{ inputs.platforms }}
           EPISODES: ${{ inputs.episodes }}
+          DETAIL: ${{ inputs.detail && '--detail' || '' }}
         run: |
           IFS='|' read -ra list <<< "$TITLES"
-          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" --episodes "$EPISODES" "${list[@]}"
+          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" --episodes "$EPISODES" $DETAIL "${list[@]}"

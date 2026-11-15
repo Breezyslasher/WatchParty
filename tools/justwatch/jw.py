@@ -149,6 +149,29 @@ def episodes(node_id, country, max_seasons, max_episodes):
                     print(f"        {kind.upper():<3} {o['package']['clearName']:<22} deeplink={link}{extra}")
 
 
+# Title page fields, for Watch Party's search without Yamtrack. Each part is
+# its own query, so a field the schema doesn't have can't hide the others.
+DETAIL_PARTS = {
+    "core": "content(country: $c, language: $l) { title originalReleaseYear originalReleaseDate runtime shortDescription posterUrl }",
+    "genres": "content(country: $c, language: $l) { genres { shortName translation(language: $l) } }",
+    "scoring": "content(country: $c, language: $l) { scoring { imdbScore imdbVotes tmdbScore tmdbPopularity } }",
+    "credits": "content(country: $c, language: $l) { credits { role name characterName personId } }",
+    "certification": "content(country: $c, language: $l) { ageCertification }",
+    "seasons": "... on Show { totalSeasonCount }",
+    "similar": "similarTitlesV2(country: $c, first: 5) { edges { node { id objectType content(country: $c, language: $l) { title originalReleaseYear posterUrl externalIds { tmdbId } } } } }",
+}
+
+
+def detail(node_id, country):
+    for name, fields in DETAIL_PARTS.items():
+        query = ("query T($id: ID!, $c: Country!, $l: Language!) { node(id: $id) { "
+                 "... on MovieOrShow { " + fields + " } } }")
+        data = post(query, {"id": node_id, "c": country, "l": "en"})
+        if _errors(data, name):
+            continue
+        print(f"   [{name}]", json.dumps((data.get("data") or {}).get("node"), ensure_ascii=False)[:1500])
+
+
 def introspect():
     data = post(INTROSPECT, {})
     if data.get("errors"):
@@ -191,6 +214,7 @@ def main():
     ap.add_argument("--kind", default="MOVIE", choices=["MOVIE", "SHOW"])
     ap.add_argument("--episodes", default="",
                     help='for shows: "SEASONS,EPISODES" to list, e.g. "1,2" (season 1, first 2 episodes)')
+    ap.add_argument("--detail", action="store_true", help="print title page fields (description, genres, ...)")
     ap.add_argument("--platforms", default="",
                     help='comma list, or "all" to try every Platform value the API reports')
     args = ap.parse_args()
@@ -216,6 +240,9 @@ def main():
             ids = c.get("externalIds") or {}
             print(f"== {c['title']} ({c.get('originalReleaseYear')}) runtime={c.get('runtime')}min "
                   f"tmdb={ids.get('tmdbId')} imdb={ids.get('imdbId')} jw={node['id']}")
+            if args.detail:
+                detail(node["id"], args.country)
+                continue
             seen = set()
             for o in node["offers"]:
                 if o["monetizationType"] not in STREAMING:
