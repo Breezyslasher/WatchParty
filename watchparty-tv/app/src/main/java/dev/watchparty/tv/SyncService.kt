@@ -35,6 +35,9 @@ class SyncService : Service() {
         private const val CHANNEL = "sync"
         private const val NOTIFICATION_ID = 1
         private const val POLL_MS = 1_000L
+        /** Apps that need a link sent twice when already open (see resendIfNotPlaying). */
+        private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE)
+        private const val RESEND_AFTER_MS = 4_000L
 
         const val EXTRA_RELAY = "relay"
         const val EXTRA_ROOM = "room"
@@ -257,6 +260,7 @@ class SyncService : Service() {
         try {
             startActivity(intent)
             note = "Opening in ${appName(pkg)}…"
+            if (pkg in RESEND_IF_OPEN) resendIfNotPlaying(launch, pkg)
         } catch (e: Exception) {
             // the app doesn't take this link (e.g. Starz on phones): open it at its
             // home screen; once someone plays, sync takes over
@@ -271,6 +275,30 @@ class SyncService : Service() {
             note = "${appName(pkg)} isn't installed or can't open this link"
             Log.w(TAG, "open failed for $pkg", e)
         }
+    }
+
+    /**
+     * HBO Max on a phone ignores a link while it's already open (after a
+     * movie, it shows its home screen, even in a fresh task and with playback
+     * stopped); the same link sent again, without clearing the task, then
+     * opens (adb on a Samsung phone, 2026-11-15). So if it isn't playing a few
+     * seconds after the first link, send it once more.
+     */
+    private fun resendIfNotPlaying(launch: MediaLink.Launch, pkg: String) {
+        worker?.postDelayed({
+            val state = activeController(pkg)?.playbackState?.state
+            if (state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING) return@postDelayed
+            val again = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(launch.uri))
+                .setPackage(pkg)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            for ((key, value) in launch.extras) again.putExtra(key, value)
+            try {
+                startActivity(again)
+                Log.i(TAG, "sent the link again to $pkg")
+            } catch (e: Exception) {
+                Log.w(TAG, "resend failed for $pkg", e)
+            }
+        }, RESEND_AFTER_MS)
     }
 
     private fun appName(pkg: String): String = try {

@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.11.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.12.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -240,7 +240,11 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 | Crunchyroll | `com.crunchyroll.crunchyroid` | `crunchyroll.com/watch/<id>/…` | `crunchyroll://watch/<id>` | opens the app only — the app claims no web links |
 
 HBO Max show pages use a *different* id from the watch link, so for HBO Max
-copy the link while it plays. Netflix needs the `source=30` extra: the same
+copy the link while it plays. On a phone, HBO Max ignores a link while it's
+already open (after a movie it shows its home screen, even in a fresh task
+and with playback stopped); the same link sent again opens it. So if HBO Max
+isn't playing 4 s after the link, Watch Party sends it once more (adb on a
+Samsung phone, 2026-11-15; its filters claim all of `play.hbomax.com`). Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
