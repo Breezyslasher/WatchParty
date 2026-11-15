@@ -78,12 +78,12 @@ def main():
     show = series[0]
     seasons = api.seasons(show['id'])
     print('series %s %r: seasons %s' % (show['id'], show.get('title'),
-          [(s.get('season_number') or s.get('name'), len(s.get('episodes') or [])) for s in seasons][:8]))
+          [(s.get('season'), len(s.get('episodes') or [])) for s in seasons][:8]))
     first = next((s for s in seasons if s.get('episodes')), None)
     if not first:
         print('no season with episodes listed')
         return
-    number = first.get('season_number') or first.get('name')
+    number = first.get('season')
     episodes = api.episodes(show['id'], number)
     print('season %s: %d episodes, first ids %s' % (number, len(episodes), [e.get('id') for e in episodes[:3]]))
     if not episodes:
