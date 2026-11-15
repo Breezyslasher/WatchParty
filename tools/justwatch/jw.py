@@ -92,18 +92,19 @@ SEASONS = """query S($id: ID!, $c: Country!, $l: Language!) {
   } }
 }"""
 
-SEASON_EPISODES = """query E($id: ID!, $c: Country!, $l: Language!) {
+SEASON_EPISODES = """query E($id: ID!, $c: Country!, $l: Language!, $filter: OfferFilter!) {
   node(id: $id) { ... on Season {
     episodes(sortDirection: ASC) {
       id
       content(country: $c, language: $l) { episodeNumber title }
-      web: offers(country: $c, platform: WEB) {
-        monetizationType standardWebURL deeplinkURL(platform: WEB)
-        package { clearName technicalName }
+      web: offers(country: $c, platform: WEB, filter: $filter) {
+        monetizationType presentationType standardWebURL deeplinkURL(platform: WEB)
+        retailPrice(language: $l)
+        package { packageId clearName technicalName icon(profile: S100, format: PNG) }
       }
-      atv: offers(country: $c, platform: ANDROID_TV) {
-        monetizationType deeplinkURL(platform: ANDROID_TV)
-        package { clearName technicalName }
+      atv: offers(country: $c, platform: ANDROID_TV, filter: $filter) {
+        monetizationType presentationType deeplinkURL(platform: ANDROID_TV)
+        package { packageId clearName technicalName }
       }
     }
   } }
@@ -126,7 +127,8 @@ def episodes(node_id, country, max_seasons, max_episodes):
     for season in (show.get("seasons") or [])[:max_seasons]:
         sc = season.get("content") or {}
         print(f"   -- season {sc.get('seasonNumber')} ({season.get('id')})")
-        eps = post(SEASON_EPISODES, {"id": season["id"], "c": country, "l": "en"})
+        eps = post(SEASON_EPISODES, {"id": season["id"], "c": country, "l": "en",
+                                     "filter": {"bestOnly": True}})
         if _errors(eps, "episodes"):
             continue
         for ep in (((eps.get("data") or {}).get("node") or {}).get("episodes") or [])[:max_episodes]:
@@ -142,7 +144,8 @@ def episodes(node_id, country, max_seasons, max_episodes):
                     if key in seen:
                         continue
                     seen.add(key)
-                    extra = f" web={o.get('standardWebURL')}" if kind == "web" else ""
+                    extra = (f" web={o.get('standardWebURL')} pkg={o['package'].get('packageId')}"
+                             f" {o.get('presentationType')} price={o.get('retailPrice')}" if kind == "web" else "")
                     print(f"        {kind.upper():<3} {o['package']['clearName']:<22} deeplink={link}{extra}")
 
 
