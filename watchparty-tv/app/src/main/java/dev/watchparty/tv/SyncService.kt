@@ -257,10 +257,12 @@ class SyncService : Service() {
             .setPackage(pkg)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         for ((key, value) in launch.extras) intent.putExtra(key, value)
+        // what the app is playing now (e.g. the movie before), to tell it apart from the new title
+        val before = if (pkg in RESEND_IF_OPEN) titleOf(activeController(pkg)) else null
         try {
             startActivity(intent)
             note = "Opening in ${appName(pkg)}…"
-            if (pkg in RESEND_IF_OPEN) resendIfNotPlaying(launch, pkg)
+            if (pkg in RESEND_IF_OPEN) resendIfNotPlaying(launch, pkg, before)
         } catch (e: Exception) {
             // the app doesn't take this link (e.g. Starz on phones): open it at its
             // home screen; once someone plays, sync takes over
@@ -284,22 +286,34 @@ class SyncService : Service() {
      * opens (adb on a Samsung phone, 2026-11-15). So if it isn't playing a few
      * seconds (8 s: 4 s was sometimes too soon) after the first link, send it once more.
      */
-    private fun resendIfNotPlaying(launch: MediaLink.Launch, pkg: String) {
+    private fun resendIfNotPlaying(launch: MediaLink.Launch, pkg: String, before: String?) {
         worker?.postDelayed({
-            val state = activeController(pkg)?.playbackState?.state
-            if (state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING) return@postDelayed
+            val c = activeController(pkg)
+            val state = c?.playbackState?.state
+            val busy = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
+            // the session can still be the title from before (the app on its home
+            // screen): only a different title counts as the new one starting
+            val title = titleOf(c)
+            if (busy && (before == null || title != before)) {
+                Log.i(TAG, "$pkg started ($title), no resend")
+                return@postDelayed
+            }
             val again = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(launch.uri))
                 .setPackage(pkg)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             for ((key, value) in launch.extras) again.putExtra(key, value)
             try {
                 startActivity(again)
-                Log.i(TAG, "sent the link again to $pkg")
+                note = "Sent the link to ${appName(pkg)} again"
+                Log.i(TAG, "sent the link again to $pkg (state $state, title $title, before $before)")
             } catch (e: Exception) {
                 Log.w(TAG, "resend failed for $pkg", e)
             }
         }, RESEND_AFTER_MS)
     }
+
+    private fun titleOf(c: MediaController?): String? =
+        c?.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
 
     private fun appName(pkg: String): String = try {
         packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
