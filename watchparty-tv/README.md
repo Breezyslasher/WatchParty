@@ -4,17 +4,39 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.31.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
-(Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
-on both (automatic on the Sony, the settings switch with the remote on the
-Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
-pages; their layouts were checked in rendered screenshots at 1080p and phone
-size, not yet with a remote on a TV or against a live Yamtrack server.
-Not yet tried on a device: **Browse Yamtrack**, and phones (see [Phones](#phones)).
-Syncing two TVs in one room end to end is still being tested.
-The sync logic, link handling, relay client and adb client are unit-tested
-(the relay tests against the real relay), and every app link below was
-confirmed by hand on the TV with adb.
+**Status: 0.9.31.** Tested on a Sony Android TV 9 and a Samsung phone
+(2026-11-15): joining a room, **Browse Yamtrack** against a live Yamtrack
+server, and starting titles from it in each service's app on both devices
+(the table below). 0.7.2's **Set up access** was tested on the Sony
+(automatic) and a Chromecast HD (Google TV, Android 14; the settings switch
+with the remote); the Chromecast hasn't been tried with 0.8+. The sync logic,
+link handling, relay client and adb client are unit-tested (the relay tests
+against the real relay).
+
+Which services start playing a title, by device (details in
+[Which link to share](#which-link-to-share)):
+
+| Service | Phone (Samsung) | TV (Sony) |
+|---|---|---|
+| Netflix | ✓ movies, episodes | ✓ movies, episodes |
+| Disney+ | ✓ movies, episodes | ✓ |
+| HBO Max | ✓ movies, episodes (closed or already open) | ✓ movies; episodes (regular edition, not ASL) |
+| Starz | ✓ movies, episodes | ✓ movies, episodes |
+| Apple TV | ✓ movies, episodes | ✓ movies — episodes untested |
+| Paramount+ | ✓ movies, episodes | ✓ movies, episodes |
+| YouTube (free) | ✓ movies | ✓ movies |
+| Prime Video | ✓ movies, episodes | untested |
+| Hulu | ✓ movies, episodes | untested |
+| Peacock | ✓ movies, episodes (also already open) | untested |
+| Tubi | ✓ movies, episodes | untested |
+| Pluto TV | ✓ movies, episode links (some shows only have the show's page) | untested |
+| Plex | ✓ movies, episodes | untested |
+| Crunchyroll | ✓ movies, episodes | opens the app only (earlier test) |
+| Discovery+ | ✓ episodes; movies via HBO Max's video id (adb) | untested |
+| The Roku Channel | ✗ opens the app's home screen only | untested |
+
+Still untested: YouTube TV, a Chromecast with 0.8+, the service dialog with a
+TV remote, and whether 0.9.31 stops the Netflix start-up loop (below).
 
 ## How it works
 
@@ -23,13 +45,19 @@ media sessions — the same thing the system uses for "now playing" and remote
 buttons. [Session Probe](../tools/session-probe) showed this works on a real TV:
 Disney+ on a Sony Android TV 9 paused, played and seeked exactly on command.
 
-1. **Starting a title.** Someone pastes a link in *Start for everyone*. Every
-   TV in the room opens it in that app, with the "fresh start" flags
+1. **Starting a title.** Someone picks a title in **Browse Yamtrack** or
+   pastes a link. Every device in the room opens it in its own app for that
+   service (the link form that app takes), with the "fresh start" flags
    (`FLAG_ACTIVITY_NEW_TASK | CLEAR_TASK`) — without them an app that's
-   already open ignores the link.
-2. **Following.** Once a second each TV reports its position to the relay and
+   already open ignores the link. (HBO Max and Discovery+ on phones are the
+   exception; see below the table.) A just-opened app is left alone until it
+   has played 3 s (at most 20 s), and its loading doesn't count as buffering —
+   otherwise the slowest device's loading paused the whole room again and
+   again.
+2. **Following.** Once a second each device reports its position to the relay and
    gets the room's state back. If it's more than 3 s off, it seeks (at most
-   every 4 s); if the room paused or resumed, it does the same.
+   every 4 s); if the room paused or resumed, it does the same. While someone
+   buffers (after start-up), the relay pauses the room until they're ready.
 3. **Leading.** Pause, play or seek with your own remote and the app sends it
    to the room, so everyone follows you. Its own corrections are ignored for
    4 s so they don't bounce back.
@@ -115,10 +143,9 @@ can be a member of the room or pick what to watch with **Browse Yamtrack**:
   adb over the network; **Set up access** opens the notification-access
   switch instead. On Android 13+, a sideloaded app's switch is blocked until
   *Settings → Apps → Watch Party → ⋮ → Allow restricted settings*.
-- **Not yet tried on a phone:** Watch Party itself (0.7.x; 0.8's phone layout was only checked in screenshots). Session Probe
-  controlled Disney+ and Vita_plex on a phone, so syncing works there; which
-  links start playback in the phone apps (e.g. Netflix without the TV app's
-  `source=30` extra) is untested.
+- **Links:** phone apps sometimes take a different form of the link than the
+  TV app (Starz, Crunchyroll, Apple TV episodes); each device opens the form
+  its app claims. Results per service are in the table at the top.
 
 ## Use
 
@@ -133,8 +160,8 @@ the rail folds into a bar at the top.
 2. To start something, use **Browse Yamtrack** (below) or **Paste a link**
    and **Start for everyone** (typing on a TV is easiest from the Google TV
    remote app on a phone). **Room** shows what's playing.
-3. **Leave room** stops syncing. **Back** goes Picker → Browse → Room, and
-   leaves the app from Room.
+3. **Leave room** stops syncing. **Back** returns to the page before (a title
+   page, a person, Browse, then Room), and leaves the app from Room.
 
 Kodi members can be in the same room; they skip app links ("can't be played
 on this device"), and the TV app skips Kodi files.
@@ -218,23 +245,24 @@ episode's link. Anything unexpected keeps JustWatch's link. ✓ Confirmed
 checked yet.
 
 Movie links are the ones in [Which link to share](#which-link-to-share).
-**Not yet confirmed on a TV:** that episode links start the right episode
-(Netflix's web `/watch/<episode id>`, Apple TV's `/episode/` links), and
-Amazon links in general. JustWatch is unofficial and rate-limited; lookups
-happen only when you pick a title.
+Episode links start the right episode on the phone for every service in the
+table, and on the TV for Netflix, Starz and Paramount+; Apple TV's
+`/episode/` links and Amazon are confirmed on the phone only. JustWatch is
+unofficial and rate-limited; lookups happen only when you pick a title.
 
 ## Which link to share
 
 Share the address from the app's **website while the title is playing** —
 that's the link most likely to start playback rather than just open a page.
 
-Tested on a Sony Android TV 9 (32-bit). The app converts what you paste, so
-page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
+Rows without "(phone)" were tested on a Sony Android TV 9 (32-bit); "(phone)"
+rows on a Samsung phone. The app converts what you paste, so page links and
+tracking parameters (`?utm_…`, `?trackId…`) are fine:
 
 | App | Package | Share | The TV launches | Result |
 |---|---|---|---|---|
 | Disney+ | `com.disney.disneyplus` | `disneyplus.com/play/<id>` or `/browse/entity-<id>` | `https://www.disneyplus.com/play/<id>` | ✓ starts playing (Sony TV, again with 0.9.31 on 2026-11-15) |
-| Netflix | `com.netflix.ninja` | `netflix.com/watch/<id>` or `/title/<id>` | `https://www.netflix.com/watch/<id>` + extra `source=30` | ✓ movies and episodes start playing after a few seconds (Sony TV, 2026-11-15). Until 0.9.31 the other device looped its first seconds while the TV loaded: the TV's loading counted as buffering, which pauses the room |
+| Netflix | `com.netflix.ninja` | `netflix.com/watch/<id>` or `/title/<id>` | `https://www.netflix.com/watch/<id>` + extra `source=30` | ✓ movies and episodes start playing after a few seconds (Sony TV, 2026-11-15). Before 0.9.31 the other device looped its first seconds while the TV loaded (the TV's loading counted as buffering, which pauses the room); 0.9.31's fix isn't confirmed yet |
 | HBO Max | `com.wbd.stream` | `hbomax.com/video/watch/<id>` | `https://play.hbomax.com/video/watch/<id>` (the app only claims `play.hbomax.com` / `play.max.com`) | ✓ opens the movie |
 | Starz | (found by Android) | `starz.com/us/en/play/<id>` or `/movies/<id>` | `https://www.starz.com/us/en/play/<id>` | ✓ movies and episodes start playing (Sony TV; episodes with 0.9.31, 2026-11-15) |
 | Apple TV | `com.apple.atve.androidtv.appletv` | `tv.apple.com/<cc>/movie/<name>/<umc.cmc.id>` | same link + `?action=play` | ✓ starts playing after the profile picker |
@@ -290,8 +318,10 @@ phone). Discovery+'s own share link for Christmas of Yes is
 `www.discoveryplus.com/video/watch/ef8dbdd7-…` — the same id as HBO Max's;
 pasted `www.` links are moved to `play.discoveryplus.com`. So when a movie
 is on both, Discovery+ gets that play link; a movie only on Discovery+ opens
-its page ("Opens the movie's page: press Play"). Netflix needs the `source=30` extra: the same
-link without it only opened the app.
+its page ("Opens the movie's page: press Play").
+
+**Netflix on the TV** needs the `source=30` extra: the same link without it
+only opened the app. (It's sent to the phone app too.)
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
 Starz is `starz.com/movies/<id>` (episodes: `starz.com/series/<id>/episodes/<id>`).
@@ -310,11 +340,9 @@ Watch Party then looks for an installed app named like the service ("STARZ"
 for Starz, or the link's site name), and opens that app at its home screen:
 find the title and press Play, and sync takes over.
 
-Any other app's link is passed through unchanged. If it only opens the
-title's page, everyone presses Play and sync takes over.
-
-Other apps work the same way if they register their website's links. If a
-link only opens the title's page, everyone presses Play and sync takes over.
+Any other app's link is passed through unchanged; it works if the app
+registers its website's links. If a link only opens the title's page,
+everyone presses Play and sync takes over.
 
 ### Testing a new app's link
 
