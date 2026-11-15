@@ -34,6 +34,9 @@ class YamtrackClient(baseUrl: String, private val token: String) {
 
     data class Page(val items: List<Item>, val total: Int)
 
+    /** A season or an episode of a show (Yamtrack's TMDB data). */
+    data class Numbered(val number: Int, val title: String)
+
     class YamtrackException(message: String) : IOException(message)
 
     /** Your tracked [mediaType] ("movie" or "tv") with [status] (null = all). */
@@ -57,6 +60,24 @@ class YamtrackClient(baseUrl: String, private val token: String) {
         parseProviders(get("api/v1/media/$mediaType/$source/$mediaId/providers/?region=" +
             URLEncoder.encode(region, "UTF-8")))
 
+    /** A TMDB show's seasons: GET api/v1/media/tv/tmdb/{id}/seasons/ */
+    fun seasons(tmdbId: String): List<Numbered> =
+        parseNumbered(get("api/v1/media/tv/tmdb/$tmdbId/seasons/?limit=$MAX_LIMIT"), "season_number")
+
+    /** A season's episodes: GET api/v1/media/tv/tmdb/{id}/{season}/episodes/ */
+    fun episodes(tmdbId: String, season: Int): List<Numbered> =
+        parseNumbered(get("api/v1/media/tv/tmdb/$tmdbId/$season/episodes/?limit=$MAX_LIMIT"), "episode_number")
+
+    /**
+     * One episode's services with Yamtrack's per-episode JustWatch links
+     * (feat/justwatch-links 4bc82c5) — empty when JustWatch is off or
+     * doesn't have the episode (the season's TMDB providers have no links).
+     *   GET api/v1/media/tv/tmdb/{id}/{season}/{episode}/providers/?region=
+     */
+    fun episodeProviders(tmdbId: String, season: Int, episode: Int, region: String): List<JustWatch.Offer> =
+        parseProviders(get("api/v1/media/tv/tmdb/$tmdbId/$season/$episode/providers/?region=" +
+            URLEncoder.encode(region, "UTF-8")))
+
     private fun get(path: String): JSONObject {
         val conn = URL(base + path).openConnection() as HttpURLConnection
         try {
@@ -77,6 +98,8 @@ class YamtrackClient(baseUrl: String, private val token: String) {
 
     companion object {
         const val PAGE_SIZE = 40
+        /** The API's largest page (api/helpers.py MAX_RESULT_LIMIT). */
+        const val MAX_LIMIT = 200
 
         /** Yamtrack's status numbers (api/helpers.py MEDIA_STATUS_MAP). */
         const val PLANNING = 0
@@ -116,6 +139,19 @@ class YamtrackClient(baseUrl: String, private val token: String) {
                 }
             }
             return Page(items, total(response, items.size))
+        }
+
+        /** Seasons or episodes from a paginated list of media
+         *  (`results[].item.season_number` / `episode_number`, `title`). */
+        fun parseNumbered(response: JSONObject, numberKey: String): List<Numbered> {
+            val results = response.optJSONArray("results") ?: return emptyList()
+            val out = mutableListOf<Numbered>()
+            for (i in 0 until results.length()) {
+                val item = results.optJSONObject(i)?.optJSONObject("item") ?: continue
+                if (item.isNull(numberKey) || !item.has(numberKey)) continue
+                out += Numbered(item.optInt(numberKey), text(item, "title") ?: "")
+            }
+            return out.sortedBy { it.number }
         }
 
         /** The no-charge (streaming) providers that have a link: `tv_link`

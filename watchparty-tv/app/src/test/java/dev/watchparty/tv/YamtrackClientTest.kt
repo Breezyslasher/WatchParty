@@ -84,6 +84,39 @@ class YamtrackClientTest {
         }""")))
     }
 
+    @Test fun parsesSeasonsAndEpisodes() {
+        // SEASONS_EXAMPLE / SEASON_EPISODES_EXAMPLE (the season's title is the show's)
+        val seasons = YamtrackClient.parseNumbered(JSONObject("""{"pagination": {"total": 2}, "results": [
+            {"id": null, "item": {"media_id": "32868", "source": "tmdb", "media_type": "season",
+             "title": "Nikita", "season_number": 2, "episode_number": null}},
+            {"id": 2892, "item": {"media_id": "32868", "source": "tmdb", "media_type": "season",
+             "title": "Nikita", "season_number": 1, "episode_number": null}}
+        ]}"""), "season_number")
+        assertEquals(listOf(1, 2), seasons.map { it.number })   // sorted
+
+        val episodes = YamtrackClient.parseNumbered(JSONObject("""{"pagination": {"total": 1}, "results": [
+            {"id": null, "item": {"media_id": "32868", "source": "tmdb", "media_type": "episode",
+             "title": "Pilot", "season_number": 1, "episode_number": 1}}
+        ]}"""), "episode_number")
+        assertEquals(listOf(YamtrackClient.Numbered(1, "Pilot")), episodes)
+    }
+
+    @Test fun episodeProvidersUseTheEpisodesTvLink() {
+        // shape of feat/justwatch-links 4bc82c5's episode providers: link is the
+        // episode's web deep link, Netflix's tv_link the episode's /watch/<id>
+        val offers = YamtrackClient.parseProviders(JSONObject("""{"region": "US", "link": null,
+            "no_charge": [
+              {"provider_id": 8, "provider_name": "Netflix",
+               "link": "https://www.netflix.com/watch/82946792", "tv_link": "https://www.netflix.com/watch/82946792"},
+              {"provider_id": 1899, "provider_name": "Max",
+               "link": "https://play.hbomax.com/video/watch/dae9e532-3714-4f2e-b758-fb9a13def902?utm_source=universal_search",
+               "tv_link": "https://play.hbomax.com/video/watch/dae9e532-3714-4f2e-b758-fb9a13def902"}
+            ], "paid": []}"""))
+        assertEquals(listOf("https://www.netflix.com/watch/82946792",
+            "https://play.hbomax.com/video/watch/dae9e532-3714-4f2e-b758-fb9a13def902"), offers.map { it.link })
+        assertEquals(listOf("netflix", "max"), offers.map { it.technicalName })
+    }
+
     @Test fun normalizesTheServerAddress() {
         assertEquals("https://yamtrack.lan:8000/", YamtrackClient.normalizeBase(" yamtrack.lan:8000/ "))
         assertEquals("http://192.168.1.5:8000/", YamtrackClient.normalizeBase("http://192.168.1.5:8000"))

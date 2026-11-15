@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.7.1.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
+**Status: 0.7.2.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
 TV, Android 14): joining rooms, announcing titles, and **Set up access** on
 both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). New in 0.7 and not yet tried on a device: **Browse Yamtrack**,
@@ -157,9 +157,15 @@ the `feat/add-api` work); it's only read: `GET api/v1/media/{movie|tv}/`
   service's `tv_link` (else `link`) — Yamtrack looks them up on JustWatch and
   caches them, when the server has `JUSTWATCH_ENABLED` on. If it returns no
   links (JustWatch off, or an older server), Watch Party asks JustWatch itself.
-- **Episodes:** Yamtrack's API has no per-episode links yet (its season
-  endpoint is TMDB-only), so Watch Party asks JustWatch directly, matched by
-  the TMDB id Yamtrack gives each show (only the title and its ids are sent).
+- **Episodes:** seasons and episodes come from Yamtrack
+  (`…/tv/tmdb/{id}/seasons/`, `…/{season}/episodes/`), and each episode's links
+  from Yamtrack's episode providers
+  (`GET api/v1/media/tv/tmdb/{id}/{season}/{episode}/providers/?region=`,
+  feat/justwatch-links `4bc82c5`): the episode's own `link`, and for Netflix a
+  `tv_link` that is the episode's `/watch/<id>`. Its JustWatch query was run
+  against the live API (WatchParty's lookup workflow). If it returns no links,
+  Watch Party asks JustWatch directly, matched by the TMDB id.
+- Titles Yamtrack doesn't have from TMDB use JustWatch directly for everything.
 
 JustWatch has a link for **each episode** (checked with `tools/justwatch/jw.py` on GitHub Actions,
 US, 2026-11-15):

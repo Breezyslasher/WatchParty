@@ -233,6 +233,19 @@ class BrowseActivity : Activity() {
                         return@Thread
                     }
                 }
+                if (show && tmdb != null) {
+                    // seasons and episodes from Yamtrack (TMDB); each episode's
+                    // links from Yamtrack's episode providers, else JustWatch
+                    val seasons = try {
+                        client().seasons(tmdb)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                    if (seasons.isNotEmpty()) {
+                        ui { chooseYamtrackSeason(item.title, tmdb, seasons) }
+                        return@Thread
+                    }
+                }
                 val title = JustWatch.findTitle(item.title, tmdb, if (show) "SHOW" else "MOVIE", country)
                 if (title == null) {
                     ui { statusView.text = "JustWatch doesn't list \"${item.title}\" in $country." }
@@ -250,6 +263,71 @@ class BrowseActivity : Activity() {
             }
         }.start()
     }
+
+    // ── shows from Yamtrack (TMDB numbering) ────────────────────────────
+
+    private fun seasonName(number: Int) = if (number == 0) "Specials" else "Season $number"
+
+    private fun chooseYamtrackSeason(show: String, tmdb: String, seasons: List<YamtrackClient.Numbered>) {
+        statusView.text = ""
+        AlertDialog.Builder(this)
+            .setTitle(show)
+            .setItems(seasons.map { seasonName(it.number) }.toTypedArray()) { _, which ->
+                val season = seasons[which].number
+                statusView.text = "Loading ${seasonName(season).lowercase(Locale.US)}…"
+                Thread {
+                    try {
+                        val episodes = client().episodes(tmdb, season)
+                        ui { chooseYamtrackEpisode(show, tmdb, season, episodes) }
+                    } catch (e: Exception) {
+                        ui { statusView.text = "Couldn't load episodes: ${e.message}" }
+                    }
+                }.start()
+            }
+            .show()
+    }
+
+    private fun chooseYamtrackEpisode(show: String, tmdb: String, season: Int, episodes: List<YamtrackClient.Numbered>) {
+        if (episodes.isEmpty()) {
+            statusView.text = "Yamtrack has no episodes for ${seasonName(season).lowercase(Locale.US)}."
+            return
+        }
+        statusView.text = ""
+        val names = episodes.map { e -> "E${e.number}" + (if (e.title.isNotBlank()) " · ${e.title}" else "") }
+        AlertDialog.Builder(this)
+            .setTitle("$show · ${seasonName(season)}")
+            .setItems(names.toTypedArray()) { _, which ->
+                val e = episodes[which]
+                val label = "$show · S${season}E${e.number}" + (if (e.title.isNotBlank()) " ${e.title}" else "")
+                statusView.text = "Finding where to watch $label…"
+                Thread {
+                    val offers = try {
+                        episodeOffers(show, tmdb, season, e.number)
+                    } catch (ex: Exception) {
+                        ui { statusView.text = "Couldn't look it up: ${ex.message}" }
+                        return@Thread
+                    }
+                    ui { chooseOffer(label, offers) }
+                }.start()
+            }
+            .show()
+    }
+
+    /** Yamtrack's per-episode links (cached on the server); if it has none
+     *  (JustWatch off there, older server), JustWatch directly. */
+    private fun episodeOffers(show: String, tmdb: String, season: Int, episode: Int): List<JustWatch.Offer> {
+        val fromYamtrack = try {
+            client().episodeProviders(tmdb, season, episode, country)
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (fromYamtrack.isNotEmpty()) return fromYamtrack
+        val title = JustWatch.findTitle(show, tmdb, "SHOW", country) ?: return emptyList()
+        val jwSeason = JustWatch.seasons(title.id, country).firstOrNull { it.number == season } ?: return emptyList()
+        return JustWatch.episodes(jwSeason.id, country).firstOrNull { it.number == episode }?.offers ?: emptyList()
+    }
+
+    // ── shows from JustWatch (non-TMDB items, or Yamtrack without seasons) ──
 
     private fun chooseSeason(show: String, seasons: List<JustWatch.Season>) {
         if (seasons.isEmpty()) {
