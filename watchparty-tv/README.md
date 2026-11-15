@@ -266,7 +266,8 @@ starting, closed it (logcat on a Samsung phone). On phones, HBO Max is
 launched plain (no fresh task) unless its player is open: with a fresh task
 its player opened and closed, or it showed its home screen; a plain launch
 played it whenever the player wasn't already open (adb). TVs keep the fresh
-task. Netflix needs the `source=30` extra: the same
+task. ✓ Confirmed with 0.9.19 on a Samsung phone (2026-11-15): HBO Max
+episodes start both when HBO Max was closed and when its player was open. Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
