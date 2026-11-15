@@ -9,6 +9,11 @@ streams), using the addon's own TubiAuth and TubiApi - the same anonymous
 device token and the same requests - with stand-ins for Kodi's modules.
 
     python3 tubi_episode.py --addon kodi-addons/plugin.video.tubitv "Forensic Files"
+
+Result (2026-11-15, anonymous token): Forensic Files S1 E1, id 438034, asked
+for alone returns detailed_type "episode", series_id "2914", episode_number
+"1" and its own video_resources (hlsv6, hlsv3) - so an episode id alone is
+playable; there's no season number field (the title reads "S01:E01 - ...").
 """
 import argparse
 import json
