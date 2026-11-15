@@ -253,15 +253,21 @@ class SyncService : Service() {
     private fun openLink(link: String, pkg: String) {
         // the form this app opens (a phone's Starz app doesn't take the TV link)
         val launch = MediaLink.launchFor(Apps.linkFor(this, link, pkg) ?: link, pkg)
-        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(launch.uri))
-            .setPackage(pkg)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        for ((key, value) in launch.extras) intent.putExtra(key, value)
-        // what the app is playing now (e.g. the movie before), to tell it apart from the new title
+        // what the app is playing now (e.g. the movie before), to tell it apart from the new title.
         // HBO Max only has a media session while its player is open (dumpsys on a
         // phone): a session now means it's open, the case where it ignores the link
         val openBefore = if (pkg in RESEND_IF_OPEN) activeController(pkg) else null
         val before = titleOf(openBefore)
+        // Normally a fresh task, so an app that's already open doesn't swallow the
+        // link. HBO Max on a phone mishandles that (its player opened, then closed;
+        // or its home screen): there a plain launch works unless its player is
+        // open, when the fresh task goes first and the plain resend follows (adb).
+        val plain = pkg in RESEND_IF_OPEN && openBefore == null && !isTv()
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(launch.uri))
+            .setPackage(pkg)
+            .addFlags(if (plain) Intent.FLAG_ACTIVITY_NEW_TASK else Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        for ((key, value) in launch.extras) intent.putExtra(key, value)
+        Log.i(TAG, "launch $pkg ${if (plain) "plain" else "fresh task"}, player open before: ${openBefore != null}")
         try {
             startActivity(intent)
             note = "Opening in ${appName(pkg)}…"
@@ -316,6 +322,10 @@ class SyncService : Service() {
             }
         }, RESEND_AFTER_MS)
     }
+
+    private fun isTv(): Boolean =
+        (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
+            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
 
     private fun titleOf(c: MediaController?): String? =
         c?.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)

@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.18.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.19.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -262,7 +262,11 @@ its player, the case where it ignores links. When it wasn't open, it was
 still loading after 8 s and a resend interrupted it. Sync also leaves a
 just-launched app alone (no play, pause or seek) until it has played for
 3 s, or 20 s pass: a seek 5 s after the link, while HBO Max's player was
-starting, closed it (logcat on a Samsung phone). Netflix needs the `source=30` extra: the same
+starting, closed it (logcat on a Samsung phone). On phones, HBO Max is
+launched plain (no fresh task) unless its player is open: with a fresh task
+its player opened and closed, or it showed its home screen; a plain launch
+played it whenever the player wasn't already open (adb). TVs keep the fresh
+task. Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for
