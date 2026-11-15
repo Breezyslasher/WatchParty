@@ -700,7 +700,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     /** The detail, cast and recommendations; each is optional (an older server, a title without them). */
     private fun loadPage() {
         if (!yamtrack || item.source.isEmpty() || item.source == "justwatch") {
-            // without Yamtrack: JustWatch's page (description, genres, rating, cast, similar)
+            // without Yamtrack: JustWatch's page (description, genres, rating, similar — no cast row)
             quietly {
                 val id = jwTitleId() ?: return@quietly
                 JustWatch.page(id, host.country)?.let { p -> ui { showJustWatchPage(p) } }
@@ -734,7 +734,6 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     internal fun showJustWatchPage(p: JustWatch.Page) {
         showDetail(YamtrackClient.Detail(p.title, p.poster, p.synopsis, p.genres, p.score, p.scoreCount, p.date,
             p.runtime?.let { JustWatch.runtimeText(it) }, null, null, null), p.scoreSource, p.certification)
-        showCast(p.cast.map { YamtrackClient.CastMember(it.personId, "justwatch", it.name, it.character, null) })
         showRecommendations(p.similar.map { YamtrackClient.Item.fromJustWatch(it) })
     }
 
@@ -764,11 +763,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         castSection.removeAllViews()
         if (cast.isEmpty()) return
         castSection.addView(rail(c, "Cast", cast.map { m ->
-            Ui.castCard(c, m.name, m.character, m.image) {
-                // JustWatch has no person pages; Yamtrack's need a TMDB person
-                if (m.source == "justwatch") host.toast("People's pages need Yamtrack (Browse → Connect Yamtrack)")
-                else host.openPerson(m)
-            }
+            Ui.castCard(c, m.name, m.character, m.image) { host.openPerson(m) }
         }, 190))
         castSection.visibility = View.VISIBLE
     }

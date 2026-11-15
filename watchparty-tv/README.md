@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.10** (search without Yamtrack, not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.10.1** (search without Yamtrack, not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -172,9 +172,9 @@ Press **Browse**. It works **with or without Yamtrack**:
 
 - **Without Yamtrack** (0.10): **Search** finds any movie or TV show on
   JustWatch, and its page comes from JustWatch too — description, genres,
-  release date, runtime, age rating, TMDB's rating (IMDb's if TMDB has none),
-  the cast (names only: cast cards say people's pages need Yamtrack) and
-  **More like this** (JustWatch's similar titles). Seasons, episodes and
+  release date, runtime, age rating, TMDB's rating (IMDb's if TMDB has none)
+  and **More like this** (JustWatch's similar titles). No cast row: JustWatch
+  has no photos or pages for people. Seasons, episodes and
   services were already JustWatch's when Yamtrack had none. **Connect
   Yamtrack** (a tab) adds your library.
 - **With Yamtrack:** enter your server address and API token under

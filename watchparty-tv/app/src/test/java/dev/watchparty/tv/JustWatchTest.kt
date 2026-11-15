@@ -211,11 +211,7 @@ class JustWatchTest {
               "shortDescription":"Twenty years after modern civilization has been destroyed, Joel ...",
               "posterUrl":"/poster/301981224/{profile}/the-last-of-us.{format}","ageCertification":"TV-MA",
               "genres":[{"translation":"Action & Adventure"},{"translation":"Drama"}],
-              "scoring":{"imdbScore":8.4,"imdbVotes":756329,"tmdbScore":8.394},
-              "credits":[{"role":"ACTOR","name":"Pedro Pascal","characterName":"Joel Miller (uncredited)","personId":32436},
-                {"role":"ACTOR","name":"Bella Ramsey","characterName":"Ellie Williams","personId":764152},
-                {"role":"ACTOR","name":"Pedro Pascal","characterName":"Joel Miller","personId":32436},
-                {"role":"DIRECTOR","name":"Craig Mazin","characterName":"","personId":1753}]},
+              "scoring":{"imdbScore":8.4,"imdbVotes":756329,"tmdbScore":8.394}},
             "similarTitlesV2":{"edges":[{"node":{"id":"ts88632","objectType":"SHOW","content":{"title":"Chernobyl",
               "originalReleaseYear":2019,"posterUrl":"/poster/130849429/{profile}/chernobyl.{format}","externalIds":{"tmdbId":"87108"}}}}]}
         }}}""")
@@ -229,15 +225,13 @@ class JustWatchTest {
         assertEquals("2023-01-15", p.date)
         assertEquals(57, p.runtime)
         assertEquals("TV-MA", p.certification)
-        // actors only, each once
-        assertEquals(listOf("Pedro Pascal", "Bella Ramsey"), p.cast.map { it.name })
         assertEquals(listOf("Chernobyl"), p.similar.map { it.title })
         assertEquals("87108", p.similar[0].tmdbId)
     }
 
     @Test fun imdbRatingWhenTmdbHasNone() {
         val response = JSONObject("""{"data":{"node":{"content":{"title":"X","runtime":0,"ageCertification":"",
-            "scoring":{"imdbScore":7.1,"imdbVotes":313489,"tmdbScore":null},"credits":[],"genres":[]}}}}""")
+            "scoring":{"imdbScore":7.1,"imdbVotes":313489,"tmdbScore":null},"genres":[]}}}}""")
         val p = JustWatch.parsePage(response)!!
         assertEquals(7.1, p.score!!, 0.0001)
         assertEquals("imdb", p.scoreSource)

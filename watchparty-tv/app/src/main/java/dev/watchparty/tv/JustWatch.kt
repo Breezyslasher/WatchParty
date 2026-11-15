@@ -28,7 +28,8 @@ object JustWatch {
                      val poster: String? = null)
 
     /** A title page from JustWatch, for titles found without Yamtrack. [score]
-     *  is TMDB's ([scoreSource] "tmdb"), else IMDb's; [runtime] in minutes. */
+     *  is TMDB's ([scoreSource] "tmdb"), else IMDb's; [runtime] in minutes.
+     *  No cast: JustWatch has no photos or pages for people. */
     data class Page(
         val title: String,
         val poster: String?,
@@ -40,12 +41,8 @@ object JustWatch {
         val date: String?,
         val runtime: Int?,
         val certification: String?,
-        val cast: List<Credit>,
         val similar: List<Title>,
     )
-
-    /** An actor (JustWatch has no photos; [personId] is JustWatch's own). */
-    data class Credit(val personId: String, val name: String, val character: String?)
     data class Season(val id: String, val number: Int, val title: String)
     data class Episode(val id: String, val number: Int, val title: String, val offers: List<Offer>)
 
@@ -135,7 +132,6 @@ object JustWatch {
           title originalReleaseDate runtime shortDescription posterUrl ageCertification
           genres { translation(language: ${'$'}l) }
           scoring { imdbScore imdbVotes tmdbScore }
-          credits { role name characterName personId }
         }
         similarTitlesV2(country: ${'$'}c, first: 20) { edges { node { $TITLE_FIELDS } } }
       } }
@@ -149,7 +145,7 @@ object JustWatch {
             .put("f", JSONObject().put("searchQuery", query).put("objectTypes", JSONArray().put(objectType)))
             .put("c", country).put("l", "en").put("first", first)))
 
-    /** A title's page: description, genres, rating, cast and similar titles. */
+    /** A title's page: description, genres, rating and similar titles. */
     fun page(titleId: String, country: String): Page? =
         parsePage(post(PAGE, JSONObject().put("id", titleId).put("c", country).put("l", "en")))
 
@@ -208,15 +204,6 @@ object JustWatch {
         val scoring = content.optJSONObject("scoring")
         val tmdb = scoring?.let { score(it, "tmdbScore") }
         val imdb = scoring?.let { score(it, "imdbScore") }
-        val cast = LinkedHashMap<String, Credit>()   // an actor can be listed twice (two characters)
-        content.optJSONArray("credits")?.let { a ->
-            for (i in 0 until a.length()) {
-                val o = a.optJSONObject(i) ?: continue
-                if (o.optString("role") != "ACTOR") continue
-                val id = o.optString("personId")
-                if (id.isNotEmpty() && !cast.containsKey(id)) cast[id] = Credit(id, o.optString("name"), text(o, "characterName"))
-            }
-        }
         val similar = mutableListOf<Title>()
         node.optJSONObject("similarTitlesV2")?.optJSONArray("edges")?.let { a ->
             for (i in 0 until a.length()) a.optJSONObject(i)?.optJSONObject("node")?.let { title(it) }?.let { similar += it }
@@ -232,7 +219,6 @@ object JustWatch {
             date = text(content, "originalReleaseDate"),
             runtime = content.optInt("runtime").takeIf { it > 0 },
             certification = text(content, "ageCertification"),
-            cast = cast.values.take(30),
             similar = similar,
         )
     }
