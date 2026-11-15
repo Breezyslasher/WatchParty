@@ -18,10 +18,12 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import java.util.Locale
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
 /**
@@ -332,6 +334,101 @@ object Ui {
             post { Posters.load(YamtrackClient.posterUrl(image), poster.image, maxOf(poster.width, px(c, 200))) }
         }
 
+    /** Cast: round 150px photo (initials until it loads), 22/700 name, 20 muted character; ring 5 accent. */
+    fun castCard(c: Context, name: String, character: String?, image: String?, onClick: () -> Unit): Tile =
+        Tile(c).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            fill = BG               // the ring is drawn behind the card: a fill keeps it a ring
+            radius = pxf(c, 20)
+            ring = ACCENT
+            ringWidth = pxf(c, 5)
+            focusScale = 1.05f
+            setPadding(px(c, 12), px(c, 14), px(c, 12), px(c, 14))
+            val photo = FrameLayout(c).apply {
+                background = oval(CHIP)
+                outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) = outline.setOval(0, 0, view.width, view.height)
+                }
+                clipToOutline = true
+            }
+            val initials = name.split(' ').filter { it.isNotEmpty() }.take(2).joinToString("") { it.take(1) }
+            photo.addView(text(c, initials, 40, 700, MUTED).apply { gravity = Gravity.CENTER },
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            val img = ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+            photo.addView(img, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            addView(photo, LinearLayout.LayoutParams(px(c, 150), px(c, 150)))
+            addView(text(c, name, 22, 700, lineHeight = 1.15f).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(c, 14) })
+            if (!character.isNullOrBlank()) addView(text(c, character, 20, 400, MUTED, lineHeight = 1.15f).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(c, 4) })
+            setOnClickListener { onClick() }
+            Posters.load(YamtrackClient.posterUrl(image), img, px(c, 150))
+        }
+
+    /** Genre tags: not focusable, 2px line border, 22/600. */
+    fun tag(c: Context, s: String): TextView = text(c, s, 22, 600, CHIP_TEXT).apply {
+        background = rounded(c, 0, 24, 2, LINE)
+        setPadding(px(c, 20), px(c, 8), px(c, 20), px(c, 8))
+    }
+
+    /** The source's rating (e.g. TMDB's): "7.8" over a muted "TMDB · 1.2k votes". */
+    fun rating(c: Context, score: Double, source: String, votes: Int?): LinearLayout = row(c).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        background = rounded(c, CHIP, 12)
+        setPadding(px(c, 18), px(c, 8), px(c, 18), px(c, 8))
+        addView(text(c, String.format(Locale.US, "%.1f", score), 28, 800, ACCENT))
+        val label = sourceName(source) + (if (votes != null && votes > 0) " · ${count(votes)} votes" else "")
+        addView(text(c, label, 20, 600, MUTED), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = px(c, 12) })
+    }
+
+    fun sourceName(source: String) = when (source) {
+        "tmdb" -> "TMDB"
+        "mal" -> "MyAnimeList"
+        "tvdb" -> "TVDB"
+        else -> source.uppercase(Locale.US)
+    }
+
+    /** 950 → "950", 12345 → "12.3k". */
+    fun count(n: Int): String = if (n < 1000) "$n" else String.format(Locale.US, "%.1fk", n / 1000.0)
+
+    /** A description that shows [lines] lines; OK (or a tap) shows all of it. Ring 4 text. */
+    fun moreText(c: Context, s: String, sizePx: Int, lines: Int): Tile = Tile(c).apply {
+        fill = BG
+        radius = pxf(c, 12)
+        ring = TEXT
+        ringWidth = pxf(c, 4)
+        setPadding(px(c, 16), px(c, 12), px(c, 16), px(c, 12))
+        val t = text(c, s, sizePx, 400, TEXT_2, lineHeight = 1.45f).apply {
+            maxLines = lines
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        addView(t, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        setOnClickListener { t.maxLines = if (t.maxLines == lines) Int.MAX_VALUE else lines }
+    }
+
+    /** "1999-03-31" → "31 Mar 1999" (as written in the TV's language). */
+    fun date(s: String?): String? {
+        if (s.isNullOrBlank()) return null
+        return try {
+            val d = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(s) ?: return s
+            java.text.SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(d)
+        } catch (e: java.text.ParseException) {
+            s
+        }
+    }
+
+    fun year(s: String?): String? = s?.takeIf { it.length >= 4 && it.substring(0, 4).all(Char::isDigit) }?.substring(0, 4)
+
     // ── inputs ──────────────────────────────────────────────────────────
 
     /** A text field: [fill] with a 2px border that turns accent when focused. */
@@ -529,5 +626,36 @@ class PosterView(context: Context, private val radius: Float) : FrameLayout(cont
         super.dispatchDraw(canvas)
         val i = paint.strokeWidth / 2f
         canvas.drawRoundRect(i, i, width - i, height - i, radius, radius, paint)
+    }
+}
+
+/**
+ * A vertical page of sections (the children of its one child). When focus
+ * moves into a section, the whole section scrolls into view if it fits, so
+ * a row's label and the rows around it stay on screen — instead of the
+ * minimum that just reveals the focused card.
+ */
+class PageScroll(context: Context) : ScrollView(context) {
+    init {
+        isVerticalScrollBarEnabled = false
+        isFocusable = false
+        Ui.noClip(this)
+    }
+
+    override fun computeScrollDeltaToGetChildRectOnScreen(rect: Rect): Int {
+        val content = getChildAt(0) as? ViewGroup ?: return super.computeScrollDeltaToGetChildRectOnScreen(rect)
+        val room = height - paddingTop - paddingBottom
+        val margin = Ui.px(context, 40)
+        for (i in 0 until content.childCount) {
+            val s = content.getChildAt(i)
+            if (s.visibility != View.VISIBLE) continue
+            val top = content.top + s.top
+            val bottom = content.top + s.bottom
+            if (rect.centerY() < top || rect.centerY() > bottom) continue
+            val whole = Rect(rect.left, minOf(rect.top, top - margin), rect.right, maxOf(rect.bottom, bottom + margin))
+            if (whole.height() <= room) return super.computeScrollDeltaToGetChildRectOnScreen(whole)
+            break
+        }
+        return super.computeScrollDeltaToGetChildRectOnScreen(rect)
     }
 }

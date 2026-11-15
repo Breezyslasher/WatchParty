@@ -38,7 +38,9 @@ interface Host {
     val prefs: SharedPreferences
     val country: String
     fun go(screen: Screen)
+    /** A title's page; from another title or person page, Back returns there. */
     fun openPicker(item: YamtrackClient.Item)
+    fun openPerson(member: YamtrackClient.CastMember)
     fun toast(text: String)
     /** A title was sent to the room: remember it for Now playing, go to Room. */
     fun sent(playing: Playing)
@@ -52,6 +54,38 @@ abstract class ContentScreen(protected val host: Host) {
     /** The view that gets focus when the screen opens. */
     abstract fun defaultFocus(): View?
     open fun tick() {}
+    /** Where focus was when another page opened on top of this one (Back returns to it). */
+    var lastFocus: View? = null
+}
+
+/** Grid rows of [columns] cards; a short last row keeps the card width. */
+fun posterGrid(c: Activity, cards: List<View>, columns: Int): LinearLayout {
+    val grid = Ui.column(c)
+    var row: LinearLayout? = null
+    for ((i, card) in cards.withIndex()) {
+        val slot = i % columns
+        if (slot == 0) {
+            row = Ui.row(c)
+            grid.addView(row, lp(MATCH).apply { if (grid.childCount > 0) topMargin = Ui.px(c, 36) })
+        }
+        row!!.addView(card, lp(0, WRAP, 1f).apply { if (slot > 0) leftMargin = Ui.px(c, 28) })
+    }
+    val rest = cards.size % columns
+    if (row != null && rest != 0) for (i in rest until columns) row.addView(View(c), lp(0, 1, 1f).apply { leftMargin = Ui.px(c, 28) })
+    return grid
+}
+
+/** A horizontal rail of cards under a section label (cast, More like this). */
+fun rail(c: Activity, label: String, cards: List<View>, cardWidthPx: Int): LinearLayout = Ui.column(c).apply {
+    addView(Ui.sectionLabel(c, label), lp().apply { bottomMargin = Ui.px(c, 20) })
+    val row = Ui.row(c).apply { setPadding(Ui.px(c, 8), Ui.px(c, 8), Ui.px(c, 8), Ui.px(c, 8)) }
+    for (card in cards) row.addView(card, lp(Ui.px(c, cardWidthPx), WRAP).apply { if (row.childCount > 0) leftMargin = Ui.px(c, 24) })
+    addView(android.widget.HorizontalScrollView(c).apply {
+        Ui.noClip(this)
+        isHorizontalScrollBarEnabled = false
+        isFocusable = false
+        addView(row)
+    }, lp(MATCH))
 }
 
 // ── Room (home) ─────────────────────────────────────────────────────────
@@ -149,6 +183,8 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     private var tab = "movie"           // movie | tv | search
     private var status: Int = YamtrackClient.IN_PROGRESS
     private var query = ""
+    /** What Search looks for: "movie" or "tv" (one Yamtrack search each, not mixed). */
+    private var searchType = "movie"
     private var offset = 0
     private var total = 0
     private var loading = false
@@ -158,7 +194,9 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     private val tabs = LinkedHashMap<String, TextTile>()
     private val chips = LinkedHashMap<Int, TextTile>()
     private val chipRow = Ui.row(c)
-    private val searchField = Ui.field(c, "Search movies and shows", "", 76, 30, Ui.SURFACE, 14, 28)
+    private val typeChips = LinkedHashMap<String, TextTile>()
+    private val typeRow = Ui.row(c)
+    private val searchField = Ui.field(c, "Search movies", "", 76, 30, Ui.SURFACE, 14, 28)
     private val serverBox = Ui.column(c)
     private val serverField = Ui.field(c, "yamtrack.example.com or 192.168.1.5:8000", "", 76, 28, Ui.SURFACE, 14, 28)
     private val tokenField = Ui.field(c, "API token", "", 76, 28, Ui.SURFACE, 14, 28)
@@ -190,6 +228,18 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             addView(chipRow)
         }
         addView(chipScroll, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
+
+        // Search: movies or TV shows, in the same place as the status chips
+        for ((key, name) in listOf("movie" to "Movies", "tv" to "TV shows")) {
+            val chip = Ui.chip(c, name) {
+                searchType = key
+                updateHeader()
+                if (query.isNotEmpty()) reload()
+            }
+            typeChips[key] = chip
+            typeRow.addView(chip, lp(WRAP, Ui.tap(c, 52)).apply { if (typeRow.childCount > 0) leftMargin = Ui.px(c, 10) })
+        }
+        addView(typeRow, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
 
         searchField.imeOptions = EditorInfo.IME_ACTION_SEARCH
         searchField.setOnEditorActionListener { _, _, _ -> runSearch(); true }
@@ -239,10 +289,9 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
 
     override fun defaultFocus(): View? = if (!configured()) serverField else tabs[tab]
 
-    private fun configured() =
-        !host.prefs.getString(KEY_URL, "").isNullOrBlank() && !host.prefs.getString(KEY_TOKEN, "").isNullOrBlank()
+    private fun configured() = configured(host.prefs)
 
-    private fun client() = YamtrackClient(host.prefs.getString(KEY_URL, "") ?: "", host.prefs.getString(KEY_TOKEN, "") ?: "")
+    private fun client() = client(host.prefs)
 
     private fun saveServer() {
         val url = serverField.text.toString().trim()
@@ -292,6 +341,9 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         }
         for ((code, chip) in chips) chip.setChosen(code == status)
         (chipRow.parent as View).visibility = if (ok && tab != "search") View.VISIBLE else View.GONE
+        for ((key, chip) in typeChips) chip.setChosen(key == searchType)
+        typeRow.visibility = if (ok && tab == "search") View.VISIBLE else View.GONE
+        searchField.hint = if (searchType == "tv") "Search TV shows" else "Search movies"
         searchField.visibility = if (ok && tab == "search") View.VISIBLE else View.GONE
         scroll.visibility = if (ok) View.VISIBLE else View.GONE
         if (!ok) empty.visibility = View.GONE
@@ -330,10 +382,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             var error: Exception? = null
             try {
                 page = if (searching) {
-                    // search covers movies and shows: two requests, merged
-                    val movies = client().search("movie", text)
-                    val shows = client().search("tv", text)
-                    YamtrackClient.Page(movies.items + shows.items, movies.total + shows.total)
+                    client().search(searchType, text)
                 } else {
                     client().library(type, if (code == ALL) null else code, from)
                 }
@@ -400,6 +449,11 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     companion object {
         const val KEY_URL = "yamtrack_url"
         const val KEY_TOKEN = "yamtrack_token"
+
+        fun configured(prefs: SharedPreferences) =
+            !prefs.getString(KEY_URL, "").isNullOrBlank() && !prefs.getString(KEY_TOKEN, "").isNullOrBlank()
+
+        fun client(prefs: SharedPreferences) = YamtrackClient(prefs.getString(KEY_URL, "") ?: "", prefs.getString(KEY_TOKEN, "") ?: "")
         const val ALL = -1
         val STATUSES = listOf(
             YamtrackClient.IN_PROGRESS to "Watching",
@@ -442,27 +496,42 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private var firstService: View? = null
     private var gen = 0
 
+    // the title page around the picker: facts, genres, description, cast, more like this
+    private val poster = PosterView(c, Ui.pxf(c, 14))
+    private val facts = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE }
+    private val genres = Ui.row(c).apply { visibility = View.GONE }
+    private val about = Ui.column(c)
+    private val castSection = Ui.column(c).apply { visibility = View.GONE }
+    private val moreSection = Ui.column(c).apply { visibility = View.GONE }
+    private var posterSet = false
+
     override val view: View = build()
 
     private fun build(): View {
         val root = Ui.column(c).apply {
-            if (phone) setPadding(Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 40))
-            else setPadding(Ui.px(c, 96), Ui.px(c, 64), Ui.px(c, 96), Ui.px(c, 64))
+            if (phone) setPadding(Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 64))
+            else setPadding(Ui.px(c, 96), Ui.px(c, 64), Ui.px(c, 96), Ui.px(c, 80))
         }
-        // header: poster, meta, title
-        val header = Ui.row(c).apply { gravity = Gravity.BOTTOM }
-        val poster = PosterView(c, Ui.pxf(c, 14))
-        header.addView(poster, lp(Ui.px(c, if (phone) 140 else 180), WRAP))
-        Posters.load(YamtrackClient.posterUrl(item.image), poster.image, Ui.px(c, 180))
+        // header: poster beside kind · status, title, rating and facts, genres, description
+        val hero = Ui.column(c)
+        val top = Ui.row(c)
+        top.addView(poster, lp(Ui.px(c, if (phone) 180 else 220), WRAP))
+        setPoster(item.image)
         val texts = Ui.column(c)
         texts.addView(Ui.oneLine(Ui.text(c, listOfNotNull(BrowseScreen.kind(item.mediaType),
             BrowseScreen.statusName(item.status)).joinToString(" · "), 24, 400, Ui.MUTED)))
-        texts.addView(Ui.text(c, item.title, if (phone) 56 else 76, 800, spacingEm = -0.03f).apply {
+        texts.addView(Ui.text(c, item.title, if (phone) 52 else 64, 800, spacingEm = -0.03f).apply {
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
         }, lp(MATCH).apply { topMargin = Ui.px(c, 10) })
-        header.addView(texts, lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, 40) })
-        root.addView(header, lp(MATCH))
+        texts.addView(facts, lp(MATCH).apply { topMargin = Ui.px(c, 18) })
+        top.addView(texts, lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, if (phone) 32 else 48) })
+        hero.addView(top, lp(MATCH))
+        // on a TV the genres and description sit beside the poster; on a phone, under it
+        val under = if (phone) hero else texts
+        under.addView(genres, lp(MATCH).apply { topMargin = Ui.px(c, if (phone) 28 else 18) })
+        under.addView(about, lp(MATCH).apply { topMargin = Ui.px(c, 10); leftMargin = -Ui.px(c, 16) })
+        root.addView(hero, lp(MATCH))
 
         val cols = if (phone) Ui.column(c) else Ui.row(c)
         if (show) {
@@ -479,30 +548,110 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         val serviceCol = Ui.column(c)
         serviceCol.addView(servicesTitle, lp().apply { bottomMargin = Ui.px(c, 6) })
         serviceCol.addView(hint, lp().apply { topMargin = Ui.px(c, 12) })
-        serviceCol.addView(scrolling(serviceList), if (phone) lp(MATCH) else lp(MATCH, 0, 1f).apply { topMargin = Ui.px(c, 6) })
-        cols.addView(serviceCol, if (phone) lp(MATCH).apply { topMargin = Ui.px(c, 40) }
-        else lp(0, MATCH, 1f).apply { if (show) leftMargin = Ui.px(c, 40) })
-        root.addView(cols, (if (phone) lp(MATCH) else lp(MATCH, 0, 1f)).apply { topMargin = Ui.px(c, 40) })
+        // a TV shows a season's episodes in a fixed-height box that scrolls on
+        // its own, so the season and service columns stay beside them
+        val boxed = show && !phone
+        serviceCol.addView(if (boxed) scrolling(serviceList) else serviceList.also { it.setPadding(Ui.px(c, 6), Ui.px(c, 6), Ui.px(c, 6), Ui.px(c, 6)) },
+            if (boxed) lp(MATCH, 0, 1f).apply { topMargin = Ui.px(c, 6) } else lp(MATCH).apply { topMargin = Ui.px(c, 6) })
+        cols.addView(serviceCol, when {
+            phone -> lp(MATCH).apply { if (show) topMargin = Ui.px(c, 40) }
+            show -> lp(0, MATCH, 1f).apply { leftMargin = Ui.px(c, 40) }
+            else -> lp(Ui.px(c, 760), WRAP)
+        })
+        root.addView(cols, (if (boxed) lp(MATCH, Ui.px(c, 540)) else lp(MATCH)).apply { topMargin = Ui.px(c, 48) })
+        root.addView(castSection, lp(MATCH).apply { topMargin = Ui.px(c, 56) })
+        root.addView(moreSection, lp(MATCH).apply { topMargin = Ui.px(c, 56) })
+
         if (show) load { loadSeasons() } else load { loadMovie() }
-        return if (phone) ScrollView(c).apply { Ui.noClip(this); isVerticalScrollBarEnabled = false; addView(root) } else root
+        loadPage()
+        return PageScroll(c).apply { addView(root) }
     }
 
     /** On TV each column scrolls on its own; on phones the whole screen scrolls. */
     private fun scrolling(list: LinearLayout): View {
         list.setPadding(Ui.px(c, 6), Ui.px(c, 6), Ui.px(c, 6), Ui.px(c, 6))
         if (phone) return list
-        return ScrollView(c).apply {
+        val scroll = ScrollView(c).apply {
             Ui.noClip(this)
             isVerticalScrollBarEnabled = false
             isFocusable = false
             addView(list, FrameLayout.LayoutParams(MATCH, WRAP))
         }
+        // a view is clipped by its parent: this frame keeps rows scrolled out of
+        // the box from drawing over the page (rings fit in the list's padding)
+        return FrameLayout(c).apply {
+            clipChildren = true
+            addView(scroll, FrameLayout.LayoutParams(MATCH, MATCH))
+        }
     }
 
     override fun defaultFocus(): View? = firstService ?: firstSeason
 
-    private fun client() = YamtrackClient(host.prefs.getString(BrowseScreen.KEY_URL, "") ?: "",
-        host.prefs.getString(BrowseScreen.KEY_TOKEN, "") ?: "")
+    private fun setPoster(image: String?) {
+        if (image.isNullOrBlank() || posterSet) return
+        posterSet = true
+        Posters.load(YamtrackClient.posterUrl(image, "w342"), poster.image, Ui.px(c, 220))
+    }
+
+    /** The detail, cast and recommendations; each is optional (an older server, a title without them). */
+    private fun loadPage() {
+        if (!BrowseScreen.configured(host.prefs) || item.source.isEmpty()) return
+        val type = item.mediaType
+        quietly { client().detail(type, item.source, item.mediaId).let { d -> ui { showDetail(d) } } }
+        quietly { client().cast(type, item.source, item.mediaId).let { list -> ui { showCast(list) } } }
+        quietly { client().recommendations(type, item.source, item.mediaId).let { list -> ui { showRecommendations(list) } } }
+    }
+
+    private fun quietly(work: () -> Unit) {
+        Thread {
+            try {
+                work()
+            } catch (e: Exception) {
+                // the page works without it
+            }
+        }.start()
+    }
+
+    internal fun showDetail(d: YamtrackClient.Detail) {
+        setPoster(d.image)
+        facts.removeAllViews()
+        if (d.score != null) facts.addView(Ui.rating(c, d.score, item.source, d.scoreCount), lp().apply { rightMargin = Ui.px(c, 20) })
+        val parts = if (show) listOfNotNull(
+            Ui.date(d.date)?.let { "First aired $it" },
+            d.seasons?.let { if (it == 1) "1 season" else "$it seasons" },
+            d.runtime,
+            d.status,
+        ) else listOfNotNull(Ui.date(d.date), d.runtime)
+        if (parts.isNotEmpty()) facts.addView(Ui.text(c, parts.joinToString(" · "), 26, 500, Ui.TEXT_2, lineHeight = 1.3f), lp(0, WRAP, 1f))
+        facts.visibility = if (facts.childCount > 0) View.VISIBLE else View.GONE
+
+        genres.removeAllViews()
+        for (g in d.genres.take(if (phone) 3 else 5)) genres.addView(Ui.tag(c, g), lp().apply { if (genres.childCount > 0) leftMargin = Ui.px(c, 12) })
+        genres.visibility = if (genres.childCount > 0) View.VISIBLE else View.GONE
+
+        about.removeAllViews()
+        d.synopsis?.let { about.addView(Ui.moreText(c, it, if (phone) 28 else 26, if (phone) 5 else 3), lp(MATCH)) }
+    }
+
+    internal fun showCast(cast: List<YamtrackClient.CastMember>) {
+        castSection.removeAllViews()
+        if (cast.isEmpty()) return
+        castSection.addView(rail(c, "Cast", cast.map { m ->
+            Ui.castCard(c, m.name, m.character, m.image) { host.openPerson(m) }
+        }, 190))
+        castSection.visibility = View.VISIBLE
+    }
+
+    internal fun showRecommendations(items: List<YamtrackClient.Item>) {
+        moreSection.removeAllViews()
+        if (items.isEmpty()) return
+        moreSection.addView(rail(c, "More like this", items.take(20).map { rec ->
+            Ui.posterCard(c, rec.title, BrowseScreen.kind(rec.mediaType), rec.image) { host.openPicker(rec) }
+        }, 200))
+        moreSection.visibility = View.VISIBLE
+    }
+
+    private fun client() = BrowseScreen.client(host.prefs)
 
     private fun load(work: () -> Unit) {
         Thread {
@@ -703,6 +852,105 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
                 link.contains("hbomax.com/video/watch/") || link.contains("max.com/video/watch/") ||
                 (link.contains("starz.com/") && link.contains("/play/")) ||
                 (link.contains("tv.apple.com/") && link.contains("/movie/"))
+    }
+}
+
+// ── Person: photo, born, biography, known for ───────────────────────────
+
+class PersonScreen(host: Host, private val member: YamtrackClient.CastMember) : ContentScreen(host) {
+    private val phone = Ui.isPhone(c)
+    private val columns = if (!phone) 5 else if (c.resources.configuration.screenWidthDp >= 600) 3 else 2
+    private val photo = PosterView(c, Ui.pxf(c, 14))
+    private val department = Ui.oneLine(Ui.text(c, "", 24, 400, Ui.MUTED))
+    private val facts = Ui.text(c, "", 26, 500, Ui.TEXT_2, lineHeight = 1.3f).apply { visibility = View.GONE }
+    private val about = Ui.column(c)
+    private val knownLabel = Ui.sectionLabel(c, "Known for")
+    private val hint = Ui.text(c, "Loading…", 28, 400, Ui.FAINT)
+    private val known = Ui.column(c)
+    private var firstCard: View? = null
+
+    override val view: View = build()
+
+    private fun build(): View {
+        val root = Ui.column(c).apply {
+            if (phone) setPadding(Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 64))
+            else setPadding(Ui.px(c, 96), Ui.px(c, 64), Ui.px(c, 96), Ui.px(c, 80))
+        }
+        val hero = Ui.column(c)
+        val top = Ui.row(c)
+        top.addView(photo, lp(Ui.px(c, if (phone) 180 else 220), WRAP))
+        Posters.load(YamtrackClient.posterUrl(member.image, "w342"), photo.image, Ui.px(c, 220))
+        val texts = Ui.column(c)
+        texts.addView(department)
+        texts.addView(Ui.text(c, member.name, if (phone) 52 else 64, 800, spacingEm = -0.03f).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+        }, lp(MATCH).apply { topMargin = Ui.px(c, 10) })
+        texts.addView(facts, lp(MATCH).apply { topMargin = Ui.px(c, 18) })
+        top.addView(texts, lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, if (phone) 32 else 48) })
+        hero.addView(top, lp(MATCH))
+        (if (phone) hero else texts).addView(about, lp(MATCH).apply {
+            topMargin = Ui.px(c, if (phone) 28 else 14); leftMargin = -Ui.px(c, 16)
+        })
+        root.addView(hero, lp(MATCH))
+
+        val section = Ui.column(c)
+        section.addView(knownLabel, lp().apply { bottomMargin = Ui.px(c, 20) })
+        section.addView(hint)
+        section.addView(known, lp(MATCH))
+        root.addView(section, lp(MATCH).apply { topMargin = Ui.px(c, 56) })
+
+        if (BrowseScreen.configured(host.prefs)) {
+            Thread {
+                val client = BrowseScreen.client(host.prefs)
+                try {
+                    val p = client.person(member.source, member.personId)
+                    c.runOnUiThread { showPerson(p) }
+                } catch (e: Exception) {
+                    // the known-for list is the useful part
+                }
+                try {
+                    val list = client.knownFor(member.source, member.personId)
+                    c.runOnUiThread { showKnownFor(list) }
+                } catch (e: Exception) {
+                    c.runOnUiThread { hint.text = "Couldn't load: ${e.message}"; hint.setTextColor(Ui.WARN) }
+                }
+            }.start()
+        }
+        return PageScroll(c).apply { addView(root) }
+    }
+
+    /** The biography first, so the page opens at the top (name, photo); Down reaches the titles. */
+    override fun defaultFocus(): View? = about.getChildAt(0) ?: firstCard
+
+    private fun nothingFocused() = c.currentFocus == null || c.currentFocus?.isAttachedToWindow != true
+
+    internal fun showPerson(p: YamtrackClient.Person) {
+        if (member.image.isNullOrBlank()) Posters.load(YamtrackClient.posterUrl(p.image, "w342"), photo.image, Ui.px(c, 220))
+        department.text = p.department ?: ""
+        val born = listOfNotNull(Ui.date(p.birthday), p.placeOfBirth?.let { "in $it" }).joinToString(" ")
+        val parts = listOfNotNull(born.takeIf { it.isNotEmpty() }?.let { "Born $it" }, Ui.date(p.deathday)?.let { "Died $it" })
+        facts.text = parts.joinToString(" · ")
+        facts.visibility = if (parts.isEmpty()) View.GONE else View.VISIBLE
+        about.removeAllViews()
+        p.biography?.let { about.addView(Ui.moreText(c, it, if (phone) 28 else 26, if (phone) 6 else 5), lp(MATCH)) }
+        if (nothingFocused()) defaultFocus()?.requestFocus()
+    }
+
+    internal fun showKnownFor(items: List<YamtrackClient.Item>) {
+        known.removeAllViews()
+        if (items.isEmpty()) {
+            hint.text = "Nothing listed."
+            return
+        }
+        hint.visibility = View.GONE
+        val cards = items.map { item ->
+            val meta = listOfNotNull(Ui.year(item.date), item.role ?: BrowseScreen.kind(item.mediaType)).joinToString(" · ")
+            Ui.posterCard(c, item.title, meta, item.image) { host.openPicker(item) }
+        }
+        firstCard = cards.first()
+        known.addView(posterGrid(c, cards, columns), lp(MATCH))
+        if (nothingFocused()) firstCard?.requestFocus()
     }
 }
 

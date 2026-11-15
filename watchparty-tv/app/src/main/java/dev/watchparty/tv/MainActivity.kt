@@ -30,6 +30,7 @@ import java.util.Locale
 class MainActivity : Activity(), Host {
 
     companion object {
+        const val MAX_PAGES = 12
         const val SWITCH_TIP =
             "Turn on Watch Party in the settings screen (it's at the top), then come back. If the remote " +
                 "can't reach it, click its switch once with a mouse. On a phone, first: Settings → Apps → " +
@@ -61,7 +62,8 @@ class MainActivity : Activity(), Host {
     private lateinit var roomScreen: RoomScreen
     private var browseScreen: BrowseScreen? = null
     private var linkScreen: LinkScreen? = null
-    private var pickerScreen: PickerScreen? = null
+    /** Title and person pages, newest last: Back goes to the one before, then to Browse. */
+    private val pages = ArrayList<ContentScreen>()
     private val playing = HashMap<String, Playing>()
     private var wasRunning = SyncService.running
 
@@ -118,7 +120,11 @@ class MainActivity : Activity(), Host {
     override fun onBackPressed() {
         if (shell != null) {
             when (screen) {
-                Screen.PICKER -> { go(Screen.BROWSE); return }
+                Screen.PICKER -> {
+                    pages.removeAt(pages.size - 1)
+                    go(if (pages.isEmpty()) Screen.BROWSE else Screen.PICKER)
+                    return
+                }
                 Screen.BROWSE, Screen.LINK -> { go(Screen.ROOM); return }
                 Screen.ROOM -> {}
             }
@@ -133,26 +139,39 @@ class MainActivity : Activity(), Host {
             Screen.ROOM -> roomScreen
             Screen.BROWSE -> browseScreen ?: BrowseScreen(this).also { browseScreen = it }
             Screen.LINK -> linkScreen ?: LinkScreen(this).also { linkScreen = it }
-            Screen.PICKER -> pickerScreen ?: return
+            Screen.PICKER -> pages.lastOrNull() ?: return
         }
-        if (screen != Screen.PICKER) pickerScreen = null
+        if (screen != Screen.PICKER) pages.clear()
         this.screen = screen
         content.removeAllViews()
         (target.view.parent as? FrameLayout)?.removeView(target.view)
         content.addView(target.view, FrameLayout.LayoutParams(MATCH, MATCH))
         rail.select(screen)
         target.tick()
-        content.post { target.defaultFocus()?.requestFocus() }
+        val back = target.lastFocus
+        target.lastFocus = null
+        content.post { (back ?: target.defaultFocus())?.requestFocus() }
     }
 
-    override fun openPicker(item: YamtrackClient.Item) {
-        pickerScreen = PickerScreen(this, item)
+    override fun openPicker(item: YamtrackClient.Item) = open(PickerScreen(this, item))
+
+    override fun openPerson(member: YamtrackClient.CastMember) = open(PersonScreen(this, member))
+
+    private fun open(page: ContentScreen) {
+        if (screen == Screen.PICKER) {
+            pages.lastOrNull()?.lastFocus = content.findFocus()
+            // a long walk through cast and recommendations keeps only the latest pages
+            if (pages.size >= MAX_PAGES) pages.removeAt(0)
+        } else {
+            pages.clear()
+        }
+        pages.add(page)
         go(Screen.PICKER)
     }
 
     override fun sent(playing: Playing) {
         this.playing[playing.file] = playing
-        pickerScreen = null
+        pages.clear()
         go(Screen.ROOM)
         toast("Sent to the room: ${playing.title}")
     }
@@ -169,7 +188,7 @@ class MainActivity : Activity(), Host {
         Screen.ROOM -> roomScreen
         Screen.BROWSE -> browseScreen
         Screen.LINK -> linkScreen
-        Screen.PICKER -> pickerScreen
+        Screen.PICKER -> pages.lastOrNull()
     }
 
     // ── shell ───────────────────────────────────────────────────────────

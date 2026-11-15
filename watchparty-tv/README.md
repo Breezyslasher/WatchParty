@@ -4,11 +4,12 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.8.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
-Chromecast). 0.8 is a new look (same behaviour); its layouts were checked in
-rendered screenshots at 1080p and phone size, not yet with a remote on a TV.
+Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
+pages; their layouts were checked in rendered screenshots at 1080p and phone
+size, not yet with a remote on a TV or against a live Yamtrack server.
 Not yet tried on a device: **Browse Yamtrack**, and phones (see [Phones](#phones)).
 Syncing two TVs in one room end to end is still being tested.
 The sync logic, link handling, relay client and adb client are unit-tested
@@ -145,17 +146,26 @@ Yamtrack server address and API token (typing is easiest with the Google TV
 app's phone keyboard). Then:
 
 1. **Movies** or **TV shows**, filtered by **Watching / Planning / Paused /
-   Completed / All** — your Yamtrack library — or **Search** for anything.
-2. Pick a title. For a show, pick the season, then the episode (the three
-   columns side by side; stacked on a phone).
+   Completed / All** — your Yamtrack library — or **Search** for a movie or a
+   TV show (pick which with the chips above the search box).
+2. Pick a title. Its page shows the rating from the server's source (TMDB's,
+   not your own score), the release or first-air date, runtime, seasons,
+   genres and the description (press OK on it to read all of it). For a
+   show, pick the season, then the episode (the three columns side by side;
+   stacked on a phone). Further down: the **Cast** — pick someone to see
+   their photo, biography and the titles they're known for — and **More like
+   this**. Every title there opens its own page; **Back** returns to the
+   page before.
 3. Pick a service. Services whose app isn't on this TV are dimmed; other TVs
    in the room may still have it.
 4. Every TV in the room starts it, the same as **Start for everyone**.
 
 Needs a Yamtrack server with the API (`api/v1/`, Yamtrack's `dev` branch or
 the `feat/add-api` work); it's only read: `GET api/v1/media/{movie|tv}/`
-(your library), `GET api/v1/search/{movie|tv}/`, with
-`Authorization: Bearer <token>`. Friends without Yamtrack don't need it.
+(your library), `GET api/v1/search/{movie|tv}/`, and for a title's page
+`GET api/v1/media/{type}/{source}/{id}/` (with `cast/` and
+`recommendations/`) and `GET api/v1/people/{source}/{id}/` (with
+`known_for/`), with `Authorization: Bearer <token>`. Friends without Yamtrack don't need it.
 
 **Where the links come from:**
 
@@ -237,11 +247,12 @@ app. Then check the app can be controlled: Session Probe's
 - `RelayClient.kt` — the relay protocol v3 (join/poll/command/leave, clock offset).
 - `MediaLink.kt` — link normalization (only confirmed formats are rewritten).
 - `JustWatch.kt` — where to watch a title, its seasons and episodes, and each one's link (unit-tested).
-- `YamtrackClient.kt` — read-only Yamtrack API client: library and search (unit-tested).
+- `YamtrackClient.kt` — read-only Yamtrack API client: library, search, title details, cast,
+  recommendations, people (unit-tested).
 - `Ui.kt` — the design system: colours, Figtree / JetBrains Mono (`assets/fonts`, OFL),
   focus rings, buttons, cards, fields. Design px ÷ 2 = dp.
-- `Screens.kt` — Room, Browse (library grid and search), Picker (season / episode / service)
-  and Paste a link.
+- `Screens.kt` — Room, Browse (library grid and search), the title page (details, season /
+  episode / service, cast, More like this), the person page and Paste a link.
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.
 - `SelfSetup.kt`, `AdbClient.kt` — "Set up access": grants notification access through the TV's own adb.

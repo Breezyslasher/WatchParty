@@ -1,5 +1,6 @@
 package dev.watchparty.tv
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -17,6 +18,18 @@ import java.net.URLEncoder
  *   GET api/v1/search/{movie|tv}/?search=
  *       {pagination: {…}, results: [{media_id, source, media_type, title, image}]}
  *
+ * The title page (detail, cast, recommendations, people) uses the same
+ * endpoints as the Yamtrack Android app's details and person screens; the
+ * shapes are Yamtrack's API examples (api/examples.py):
+ *
+ *   GET api/v1/media/{type}/{source}/{id}/          synopsis, genres, score
+ *       (the source's rating, e.g. TMDB's, not yours), details{release_date |
+ *       first_air_date, runtime, status, seasons, episodes}
+ *   GET api/v1/media/{type}/{source}/{id}/cast/     results[{person_id, name, character, image}]
+ *   GET api/v1/media/{type}/{source}/{id}/recommendations/   [{media_id, source, media_type, title, image}]
+ *   GET api/v1/people/{source}/{id}/                name, image, biography, birthday, …
+ *   GET api/v1/people/{source}/{id}/known_for/      results[{…, character, release_date}], most votes first
+ *
  * Auth: "Authorization: Bearer <token>" (api/authentication.py).
  */
 class YamtrackClient(baseUrl: String, private val token: String) {
@@ -30,6 +43,39 @@ class YamtrackClient(baseUrl: String, private val token: String) {
         val title: String,
         val image: String?,
         val status: Int?,
+        /** "1999-03-31" where the list has it (known-for). */
+        val date: String? = null,
+        /** The character, for a person's known-for titles. */
+        val role: String? = null,
+    )
+
+    /** The title page. [score] is the source's rating (TMDB's), not the user's. */
+    data class Detail(
+        val title: String,
+        val image: String?,
+        val synopsis: String?,
+        val genres: List<String>,
+        val score: Double?,
+        val scoreCount: Int?,
+        /** release_date (movies) or first_air_date (shows), "yyyy-MM-dd". */
+        val date: String?,
+        /** "2h 6m", "50m" (Yamtrack formats it). */
+        val runtime: String?,
+        val status: String?,
+        val seasons: Int?,
+        val episodes: Int?,
+    )
+
+    data class CastMember(val personId: String, val source: String, val name: String, val character: String?, val image: String?)
+
+    data class Person(
+        val name: String,
+        val image: String?,
+        val biography: String?,
+        val birthday: String?,
+        val deathday: String?,
+        val placeOfBirth: String?,
+        val department: String?,
     )
 
     data class Page(val items: List<Item>, val total: Int)
@@ -78,7 +124,28 @@ class YamtrackClient(baseUrl: String, private val token: String) {
         parseProviders(get("api/v1/media/tv/tmdb/$tmdbId/$season/$episode/providers/?region=" +
             URLEncoder.encode(region, "UTF-8")))
 
-    private fun get(path: String): JSONObject {
+    /** The title page: GET api/v1/media/{type}/{source}/{id}/ */
+    fun detail(mediaType: String, source: String, mediaId: String): Detail =
+        parseDetail(get("api/v1/media/$mediaType/$source/$mediaId/"))
+
+    /** Top-billed cast: GET api/v1/media/{type}/{source}/{id}/cast/ */
+    fun cast(mediaType: String, source: String, mediaId: String, limit: Int = 20): List<CastMember> =
+        parseCast(get("api/v1/media/$mediaType/$source/$mediaId/cast/?limit=$limit"), source)
+
+    /** "More like this": GET api/v1/media/{type}/{source}/{id}/recommendations/ (a JSON array) */
+    fun recommendations(mediaType: String, source: String, mediaId: String): List<Item> =
+        parseItems(JSONArray(getText("api/v1/media/$mediaType/$source/$mediaId/recommendations/")))
+
+    /** GET api/v1/people/{source}/{id}/ */
+    fun person(source: String, personId: String): Person = parsePerson(get("api/v1/people/$source/$personId/"))
+
+    /** Movies and shows the person is known for: GET api/v1/people/{source}/{id}/known_for/ */
+    fun knownFor(source: String, personId: String, limit: Int = PAGE_SIZE): List<Item> =
+        parseKnownFor(get("api/v1/people/$source/$personId/known_for/?limit=$limit"))
+
+    private fun get(path: String): JSONObject = JSONObject(getText(path))
+
+    private fun getText(path: String): String {
         val conn = URL(base + path).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 8_000
@@ -89,8 +156,7 @@ class YamtrackClient(baseUrl: String, private val token: String) {
             if (code == 401 || code == 403) throw YamtrackException("Yamtrack didn't accept the API token")
             if (code == 404) throw YamtrackException("No Yamtrack API at that address (needs a server with the API)")
             if (code >= 400) throw YamtrackException("Yamtrack error $code")
-            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            return JSONObject(text)
+            return conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
             conn.disconnect()
         }
@@ -169,17 +235,88 @@ class YamtrackClient(baseUrl: String, private val token: String) {
             return out
         }
 
+        fun parseDetail(o: JSONObject): Detail {
+            val d = o.optJSONObject("details") ?: JSONObject()
+            val genres = mutableListOf<String>()
+            o.optJSONArray("genres")?.let { for (i in 0 until it.length()) it.optString(i).takeIf { g -> g.isNotBlank() }?.let { g -> genres += g } }
+            val count = int(o, "score_count")
+            // TMDB gives 0.0 for "no votes"
+            val score = if (o.isNull("score") || !o.has("score")) null
+            else o.optDouble("score").takeIf { !it.isNaN() && it > 0.0 && count != 0 }
+            // Yamtrack's text for an empty TMDB overview (providers/tmdb.py get_synopsis)
+            val synopsis = text(o, "synopsis")?.takeIf { it != "No synopsis available." }
+            return Detail(
+                title = o.optString("title"),
+                image = text(o, "image"),
+                synopsis = synopsis,
+                genres = genres,
+                score = score,
+                scoreCount = if (score == null) null else count,
+                date = text(d, "release_date") ?: text(d, "first_air_date"),
+                runtime = text(d, "runtime"),
+                status = text(d, "status"),
+                seasons = int(d, "seasons"),
+                episodes = int(d, "episodes"),
+            )
+        }
+
+        fun parseCast(response: JSONObject, source: String): List<CastMember> {
+            val results = response.optJSONArray("results") ?: return emptyList()
+            val out = mutableListOf<CastMember>()
+            for (i in 0 until results.length()) {
+                val p = results.optJSONObject(i) ?: continue
+                val id = text(p, "person_id") ?: continue
+                out += CastMember(id, source, p.optString("name"), text(p, "character"), text(p, "image"))
+            }
+            return out
+        }
+
+        /** A plain array of media (recommendations). */
+        fun parseItems(array: JSONArray): List<Item> {
+            val out = mutableListOf<Item>()
+            for (i in 0 until array.length()) parseItem(array.optJSONObject(i) ?: continue, null)?.let { out += it }
+            return out
+        }
+
+        fun parsePerson(o: JSONObject) = Person(
+            name = o.optString("name"),
+            image = text(o, "image"),
+            biography = text(o, "biography"),
+            birthday = text(o, "birthday"),
+            deathday = text(o, "deathday"),
+            placeOfBirth = text(o, "place_of_birth"),
+            department = text(o, "known_for_department"),
+        )
+
+        /** Known-for titles (movies and shows only, each once). */
+        fun parseKnownFor(response: JSONObject): List<Item> {
+            val results = response.optJSONArray("results") ?: return emptyList()
+            val out = mutableListOf<Item>()
+            for (i in 0 until results.length()) {
+                val o = results.optJSONObject(i) ?: continue
+                val item = parseItem(o, null) ?: continue
+                if (item.mediaType != "movie" && item.mediaType != "tv") continue
+                if (out.any { it.mediaId == item.mediaId && it.mediaType == item.mediaType }) continue
+                out += item.copy(date = text(o, "release_date"), role = text(o, "character"))
+            }
+            return out
+        }
+
+        private fun int(o: JSONObject, key: String): Int? = if (o.isNull(key) || !o.has(key)) null else o.optInt(key)
+
         private fun text(o: JSONObject, key: String): String? =
             if (o.isNull(key)) null else o.optString(key).takeIf { it.isNotEmpty() }
 
-        /** TMDB's full-size poster ("/t/p/original/") → a list-sized one. */
-        fun posterUrl(image: String?): String? {
+        /** A TMDB image at any size ("/t/p/original/", "/t/p/w500/") → a list-sized one. */
+        fun posterUrl(image: String?, size: String = "w185"): String? {
             if (image.isNullOrBlank()) return null
-            val at = image.indexOf("/t/p/original/")
+            val at = image.indexOf("/t/p/")
             if (at < 0) return image
-            var rest = image.substring(at + "/t/p/original/".length)
+            val sizeEnd = image.indexOf('/', at + "/t/p/".length)
+            if (sizeEnd < 0) return image
+            var rest = image.substring(sizeEnd + 1)
             while (rest.startsWith("/")) rest = rest.substring(1)   // Yamtrack has "original//abc.jpg"
-            return image.substring(0, at) + "/t/p/w185/" + rest
+            return image.substring(0, at) + "/t/p/$size/" + rest
         }
 
         private fun parseItem(o: JSONObject, status: Int?): Item? {

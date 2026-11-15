@@ -1,5 +1,6 @@
 package dev.watchparty.tv
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -129,5 +130,91 @@ class YamtrackClientTest {
         assertEquals("https://example.com/cover.png", YamtrackClient.posterUrl("https://example.com/cover.png"))
         assertNull(YamtrackClient.posterUrl(""))
         assertNull(YamtrackClient.posterUrl(null))
+        // cast photos and recommendations come at w500
+        assertEquals("https://image.tmdb.org/t/p/w185/4D0PpNI0kmP58hgrwGC3wCjxhnm.jpg",
+            YamtrackClient.posterUrl("https://image.tmdb.org/t/p/w500/4D0PpNI0kmP58hgrwGC3wCjxhnm.jpg"))
+    }
+
+    @Test fun parsesTheTitlePage() {
+        // MEDIA_DETAILS_EXAMPLE (a show), trimmed
+        val show = YamtrackClient.parseDetail(JSONObject("""{
+            "id": 3599, "media_id": "12345", "source": "tmdb", "media_type": "tv", "title": "Van der Valk",
+            "image": "https://image.tmdb.org/t/p/w500/7cSyT7qrAVHOdiaUqcZAdj4Jny1.jpg",
+            "synopsis": "Van der Valk is a British television...", "genres": ["Drama"],
+            "score": 6.2, "score_count": 10,
+            "details": {"format": "TV", "first_air_date": "1972-09-13", "last_air_date": "1992-02-19",
+                        "status": "Ended", "seasons": 5, "episodes": 32, "runtime": "50m", "studios": null},
+            "consumptions": [{"consumption_id": 322, "score": 9.0, "status": 0}]
+        }"""))
+        assertEquals("Drama", show.genres.single())
+        assertEquals(6.2, show.score!!, 0.0)          // TMDB's, not the 9.0 in consumptions
+        assertEquals(10, show.scoreCount)
+        assertEquals("1972-09-13", show.date)
+        assertEquals("50m", show.runtime)
+        assertEquals("Ended", show.status)
+        assertEquals(5, show.seasons)
+
+        // a movie with no votes and no overview (providers/tmdb.py: score 0.0, "No synopsis available.")
+        val movie = YamtrackClient.parseDetail(JSONObject("""{
+            "title": "X", "image": null, "synopsis": "No synopsis available.", "genres": [],
+            "score": 0.0, "score_count": 0,
+            "details": {"format": "Movie", "release_date": "2026-01-02", "runtime": "2h 6m", "status": "Released"}
+        }"""))
+        assertNull(movie.score)
+        assertNull(movie.synopsis)
+        assertEquals("2026-01-02", movie.date)
+        assertEquals("2h 6m", movie.runtime)
+        assertNull(movie.seasons)
+    }
+
+    @Test fun parsesCastAndRecommendations() {
+        // CAST_EXAMPLE
+        val cast = YamtrackClient.parseCast(JSONObject("""{
+            "pagination": {"total": 1, "limit": 20, "offset": 0, "next": null, "previous": null},
+            "results": [{"person_id": 6384, "name": "Keanu Reeves", "character": "Thomas A. Anderson / Neo",
+                "image": "https://image.tmdb.org/t/p/w500/4D0PpNI0kmP58hgrwGC3wCjxhnm.jpg", "order": 0, "episode_count": null}]
+        }"""), "tmdb")
+        assertEquals(YamtrackClient.CastMember("6384", "tmdb", "Keanu Reeves", "Thomas A. Anderson / Neo",
+            "https://image.tmdb.org/t/p/w500/4D0PpNI0kmP58hgrwGC3wCjxhnm.jpg"), cast.single())
+
+        // RECOMMENDATIONS_EXAMPLE: the endpoint returns a plain array
+        val recs = YamtrackClient.parseItems(JSONArray("""[{"source": "tmdb", "media_type": "tv",
+            "image": "https://image.tmdb.org/t/p/w500/pFao5i4giBsGl7QQBXi7oMUPzCn.jpg",
+            "media_id": "167", "title": "La Femme Nikita"}]"""))
+        assertEquals("La Femme Nikita", recs.single().title)
+        assertEquals("tv", recs.single().mediaType)
+        assertEquals("167", recs.single().mediaId)
+    }
+
+    @Test fun parsesAPersonAndWhatTheyAreKnownFor() {
+        // PERSON_EXAMPLE
+        val person = YamtrackClient.parsePerson(JSONObject("""{
+            "person_id": 6384, "source": "tmdb", "source_url": "https://www.themoviedb.org/person/6384",
+            "name": "Keanu Reeves", "image": "https://image.tmdb.org/t/p/w500/4D0PpNI0kmP58hgrwGC3wCjxhnm.jpg",
+            "biography": "Keanu Charles Reeves is a Canadian actor.", "birthday": "1964-09-02", "deathday": null,
+            "place_of_birth": "Beirut, Lebanon", "known_for_department": "Acting"
+        }"""))
+        assertEquals("Keanu Reeves", person.name)
+        assertEquals("1964-09-02", person.birthday)
+        assertNull(person.deathday)
+        assertEquals("Beirut, Lebanon", person.placeOfBirth)
+        assertEquals("Acting", person.department)
+
+        // KNOWN_FOR_EXAMPLE, plus a duplicate (cast and crew of the same film)
+        val known = YamtrackClient.parseKnownFor(JSONObject("""{
+            "pagination": {"total": 2, "limit": 20, "offset": 0, "next": null, "previous": null},
+            "results": [
+              {"source": "tmdb", "media_type": "movie", "media_id": "603", "title": "The Matrix",
+               "image": "https://image.tmdb.org/t/p/w500/p96dm7sCMn4VYAStA6siNz30G1r.jpg",
+               "character": "Thomas A. Anderson / Neo", "departments": ["Acting"], "jobs": [],
+               "release_date": "1999-03-31", "episode_count": null},
+              {"source": "tmdb", "media_type": "movie", "media_id": "603", "title": "The Matrix",
+               "image": null, "character": null, "departments": ["Production"], "jobs": ["Producer"],
+               "release_date": "1999-03-31", "episode_count": null}
+            ]
+        }"""))
+        assertEquals(1, known.size)
+        assertEquals("1999-03-31", known[0].date)
+        assertEquals("Thomas A. Anderson / Neo", known[0].role)
     }
 }
