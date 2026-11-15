@@ -280,7 +280,8 @@ start with 0.9.21 (Samsung phone, 2026-11-15).
 its video id ("content not available"). But HBO Max and Discovery+ share one
 catalog (Discovery+'s pages: `"featureId"` = `"hbomaxId"`), and HBO Max's
 video id plays in Discovery+: `play.discoveryplus.com/video/watch/<HBO Max's
-video id>` played Ghosts of Flight 401 (adb, Samsung phone). So when a movie
+video id>` played Ghosts of Flight 401 and Christmas of Yes (adb, Samsung
+phone). So when a movie
 is on both, Discovery+ gets that play link; a movie only on Discovery+ opens
 its page ("Opens the movie's page: press Play"). Netflix needs the `source=30` extra: the same
 link without it only opened the app.
