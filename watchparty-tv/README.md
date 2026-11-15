@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.22.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.23.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -273,7 +273,16 @@ episodes start both when HBO Max was closed and when its player was open.
 Discovery+ (`com.discovery.discoveryplus.mobile`, the same Warner Bros.
 Discovery player and `play.discoveryplus.com/video/watch/<id>` links) failed
 the same way with the fresh task and gets the same treatment. ✓ Episodes
-start with 0.9.21 (Samsung phone, 2026-11-15). Netflix needs the `source=30` extra: the same
+start with 0.9.21 (Samsung phone, 2026-11-15).
+
+**Discovery+ movies:** JustWatch's Discovery+ movie link is the movie's page
+(`discoveryplus.com/movie/<id>`), which doesn't play, and the movie id isn't
+its video id ("content not available"). But HBO Max and Discovery+ share one
+catalog (Discovery+'s pages: `"featureId"` = `"hbomaxId"`), and HBO Max's
+video id plays in Discovery+: `play.discoveryplus.com/video/watch/<HBO Max's
+video id>` played Ghosts of Flight 401 (adb, Samsung phone). So when a movie
+is on both, Discovery+ gets that play link; a movie only on Discovery+ opens
+its page ("Opens the movie's page: press Play"). Netflix needs the `source=30` extra: the same
 link without it only opened the app.
 
 **Starz on phones:** the Android TV link JustWatch and Yamtrack give for

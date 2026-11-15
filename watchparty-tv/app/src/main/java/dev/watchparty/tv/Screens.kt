@@ -904,6 +904,8 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     private fun fill(d: ServiceDialog, title: String, sub: String, offers: List<JustWatch.Offer>, autoStart: Boolean = true,
                      showLevel: Set<String> = emptySet()) {
+        // a Discovery+ movie page becomes its play link when HBO Max has the title
+        @Suppress("NAME_SHADOWING") val offers = JustWatch.discoveryPlayLinks(offers)
         if (offers.isEmpty()) {
             d.setServices(emptyList())
             d.hint("No streaming service has this in ${host.country}.")
@@ -919,6 +921,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
                 pkg == null -> "Not on this ${if (phone) "phone" else "TV"}. Others in the room may have it."
                 // the service has no link for this episode, only the show's page
                 o.link in showLevel -> "Opens the show's page: pick the episode."
+                o.link.contains("discoveryplus.com/movie/") -> "Opens the movie's page: press Play."
                 // the app doesn't take its website's links: it opens at its home screen
                 Apps.linkFor(c, o.link, pkg) == null -> "Opens the app: find it, then press Play."
                 autoPlays(o.link) -> "Starts playing"
@@ -996,6 +999,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
                 (link.contains("tv.apple.com/") && (link.contains("/movie/") || link.contains("/episode/"))) ||
                 link.contains("tubitv.com/movies/") || link.contains("tubitv.com/tv-shows/") ||
                 link.contains("crunchyroll.com/watch/") ||
+                link.contains("discoveryplus.com/video/watch/") ||
                 link.contains("paramountplus.com/movies/") ||
                 (link.contains("paramountplus.com/shows/") && link.contains("/video/"))
     }

@@ -170,4 +170,15 @@ class JustWatchTest {
         assertEquals(setOf(pluto.link), JustWatch.sharedLinks(e1, e2))
         assertEquals(emptySet<String>(), JustWatch.sharedLinks(e1, emptyList()))
     }
+
+    @Test fun discoveryPlusMoviesGetHboMaxsVideoId() {
+        // Ghosts of Flight 401 (JustWatch, 2026-11-15); the result played on a phone
+        val hbo = JustWatch.Offer("max", "HBO Max", "https://play.hbomax.com/video/watch/2d776436-900b-451d-b78d-2a4767729dd7")
+        val dplus = JustWatch.Offer("discoveryplusus", "Discovery +", "https://www.discoveryplus.com/movie/fa6e0381-45a4-4a92-8c29-7560b2933d9e")
+        val tubi = JustWatch.Offer("tubitv", "Tubi TV", "https://tubitv.com/movies/100047201")
+        assertEquals(listOf(hbo, dplus.copy(link = "https://play.discoveryplus.com/video/watch/2d776436-900b-451d-b78d-2a4767729dd7"), tubi),
+            JustWatch.discoveryPlayLinks(listOf(hbo, dplus, tubi)))
+        // not on HBO Max: unchanged (the page)
+        assertEquals(listOf(dplus, tubi), JustWatch.discoveryPlayLinks(listOf(dplus, tubi)))
+    }
 }

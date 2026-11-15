@@ -39,6 +39,24 @@ object JustWatch {
     fun sharedLinks(episode: List<Offer>, otherEpisode: List<Offer>): Set<String> =
         episode.map { it.link }.toSet() intersect otherEpisode.map { it.link }.toSet()
 
+    private val HBO_VIDEO = Regex("""(?:hbo)?max\.com/video/watch/([0-9a-f-]{36})""")
+    private val DISCOVERY_MOVIE = Regex("""discoveryplus\.com/movie/[0-9a-f-]{36}""")
+
+    /**
+     * Discovery+ movie links are its movie page (discoveryplus.com/movie/<id>),
+     * which doesn't play. HBO Max and Discovery+ share one catalog — the same
+     * ids (Discovery+'s pages say "featureId" = "hbomaxId"), and HBO Max's
+     * video id plays in Discovery+ too (play.discoveryplus.com/video/watch/<HBO
+     * Max's id> played Ghosts of Flight 401 on a phone). So when the title is
+     * on both, Discovery+ gets that play link.
+     */
+    fun discoveryPlayLinks(offers: List<Offer>): List<Offer> {
+        val video = offers.firstNotNullOfOrNull { HBO_VIDEO.find(it.link)?.groupValues?.get(1) } ?: return offers
+        return offers.map {
+            if (DISCOVERY_MOVIE.containsMatchIn(it.link)) it.copy(link = "https://play.discoveryplus.com/video/watch/$video") else it
+        }
+    }
+
     /** The only service, when there's exactly one (the same link twice counts once). */
     fun soleOffer(offers: List<Offer>): Offer? = offers.distinctBy { it.link }.singleOrNull()
 
