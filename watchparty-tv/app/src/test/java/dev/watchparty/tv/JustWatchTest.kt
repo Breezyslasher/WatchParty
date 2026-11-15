@@ -161,4 +161,13 @@ class JustWatchTest {
         assertEquals(null, JustWatch.soleOffer(listOf(disney, JustWatch.Offer("netflix", "Netflix", "https://www.netflix.com/watch/2"))))
         assertEquals(null, JustWatch.soleOffer(emptyList()))
     }
+
+    @Test fun aLinkEveryEpisodeSharesIsTheShowsPage() {
+        // Pluto TV, The Twilight Zone: the show's page for every episode (2026-11-15)
+        val pluto = JustWatch.Offer("plutotv", "Pluto TV", "https://pluto.tv/us/shows/the-twilight-zone/")
+        val e1 = listOf(pluto, JustWatch.Offer("hulu", "Hulu", "https://www.hulu.com/watch/a332f2b9"))
+        val e2 = listOf(pluto, JustWatch.Offer("hulu", "Hulu", "https://www.hulu.com/watch/b2047a23"))
+        assertEquals(setOf(pluto.link), JustWatch.sharedLinks(e1, e2))
+        assertEquals(emptySet<String>(), JustWatch.sharedLinks(e1, emptyList()))
+    }
 }

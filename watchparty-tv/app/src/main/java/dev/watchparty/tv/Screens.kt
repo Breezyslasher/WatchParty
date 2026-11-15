@@ -559,6 +559,8 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private var season: Pick? = null
     /** The season and episode whose services are shown. */
     private var picked: Pair<Int, Int>? = null
+    /** The chosen season's episodes (a neighbour's links show which services have no episode link). */
+    private var seasonEpisodes: List<Pick> = emptyList()
     private var starting = false
     private var firstSeason: View? = null
     private var gen = 0
@@ -820,6 +822,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     internal fun showEpisodes(s: Pick, episodes: List<Pick>) {
         season = s
+        seasonEpisodes = episodes
         for (b in seasonButtons) b.setChosen(b.tag == s.number)
         episodeList.removeAllViews()
         episodeButtons.clear()
@@ -855,11 +858,29 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         Thread {
             try {
                 val offers = e.offers ?: episodeOffers(s.number, e.number)
-                ui { if (myGen == gen && d.isShowing) fill(d, item.title, sub, offers) }
+                val showLevel = showLevelLinks(s, e, offers)
+                ui { if (myGen == gen && d.isShowing) fill(d, item.title, sub, offers, showLevel = showLevel) }
             } catch (ex: Exception) {
                 ui { d.hint("Couldn't look it up: ${ex.message}", warn = true) }
             }
         }.start()
+    }
+
+    /**
+     * The links [offers] share with the next (else previous) episode: those
+     * services only have the show's page, not this episode (Pluto TV for some
+     * shows). The season's links are cached (Yamtrack) or already here
+     * (JustWatch), so this is cheap; any failure marks nothing.
+     */
+    private fun showLevelLinks(s: Pick, e: Pick, offers: List<JustWatch.Offer>): Set<String> {
+        val other = seasonEpisodes.firstOrNull { it.number == e.number + 1 }
+            ?: seasonEpisodes.firstOrNull { it.number == e.number - 1 }
+            ?: return emptySet()
+        return try {
+            JustWatch.sharedLinks(offers, other.offers ?: episodeOffers(s.number, other.number))
+        } catch (ex: Exception) {
+            emptySet()
+        }
     }
 
     /** Yamtrack's per-episode links; JustWatch when it has none. */
@@ -881,7 +902,8 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         fill(d, title, sub, offers)
     }
 
-    private fun fill(d: ServiceDialog, title: String, sub: String, offers: List<JustWatch.Offer>, autoStart: Boolean = true) {
+    private fun fill(d: ServiceDialog, title: String, sub: String, offers: List<JustWatch.Offer>, autoStart: Boolean = true,
+                     showLevel: Set<String> = emptySet()) {
         if (offers.isEmpty()) {
             d.setServices(emptyList())
             d.hint("No streaming service has this in ${host.country}.")
@@ -895,6 +917,8 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             val pkg = installedPackage(o)
             val note = when {
                 pkg == null -> "Not on this ${if (phone) "phone" else "TV"}. Others in the room may have it."
+                // the service has no link for this episode, only the show's page
+                o.link in showLevel -> "Opens the show's page: pick the episode."
                 // the app doesn't take its website's links: it opens at its home screen
                 Apps.linkFor(c, o.link, pkg) == null -> "Opens the app: find it, then press Play."
                 autoPlays(o.link) -> "Starts playing"
@@ -904,7 +928,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         })
         // one service, and its app is here: nothing to choose, start it
         val sole = JustWatch.soleOffer(offers)
-        if (autoStart && sole != null && installedPackage(sole) != null && SyncService.running) {
+        if (autoStart && sole != null && sole.link !in showLevel && installedPackage(sole) != null && SyncService.running) {
             d.hint("Starting on ${serviceName(sole)}…")
             start(d, title, sub, sole)
         }

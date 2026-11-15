@@ -34,6 +34,11 @@ object JustWatch {
     /** JustWatch's icons are paths on this host (as in Yamtrack's providers/justwatch.py). */
     private const val IMAGES = "https://images.justwatch.com"
 
+    /** Links two episodes share: a service that gives every episode the same
+     *  link (Pluto TV's show page, for some shows) has no episode link. */
+    fun sharedLinks(episode: List<Offer>, otherEpisode: List<Offer>): Set<String> =
+        episode.map { it.link }.toSet() intersect otherEpisode.map { it.link }.toSet()
+
     /** The only service, when there's exactly one (the same link twice counts once). */
     fun soleOffer(offers: List<Offer>): Offer? = offers.distinctBy { it.link }.singleOrNull()
 
