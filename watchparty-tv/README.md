@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.23.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.24.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -281,7 +281,9 @@ its video id ("content not available"). But HBO Max and Discovery+ share one
 catalog (Discovery+'s pages: `"featureId"` = `"hbomaxId"`), and HBO Max's
 video id plays in Discovery+: `play.discoveryplus.com/video/watch/<HBO Max's
 video id>` played Ghosts of Flight 401 and Christmas of Yes (adb, Samsung
-phone). So when a movie
+phone). Discovery+'s own share link for Christmas of Yes is
+`www.discoveryplus.com/video/watch/ef8dbdd7-…` — the same id as HBO Max's;
+pasted `www.` links are moved to `play.discoveryplus.com`. So when a movie
 is on both, Discovery+ gets that play link; a movie only on Discovery+ opens
 its page ("Opens the movie's page: press Play"). Netflix needs the `source=30` extra: the same
 link without it only opened the app.

@@ -148,4 +148,12 @@ class MediaLinkTest {
         // a phone's app claims www.crunchyroll.com/watch/*: the link as is
         assertEquals(MediaLink.Launch(link), MediaLink.launchFor(link, MediaLink.CRUNCHYROLL_PACKAGE, appTakesLink = true))
     }
+
+    @Test fun discoveryPlusShareLinksMoveToPlay() {
+        // Discovery+'s share link for Christmas of Yes; play.discoveryplus.com/video/watch/<id> played it (adb)
+        assertEquals("https://play.discoveryplus.com/video/watch/ef8dbdd7-9527-47a2-b322-9be4d25bdcbf",
+            MediaLink.normalize("https://www.discoveryplus.com/video/watch/ef8dbdd7-9527-47a2-b322-9be4d25bdcbf")!!.link)
+        assertEquals("https://play.discoveryplus.com/video/watch/ef8dbdd7-9527-47a2-b322-9be4d25bdcbf",
+            MediaLink.normalize("https://play.discoveryplus.com/video/watch/ef8dbdd7-9527-47a2-b322-9be4d25bdcbf?utm_source=x")!!.link)
+    }
 }

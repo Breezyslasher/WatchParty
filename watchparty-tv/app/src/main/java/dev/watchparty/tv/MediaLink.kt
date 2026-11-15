@@ -47,6 +47,9 @@ object MediaLink {
     // www.hbomax.com/video/watch/<id> links are moved there. (Show pages use
     // a different id — the watch link has to be shared.)
     private val HBO = p("^https?://(?:www\\.|play\\.)?(?:hbo)?max\\.com/video/watch/($UUID(?:/$UUID)?)$Q")
+    // Discovery+ (the same player as HBO Max): its share link is on www., the
+    // link that played on a phone on play. — the same move as HBO Max's.
+    private val DISCOVERY = p("^https?://(?:www\\.|play\\.)?discoveryplus\\.com/video/watch/($UUID(?:/$UUID)?)$Q")
     // Crunchyroll: the TV app claims no web links, only crunchyroll://, which
     // opens the app but not the episode. Keep the web link clean.
     private val CRUNCHYROLL = p("^https?://(?:www\\.)?crunchyroll\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?watch/([A-Z0-9]+)(/[^?#]*)?$Q")
@@ -133,6 +136,9 @@ object MediaLink {
             val query = (keep + "action=play").joinToString("&")
             return Shared("https://tv.apple.com/${it.group(1)}/episode/${it.group(2)}/${it.group(3)}?$query",
                 APPLE_TV_PACKAGE, "Apple TV episode")
+        }
+        DISCOVERY.match(text)?.let {
+            return Shared("https://play.discoveryplus.com/video/watch/${it.group(1)!!.lowercase()}", null, "Discovery+ title")
         }
         CRUNCHYROLL.match(text)?.let {
             return Shared("https://www.crunchyroll.com/watch/${it.group(1)}${it.group(2) ?: ""}", CRUNCHYROLL_PACKAGE,
