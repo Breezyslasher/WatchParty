@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.21.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.22.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -246,7 +246,7 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 | Tubi | (found by Android) | `tubitv.com/movies/<id>`; an episode `tubitv.com/tv-shows/<episode id>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
 | Paramount+ | (found by Android) | `paramountplus.com/movies/<name>/<id>`; an episode `paramountplus.com/shows/<show>/video/<id>/<name>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
 | Crunchyroll | `com.crunchyroll.crunchyroid` | `crunchyroll.com/watch/<id>/…` | `crunchyroll://watch/<id>` | opens the app only — the app claims no web links |
-| Crunchyroll (phone) | `com.crunchyroll.crunchyroid` | the same; JustWatch's link is an affiliate redirect (`crunchyroll.pxf.io/…?u=<the real link>`, unwrapped) | `www.crunchyroll.com/watch/<episode id>` as is — the phone app claims `/watch/*` and `/<lang>/watch/*` (dumpsys) | not yet tried |
+| Crunchyroll (phone) | `com.crunchyroll.crunchyroid` | the same; JustWatch's link is an affiliate redirect (`crunchyroll.pxf.io/…?u=<the real link>`, unwrapped) | `www.crunchyroll.com/watch/<episode id>` as is — the phone app claims `/watch/*` and `/<lang>/watch/*` (dumpsys) | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 
 HBO Max show pages use a *different* id from the watch link, so for HBO Max
 copy the link while it plays. On a phone, HBO Max ignores a link while it's
