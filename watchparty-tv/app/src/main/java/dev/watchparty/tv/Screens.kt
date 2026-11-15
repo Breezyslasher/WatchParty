@@ -549,11 +549,11 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
 
     private val seasonList = Ui.column(c)
     private val episodeList = Ui.column(c)
-    private val serviceList = Ui.column(c)
     private val episodeCol = Ui.column(c)
-    private val servicesTitle = Ui.sectionLabel(c, if (show) "Pick an episode" else "Watch on")
-    private val hint = Ui.text(c, if (show) "Choose a season and episode, then a service." else "Finding where to watch…",
-        28, 400, Ui.FAINT, lineHeight = 1.4f)
+    /** Loading and errors for seasons and episodes (services have theirs in the dialog). */
+    private val hint = Ui.text(c, "", 28, 400, Ui.FAINT, lineHeight = 1.4f).apply { visibility = View.GONE }
+    /** Movies: opens the services dialog. */
+    private val watchButton: TextTile? = if (show) null else Ui.primary(c, "Watch", 84, 60, 30, 16, Ui.BG, 5, 1.05f) { openMovieServices() }
     private val seasonButtons = ArrayList<TextTile>()
     private val episodeButtons = ArrayList<TextTile>()
     private var season: Pick? = null
@@ -561,8 +561,12 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private var picked: Pair<Int, Int>? = null
     private var starting = false
     private var firstSeason: View? = null
-    private var firstService: View? = null
     private var gen = 0
+    /** The services dialog that's open (or last opened). */
+    private var dialog: ServiceDialog? = null
+    /** A movie's services, loaded with the page so Watch opens them at once; null until loaded. */
+    private var movieOffers: List<JustWatch.Offer>? = null
+    private var movieError: String? = null
 
     // the title page around the picker: facts, genres, description, cast, more like this
     private val poster = PosterView(c, Ui.pxf(c, 14))
@@ -599,34 +603,25 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         val under = if (phone) hero else texts
         under.addView(genres, lp(MATCH).apply { topMargin = Ui.px(c, if (phone) 28 else 18) })
         under.addView(about, lp(MATCH).apply { topMargin = Ui.px(c, 10); leftMargin = -Ui.px(c, 16) })
+        watchButton?.let { under.addView(it, lp(WRAP, Ui.tap(c, 84)).apply { topMargin = Ui.px(c, 28) }) }
         root.addView(hero, lp(MATCH))
+        root.addView(hint, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
 
-        val cols = if (phone) Ui.column(c) else Ui.row(c)
         if (show) {
+            // season and episode; picking an episode opens the services dialog
+            val cols = if (phone) Ui.column(c) else Ui.row(c)
             val seasonCol = Ui.column(c)
             seasonCol.addView(Ui.sectionLabel(c, "Season"), lp().apply { bottomMargin = Ui.px(c, 16) })
             seasonCol.addView(scrolling(seasonList), if (phone) lp(MATCH) else lp(MATCH, 0, 1f))
-            cols.addView(seasonCol, if (phone) lp(MATCH) else lp(Ui.px(c, 280), MATCH))
+            cols.addView(seasonCol, if (phone) lp(MATCH) else lp(Ui.px(c, 300), MATCH))
 
             episodeCol.addView(Ui.sectionLabel(c, "Episode"), lp().apply { bottomMargin = Ui.px(c, 16) })
             episodeCol.addView(scrolling(episodeList), if (phone) lp(MATCH) else lp(MATCH, 0, 1f))
             cols.addView(episodeCol, if (phone) lp(MATCH).apply { topMargin = Ui.px(c, 40) }
-            else lp(Ui.px(c, 440), MATCH).apply { leftMargin = Ui.px(c, 40) })
+            else lp(0, MATCH, 1f).apply { leftMargin = Ui.px(c, 40) })
+            // a TV shows a season's episodes in a fixed-height box that scrolls on its own
+            root.addView(cols, (if (phone) lp(MATCH) else lp(MATCH, Ui.px(c, 540))).apply { topMargin = Ui.px(c, 40) })
         }
-        val serviceCol = Ui.column(c)
-        serviceCol.addView(servicesTitle, lp().apply { bottomMargin = Ui.px(c, 6) })
-        serviceCol.addView(hint, lp().apply { topMargin = Ui.px(c, 12) })
-        // a TV shows a season's episodes in a fixed-height box that scrolls on
-        // its own, so the season and service columns stay beside them
-        val boxed = show && !phone
-        serviceCol.addView(if (boxed) scrolling(serviceList) else serviceList.also { it.setPadding(Ui.px(c, 6), Ui.px(c, 6), Ui.px(c, 6), Ui.px(c, 6)) },
-            if (boxed) lp(MATCH, 0, 1f).apply { topMargin = Ui.px(c, 6) } else lp(MATCH).apply { topMargin = Ui.px(c, 6) })
-        cols.addView(serviceCol, when {
-            phone -> lp(MATCH).apply { if (show) topMargin = Ui.px(c, 40) }
-            show -> lp(0, MATCH, 1f).apply { leftMargin = Ui.px(c, 40) }
-            else -> lp(Ui.px(c, 760), WRAP)
-        })
-        root.addView(cols, (if (boxed) lp(MATCH, Ui.px(c, 540)) else lp(MATCH)).apply { topMargin = Ui.px(c, 48) })
         root.addView(castSection, lp(MATCH).apply { topMargin = Ui.px(c, 56) })
         root.addView(moreSection, lp(MATCH).apply { topMargin = Ui.px(c, 56) })
 
@@ -653,7 +648,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         }
     }
 
-    override fun defaultFocus(): View? = firstService ?: firstSeason
+    override fun defaultFocus(): View? = watchButton ?: firstSeason
 
     private fun setPoster(image: String?) {
         if (image.isNullOrBlank() || posterSet) return
@@ -739,18 +734,40 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         hint.visibility = View.VISIBLE
     }
 
-    // movies: Yamtrack's links, else JustWatch
+    // movies: Yamtrack's links, else JustWatch; shown when Watch opens the dialog
     private fun loadMovie() {
-        val fromYamtrack = if (tmdb != null) try {
-            client().providers("movie", "tmdb", tmdb, host.country)
+        val offers = try {
+            val fromYamtrack = if (tmdb != null) try {
+                client().providers("movie", "tmdb", tmdb, host.country)
+            } catch (e: Exception) {
+                emptyList()
+            } else emptyList()
+            fromYamtrack.ifEmpty {
+                val t = JustWatch.findTitle(item.title, tmdb, "MOVIE", host.country)
+                if (t == null) emptyList() else JustWatch.offers(t.id, host.country)
+            }
         } catch (e: Exception) {
-            emptyList()
-        } else emptyList()
-        val offers = fromYamtrack.ifEmpty {
-            val t = JustWatch.findTitle(item.title, tmdb, "MOVIE", host.country)
-            if (t == null) emptyList() else JustWatch.offers(t.id, host.country)
+            ui { movieError = "Couldn't look it up: ${e.message}"; movieOffers = emptyList(); refreshMovieDialog() }
+            return
         }
-        ui { showServices(item.title, "Movie", offers, focus = true) }
+        ui { movieOffers = offers; refreshMovieDialog() }
+    }
+
+    private fun openMovieServices() {
+        dialog?.dismiss()
+        dialog = ServiceDialog(c, item.title, "Movie").also { it.show() }
+        refreshMovieDialog()
+    }
+
+    private fun refreshMovieDialog() {
+        val d = dialog ?: return
+        if (show || !d.isShowing) return
+        val offers = movieOffers
+        when {
+            offers == null -> d.hint("Finding where to watch…")
+            movieError != null -> d.hint(movieError!!, warn = true)
+            else -> fill(d, item.title, "Movie", offers)
+        }
     }
 
     // shows: seasons and episodes from Yamtrack (TMDB), else JustWatch
@@ -790,8 +807,6 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         for (b in seasonButtons) b.setChosen(b.tag == s.number)
         episodeList.removeAllViews()
         episodeButtons.clear()
-        clearServices()
-        servicesTitle.text = "Pick an episode"
         showHint("Loading ${seasonName(s.number).lowercase(Locale.US)}…")
         load {
             val episodes = if (s.jwId != null) {
@@ -812,7 +827,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             showHint("No episodes for ${seasonName(s.number).lowercase(Locale.US)}.")
             return
         }
-        showHint("Choose an episode, then a service.")
+        hint.visibility = View.GONE
         for (e in episodes) {
             val b = Ui.listButton(c, "Episode ${e.number}", e.title) { chooseEpisode(s, e) }
             b.tag = e.number
@@ -825,19 +840,26 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     internal fun chooseEpisodeTitle(s: Pick, e: Pick) {
         picked = s.number to e.number
         for (b in episodeButtons) b.setChosen(b.tag == e.number)
-        servicesTitle.text = "S${s.number} · E${e.number} on"
     }
+
+    private fun episodeSub(s: Pick, e: Pick) = "S${s.number} · E${e.number}" + if (e.title.isNotBlank()) " · ${e.title}" else ""
 
     private fun chooseEpisode(s: Pick, e: Pick) {
         val myGen = ++gen
-        clearServices()
         chooseEpisodeTitle(s, e)
-        showHint("Finding where to watch…")
-        val sub = "S${s.number} · E${e.number}" + if (e.title.isNotBlank()) " · ${e.title}" else ""
-        load {
-            val offers = e.offers ?: episodeOffers(s.number, e.number)
-            ui { if (myGen == gen) showServices(item.title, sub, offers, focus = true) }
-        }
+        val sub = episodeSub(s, e)
+        dialog?.dismiss()
+        val d = ServiceDialog(c, item.title, sub).also { it.show() }
+        dialog = d
+        d.hint("Finding where to watch…")
+        Thread {
+            try {
+                val offers = e.offers ?: episodeOffers(s.number, e.number)
+                ui { if (myGen == gen && d.isShowing) fill(d, item.title, sub, offers) }
+            } catch (ex: Exception) {
+                ui { d.hint("Couldn't look it up: ${ex.message}", warn = true) }
+            }
+        }.start()
     }
 
     /** Yamtrack's per-episode links; JustWatch when it has none. */
@@ -853,32 +875,31 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         return JustWatch.episodes(jwSeason.id, host.country).firstOrNull { it.number == episode }?.offers ?: emptyList()
     }
 
-    private fun clearServices() {
-        serviceList.removeAllViews()
-        firstService = null
+    /** For screenshots and tests: open the dialog for [title] / [sub] with [offers]. */
+    internal fun showServices(title: String, sub: String, offers: List<JustWatch.Offer>) {
+        val d = dialog?.takeIf { it.isShowing } ?: ServiceDialog(c, title, sub).also { it.show(); dialog = it }
+        fill(d, title, sub, offers)
     }
 
-    internal fun showServices(title: String, sub: String, offers: List<JustWatch.Offer>, focus: Boolean) {
-        clearServices()
+    private fun fill(d: ServiceDialog, title: String, sub: String, offers: List<JustWatch.Offer>) {
         if (offers.isEmpty()) {
-            showHint("No streaming service has this in ${host.country}.")
+            d.setServices(emptyList())
+            d.hint("No streaming service has this in ${host.country}.")
             return
         }
-        hint.visibility = View.GONE
+        if (SyncService.running) d.hideHint()
+        else d.hint("Join a room first (in the rail), then pick a service here.", warn = true)
         // services with their app on this TV first
         val sorted = offers.sortedBy { if (installedPackage(it) != null) 0 else 1 }
-        for (o in sorted) {
+        d.setServices(sorted.map { o ->
             val pkg = installedPackage(o)
             val note = when {
                 pkg == null -> "Not on this TV. Others in the room may have it."
                 autoPlays(o.link) -> "Starts playing"
                 else -> "Opens the app. Everyone presses Play."
             }
-            val card = Ui.serviceCard(c, serviceName(o), note, dimmed = pkg == null) { start(title, sub, o) }
-            serviceList.addView(card, lp(MATCH, WRAP).apply { if (serviceList.childCount > 0) topMargin = Ui.px(c, 12) })
-            if (firstService == null) firstService = card
-        }
-        if (focus) firstService?.requestFocus()
+            Ui.serviceCard(c, serviceName(o), note, dimmed = pkg == null) { start(d, title, sub, o) }
+        })
     }
 
     private fun installedPackage(o: JustWatch.Offer): String? {
@@ -886,14 +907,14 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
         return if (Apps.isInstalled(c, pkg)) pkg else null
     }
 
-    private fun start(title: String, sub: String, o: JustWatch.Offer) {
+    private fun start(d: ServiceDialog, title: String, sub: String, o: JustWatch.Offer) {
         if (!SyncService.running) {
-            showHint("Join a room first.", warn = true)
+            d.hint("Join a room first (in the rail), then pick a service here.", warn = true)
             return
         }
         val pkg = Apps.packageFor(c, o.link, o.technicalName)
         if (pkg == null) {
-            showHint("Don't know which app opens ${serviceName(o)} links.", warn = true)
+            d.hint("Don't know which app opens ${serviceName(o)} links.", warn = true)
             return
         }
         val label = if (show) "$title · $sub" else title
@@ -902,21 +923,21 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             // JustWatch's HBO Max link can be the "(with ASL)" edition: use the regular one
             if (starting) return
             starting = true
-            showHint("Checking HBO Max…")
+            d.hint("Checking HBO Max…")
             Thread {
                 val link = HboMax.regularEpisode(o.link, item.title, episode.first, episode.second)
                 ui {
                     starting = false
-                    hint.visibility = View.GONE
-                    share(link, label, pkg, title, sub, o)
+                    share(d, link, label, pkg, title, sub, o)
                 }
             }.start()
             return
         }
-        share(o.link, label, pkg, title, sub, o)
+        share(d, o.link, label, pkg, title, sub, o)
     }
 
-    private fun share(link: String, label: String, pkg: String, title: String, sub: String, o: JustWatch.Offer) {
+    private fun share(d: ServiceDialog, link: String, label: String, pkg: String, title: String, sub: String, o: JustWatch.Offer) {
+        d.dismiss()
         SyncService.share(link, label, pkg)
         host.sent(Playing(link, title, sub, serviceName(o), YamtrackClient.posterUrl(item.image)))
     }

@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.3.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.4.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -154,13 +154,14 @@ app's phone keyboard). Then:
 2. Pick a title. Its page shows the rating from the server's source (TMDB's,
    not your own score), the release or first-air date, runtime, seasons,
    genres and the description (press OK on it to read all of it). For a
-   show, pick the season, then the episode (the three columns side by side;
-   stacked on a phone). Further down: the **Cast** — pick someone to see
+   show, pick the season, then the episode (side by side; stacked on a
+   phone); for a movie, press **Watch**. Further down: the **Cast** — pick someone to see
    their photo, biography and the titles they're known for — and **More like
    this**. Every title there opens its own page; **Back** returns to the
    page before.
-3. Pick a service. Services whose app isn't on this TV are dimmed; other TVs
-   in the room may still have it.
+3. The services open in a dialog in the middle of the screen: pick one.
+   Services whose app isn't on this TV are dimmed; other TVs in the room may
+   still have it. Back closes the dialog.
 4. Every TV in the room starts it, the same as **Start for everyone**.
 
 Needs a Yamtrack server with the API (`api/v1/`, Yamtrack's `dev` branch or
@@ -267,7 +268,8 @@ app. Then check the app can be controlled: Session Probe's
 - `Ui.kt` — the design system: colours, Figtree / JetBrains Mono (`assets/fonts`, OFL),
   focus rings, buttons, cards, fields. Design px ÷ 2 = dp.
 - `Screens.kt` — Room, Browse (library grid and search), the title page (details, season /
-  episode / service, cast, More like this), the person page and Paste a link.
+  episode, cast, More like this), the person page and Paste a link.
+- `ServiceDialog.kt` — "Start for everyone on": the services in a centered dialog.
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.
 - `HboMax.kt` — swaps an HBO Max "(with ASL)" episode link for the regular edition's (unit-tested).
