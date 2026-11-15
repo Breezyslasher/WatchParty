@@ -4,10 +4,11 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.6.2.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
+**Status: 0.7.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
 TV, Android 14): joining rooms, announcing titles, and **Set up access** on
 both (automatic on the Sony, the settings switch with the remote on the
-Chromecast). Syncing two TVs in one room end to end is still being tested.
+Chromecast). New in 0.7 and not yet tried on a TV: **Browse Yamtrack**.
+Syncing two TVs in one room end to end is still being tested.
 The sync logic, link handling, relay client and adb client are unit-tested
 (the relay tests against the real relay), and every app link below was
 confirmed by hand on the TV with adb.
@@ -110,33 +111,42 @@ uninstall clears it.
 Kodi members can be in the same room; they skip app links ("can't be played
 on this device"), and the TV app skips Kodi files.
 
-## Share what's playing (no link needed)
+## Browse Yamtrack (pick an episode, no link needed)
 
-Watch something in another app, come back to Watch Party and press
-**Share what I was watching**. It remembers what you last played (TV apps
-stop when you leave them) and asks to share it at that position:
+Press **Browse Yamtrack** on the main screen. The first time, enter your
+Yamtrack server address and API token (typing is easiest with the Google TV
+app's phone keyboard). Then:
 
-- **Disney+** — starts automatically on every TV *if* you opened the title's
-  page before playing it. Disney+'s log records that page's id, which is what
-  `/play/<id>` needs (confirmed for Iron Man and Thunderbolts*). Needs log
-  access, once:
-  ```
-  adb shell pm grant dev.watchparty.tv android.permission.READ_LOGS
-  ```
-- **Any app that publishes a title** — Watch Party asks JustWatch for that
-  title's Android TV link in that app, picking the film whose runtime matches
-  the session's duration. JustWatch's Android TV links match what started
-  titles on the Sony TV: Disney+ `/play/<id>`, HBO Max
-  `play.hbomax.com/video/watch/<id>`, Apple TV movie pages (plus
-  `?action=play`). Only the title is sent. Checked with
-  `tools/justwatch/jw.py`, which the *JustWatch link lookup* workflow in the
-  Actions tab runs.
-- **Not on JustWatch / no match** — every TV opens that app and shows
-  "Pick *title* and press Play"; sync takes over once it plays.
-- **Apple TV** publishes no title at all (only the duration) — paste its link.
+1. **Movies** or **TV shows**, filtered by **Watching / Planning / Paused /
+   Completed / All** — your Yamtrack library — or **Search** for anything.
+2. Pick a title. For a show, pick the season, then the episode.
+3. Pick a service. Services whose app isn't on this TV are marked; other TVs
+   in the room may still have it.
+4. Every TV in the room starts it, the same as **Start for everyone**.
 
-What each app publishes was checked with Session Probe's `meta` command:
-Apple TV gives only the duration; Disney+ gives title and duration, no id.
+Needs a Yamtrack server with the API (`api/v1/`, Yamtrack's `dev` branch or
+the `feat/add-api` work); it's only read: `GET api/v1/media/{movie|tv}/`
+(your library), `GET api/v1/search/{movie|tv}/`, with
+`Authorization: Bearer <token>`. Friends without Yamtrack don't need it.
+
+**Where the links come from:** JustWatch, matched by the TMDB id Yamtrack
+gives each title (only the title and its ids are sent). JustWatch has a link
+for **each episode** (checked with `tools/justwatch/jw.py` on GitHub Actions,
+US, 2026-11-15):
+
+| Service | Episode link | Each episode different? |
+|---|---|---|
+| Disney+ | `disneyplus.com/play/<episode id>` | ✓ |
+| HBO Max | `play.hbomax.com/video/watch/<episode id>` | ✓ |
+| Apple TV | `tv.apple.com/us/episode/<name>/umc.cmc.<id>?showId=…` | ✓ |
+| Amazon | `watch.amazon.com/watch?asin=<episode>` | ✓ |
+| Netflix | Android TV link: the show's `netflix.com/watch/<id>` | ✗ — so Watch Party uses Netflix's **web** link, the episode's own `/watch/<id>` |
+
+Movie links are the ones in [Which link to share](#which-link-to-share).
+**Not yet confirmed on a TV:** that episode links start the right episode
+(Netflix's web `/watch/<episode id>`, Apple TV's `/episode/` links), and
+Amazon links in general. JustWatch is unofficial and rate-limited; lookups
+happen only when you pick a title.
 
 ## Which link to share
 
@@ -183,10 +193,14 @@ app. Then check the app can be controlled: Session Probe's
 - `SyncCore.kt` — all sync decisions, no Android code (unit-tested).
 - `RelayClient.kt` — the relay protocol v3 (join/poll/command/leave, clock offset).
 - `MediaLink.kt` — link normalization (only confirmed formats are rewritten).
-- `NowPlaying.kt` — "Share what's playing": Disney+ ids from its log, JustWatch, else title-only.
-- `JustWatch.kt` — title → Android TV deep link via JustWatch (runtime-matched).
+- `JustWatch.kt` — where to watch a title, its seasons and episodes, and each one's link (unit-tested).
+- `YamtrackClient.kt` — read-only Yamtrack API client: library and search (unit-tested).
+- `BrowseActivity.kt` — "Browse Yamtrack": list, search, season/episode/service pickers.
+- `Posters.kt` — poster thumbnails for the list.
+- `Apps.kt` — which installed app opens a link.
+- `SelfSetup.kt`, `AdbClient.kt` — "Set up access": grants notification access through the TV's own adb.
 - `SyncService.kt` — foreground service: relay loop, media sessions, launching links.
-- `MainActivity.kt` — join/leave, status, "Start for everyone".
+- `MainActivity.kt` — join/leave, status, "Start for everyone", setup.
 - `SessionAccessService.kt` — empty notification listener (unlocks media sessions).
 
 Tests: `./gradlew test`. To include the relay tests, start a relay

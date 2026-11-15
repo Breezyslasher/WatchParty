@@ -30,11 +30,11 @@ under `service.watchparty` — Kodi and Android TV members can share a room.
 3. Open it, press **Set up access** once (see
    [watchparty-tv/README.md](watchparty-tv/README.md#grant-access-to-whats-playing-once)),
    then enter the relay address and a room code and press **Join room**.
-4. Paste a title's link in **Start for everyone**, or play something and press
-   **Share what I was watching**.
+4. Press **Browse Yamtrack** to pick a movie or episode from your Yamtrack
+   library (or search), or paste a title's link in **Start for everyone**.
 
 ## Status
 
-Watch Party TV 0.6.2 is tested on a Sony Android TV 9 and a Chromecast HD
+Watch Party TV 0.7 is tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14). See [watchparty-tv/README.md](watchparty-tv/README.md)
 for which apps' links start playback and what's still being tested.

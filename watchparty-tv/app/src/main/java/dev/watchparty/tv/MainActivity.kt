@@ -4,9 +4,7 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Typeface
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -50,13 +48,11 @@ class MainActivity : Activity() {
     /** Latest message from automatic setup; shown instead of the instructions. */
     private var setupStatus: String? = null
     private lateinit var shareNote: TextView
-    private lateinit var nowPlayingView: TextView
 
     private val ticker = object : Runnable {
         override fun run() {
             statusView.text = SyncService.status
             joinButton.text = if (SyncService.running) "Leave room" else "Join room"
-            nowPlayingView.text = describeLastPlayed()
             handler.postDelayed(this, 1_000)
         }
     }
@@ -105,10 +101,11 @@ class MainActivity : Activity() {
         statusView = label(SyncService.status, 17f)
         root.addView(statusView)
 
-        root.addView(label("Share what's playing", 20f, bold = true))
-        nowPlayingView = label("", 15f)
-        root.addView(nowPlayingView)
-        root.addView(button("Share what I was watching") { shareWhatsPlaying() })
+        root.addView(label("Pick something to watch", 20f, bold = true))
+        root.addView(label(
+            "Browse your movies and shows on a Yamtrack server (or search), pick an episode and a " +
+                "service, and every TV in the room starts it.", 15f))
+        root.addView(button("Browse Yamtrack") { startActivity(Intent(this, BrowseActivity::class.java)) })
 
         root.addView(label("Start something for everyone", 20f, bold = true))
         root.addView(label(
@@ -151,7 +148,7 @@ class MainActivity : Activity() {
             shareNote.text = "That isn't a web link (it should start with https://)."
             return
         }
-        val pkg = shared.knownPackage ?: appFor(shared.link)
+        val pkg = Apps.packageFor(this, shared.link)
         if (pkg == null) {
             shareNote.text = "No app on this TV opens that link."
             return
@@ -159,114 +156,6 @@ class MainActivity : Activity() {
         val label = labelField.text.toString().trim().ifEmpty { shared.label }
         SyncService.share(shared.link, label, pkg)
         shareNote.text = "Sent: $label"
-    }
-
-    // ── sharing what was playing ────────────────────────────────────────
-
-    private fun describeLastPlayed(): String {
-        if (!SyncService.running) return "Join a room, then play something in another app and come back here."
-        val p = SyncService.lastPlayed
-            ?: return "Play something in another app (Disney+, Netflix, …), then come back here."
-        val ago = (System.currentTimeMillis() - p.atMs) / 60_000
-        return "Last played: \"${p.title}\" in ${appName(p.pkg)} at ${clock(p.positionMs)}" +
-            (if (ago >= 1) " · $ago min ago" else "")
-    }
-
-    private fun shareWhatsPlaying() {
-        if (!SyncService.running) {
-            shareNote.text = "Join a room first."
-            return
-        }
-        val played = SyncService.lastPlayed
-        if (played == null) {
-            shareNote.text = "Nothing played yet. Play something in another app (Apple TV doesn't say " +
-                "what's playing — paste its link below instead)."
-            return
-        }
-        shareNote.text = "Looking up \"${played.title}\"…"
-        Thread {
-            val logs = if (played.pkg == MediaLink.DISNEY_PACKAGE) recentLogLines() else emptyList()
-            val fromLog = played.pkg == MediaLink.DISNEY_PACKAGE && NowPlaying.latestDisneyEntity(logs) != null
-            val fromJustWatch = if (fromLog) null else try {
-                JustWatch.lookup(played.title, played.pkg, appName(played.pkg), played.durationMs,
-                    java.util.Locale.getDefault().country.ifEmpty { "US" })
-            } catch (e: Exception) {
-                null   // offline, or JustWatch changed — fall back to title-only
-            }
-            val shared = NowPlaying.shareFor(played, logs, fromJustWatch)
-            runOnUiThread { confirmShare(played, shared) }
-        }.start()
-    }
-
-    private fun confirmShare(played: NowPlaying.Played, shared: MediaLink.Shared) {
-        val app = appName(played.pkg)
-        val titleOnly = NowPlaying.isTitleOnly(shared.link)
-        val how = if (titleOnly) {
-            "Every TV will open $app; each person picks \"${played.title}\" and presses Play, then sync takes over." +
-                (if (played.pkg == MediaLink.DISNEY_PACKAGE && !canReadLogs())
-                    "\n\nTo start Disney+ titles automatically, grant log access once:\n" +
-                        "adb shell pm grant $packageName android.permission.READ_LOGS"
-                else if (played.pkg == MediaLink.DISNEY_PACKAGE)
-                    "\n\n(Disney+ only reveals a title's id when its page is opened — open the title's page, " +
-                        "then play it, to start it automatically.)"
-                else "")
-        } else {
-            "Every TV will start it at ${clock(played.positionMs)}."
-        }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Share \"${played.title}\" ($app)?")
-            .setMessage(how)
-            .setPositiveButton("Share") { _, _ ->
-                SyncService.share(shared.link, played.title, played.pkg, played.positionMs / 1000.0)
-                shareNote.text = "Sent: ${played.title}"
-            }
-            .setNegativeButton("Cancel") { _, _ -> shareNote.text = "" }
-            .show()
-    }
-
-    private fun canReadLogs() =
-        checkCallingOrSelfPermission("android.permission.READ_LOGS") == PackageManager.PERMISSION_GRANTED
-
-    /** Recent Disney+ SDK log lines — only readable once READ_LOGS is granted
-     *  (Android 13+ also asks the viewer to allow it). */
-    private fun recentLogLines(): List<String> {
-        if (!canReadLogs()) return emptyList()
-        return try {
-            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d"))
-            val lines = process.inputStream.bufferedReader().useLines { all ->
-                all.filter { it.contains("bamgrid") }.toList()
-            }
-            process.destroy()
-            lines
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun appName(pkg: String): String = try {
-        packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
-    } catch (e: Exception) {
-        pkg
-    }
-
-    private fun clock(ms: Long): String {
-        val t = maxOf(0L, ms / 1000)
-        return if (t >= 3600) String.format(java.util.Locale.US, "%d:%02d:%02d", t / 3600, t % 3600 / 60, t % 60)
-        else String.format(java.util.Locale.US, "%d:%02d", t / 60, t % 60)
-    }
-
-    /** The app (not a browser) that opens [link] on this TV, if any. */
-    private fun appFor(link: String): String? {
-        val pm = packageManager
-        val view = Intent(Intent.ACTION_VIEW, Uri.parse(link)).addCategory(Intent.CATEGORY_BROWSABLE)
-        val handlers = pm.queryIntentActivities(view, PackageManager.MATCH_DEFAULT_ONLY)
-            .map { it.activityInfo.packageName }.distinct()
-        // anything that also opens an arbitrary website is a browser
-        val browsers = pm.queryIntentActivities(
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/")).addCategory(Intent.CATEGORY_BROWSABLE),
-            PackageManager.MATCH_DEFAULT_ONLY,
-        ).map { it.activityInfo.packageName }.toSet()
-        return handlers.firstOrNull { it !in browsers && it != packageName }
     }
 
     // ── notification access ─────────────────────────────────────────────

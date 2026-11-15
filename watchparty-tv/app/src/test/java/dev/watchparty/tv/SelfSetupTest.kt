@@ -9,10 +9,7 @@ class SelfSetupTest {
 
     @Test fun android9AndUpUsesAllowListener() {
         assertEquals(
-            listOf(
-                "cmd notification allow_listener $listener",
-                "pm grant dev.watchparty.tv android.permission.READ_LOGS",
-            ),
+            listOf("cmd notification allow_listener $listener"),
             SelfSetup.commands("dev.watchparty.tv", listener, 28, "other/.Svc"),
         )
     }

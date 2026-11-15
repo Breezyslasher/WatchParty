@@ -10,9 +10,9 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 
 /**
- * "Set up access" (automatic part): gives this app notification access (and log
- * access, for sharing Disney+ titles) without a computer. Android only lets
- * the user or adb grant these, so the app connects to the TV's own adb daemon
+ * "Set up access" (automatic part): gives this app notification access
+ * without a computer. Android only lets the user or adb grant it, so the app
+ * connects to the TV's own adb daemon
  * — the user turns on debugging and accepts the TV's "Allow debugging?"
  * prompt — and runs the same commands a computer would.
  */
@@ -30,7 +30,6 @@ object SelfSetup {
             val value = if (current.isEmpty()) listener else "$current:$listener"
             list.add("settings put secure enabled_notification_listeners $value")
         }
-        list.add("pm grant $packageName android.permission.READ_LOGS")
         return list
     }
 
