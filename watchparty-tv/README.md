@@ -4,15 +4,19 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.4.** Joins rooms and announces titles on a Sony Android TV 9; starting titles from the app and syncing are still being tested. The sync logic, link handling and
-relay client are unit-tested (the relay tests against the real relay), and
-every app link below was confirmed by hand on the TV with adb.
+**Status: 0.6.2.** Tested on a Sony Android TV 9 and a Chromecast HD (Google
+TV, Android 14): joining rooms, announcing titles, and **Set up access** on
+both (automatic on the Sony, the settings switch with the remote on the
+Chromecast). Syncing two TVs in one room end to end is still being tested.
+The sync logic, link handling, relay client and adb client are unit-tested
+(the relay tests against the real relay), and every app link below was
+confirmed by hand on the TV with adb.
 
 ## How it works
 
 Android lets an app with notification access read and control other apps'
 media sessions — the same thing the system uses for "now playing" and remote
-buttons. [Session Probe](../session-probe) showed this works on a real TV:
+buttons. [Session Probe](../tools/session-probe) showed this works on a real TV:
 Disney+ on a Sony Android TV 9 paused, played and seeked exactly on command.
 
 1. **Starting a title.** Someone pastes a link in *Start for everyone*. Every

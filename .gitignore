@@ -1,0 +1,23 @@
+# Android / Gradle build output
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+*.apk
+*.aab
+*.idsig
+
+# signing keys never belong in the repo
+*.jks
+*.keystore
+*.p12
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# collect.py output (redacted, but personal viewing history)
+probe-reports/

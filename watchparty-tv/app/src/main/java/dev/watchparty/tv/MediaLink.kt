@@ -10,7 +10,7 @@ import java.util.regex.Pattern
  * The room keeps an ordinary https link: Kodi members skip those safely, and
  * every TV converts it to the form its app accepts at launch time. Only
  * formats confirmed on a real TV are rewritten — tested on a Sony Android
- * TV 9 with `am start -f 0x10008000 -a VIEW -d <link>` (see session-probe's
+ * TV 9 with `am start -f 0x10008000 -a VIEW -d <link>` (see tools/session-probe's
  * README). Anything else passes through unchanged; if it only opens the
  * title's page, everyone presses Play and sync takes over.
  */

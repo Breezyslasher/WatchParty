@@ -42,5 +42,5 @@ report folder is safe to share.
 
 If the summary says **no title**, the app publishes none (e.g. Apple TV) and
 there's nothing to look up. If it can't see what's playing on your TV,
-install Session Probe and grant it access (see `../../session-probe`) — the
+install Session Probe and grant it access (see `../session-probe`) — the
 collector then asks it instead.
