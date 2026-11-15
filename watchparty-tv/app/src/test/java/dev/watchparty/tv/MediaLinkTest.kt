@@ -112,7 +112,8 @@ class MediaLinkTest {
         // JustWatch ANDROID_TV / Yamtrack tv_link forms (2026-11-15)
         assertEquals(listOf("https://www.starz.com/us/en/play/72168", "https://www.starz.com/us/en/movies/72168"),
             MediaLink.alternatives("https://starz.com/movies/72168"))
-        assertEquals(listOf("https://www.starz.com/us/en/series/69342/episodes/73283"),
+        // an episode: its /play/ link (the page only opened it on a phone), then the page
+        assertEquals(listOf("https://www.starz.com/us/en/play/73283", "https://www.starz.com/us/en/series/69342/episodes/73283"),
             MediaLink.alternatives("https://starz.com/series/69342/episodes/73283"))
         // web links and other services have none
         assertEquals(emptyList<String>(), MediaLink.alternatives("https://www.starz.com/us/en/play/72168"))

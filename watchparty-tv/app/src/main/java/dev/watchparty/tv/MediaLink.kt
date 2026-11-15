@@ -40,7 +40,7 @@ object MediaLink {
     // starz.com/movies/<id> and starz.com/series/<id>/episodes/<id>. The TV app
     // claims them; the phone app only claims www.starz.com/us/<lang>/... (its
     // intent filters: /us/*/play/*, /us/*/movies*, /us/*/series*, ...).
-    private val STARZ_TV = p("^https?://(?:www\\.)?starz\\.com/(movies|series)/(\\d+)(/episodes/\\d+)?$Q")
+    private val STARZ_TV = p("^https?://(?:www\\.)?starz\\.com/(movies|series)/(\\d+)(/episodes/(\\d+))?$Q")
     // Netflix: /title/<id> and /watch/<id> share the id.
     private val NETFLIX = p("^https?://(?:www\\.)?netflix\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:title|watch)/(\\d+)$Q")
     // HBO Max: the TV app only claims play.hbomax.com / play.max.com, so
@@ -62,8 +62,9 @@ object MediaLink {
     /**
      * Other forms of [link] for an app that doesn't take it as given, best
      * first — each device opens the first one its app claims. Starz's TV
-     * links become the web links the phone app takes: a movie's /play/ link
-     * (starts it), then its page; an episode under /us/en/series/.
+     * links become the web links the phone app takes: the /play/ link of the
+     * movie or episode (starts it; ids are the web's, confirmed for movies on
+     * a phone), then its page (the page only opens it).
      */
     fun alternatives(link: String): List<String> {
         STARZ_TV.match(link.trim())?.let {
@@ -71,7 +72,11 @@ object MediaLink {
             return if (it.group(1) == "movies") listOf(
                 "https://www.starz.com/us/en/play/$id",
                 "https://www.starz.com/us/en/movies/$id",
-            ) else listOf("https://www.starz.com/us/en/series/$id${it.group(3) ?: ""}")
+            ) else {
+                val page = "https://www.starz.com/us/en/series/$id${it.group(3) ?: ""}"
+                val episode = it.group(4)
+                if (episode != null) listOf("https://www.starz.com/us/en/play/$episode", page) else listOf(page)
+            }
         }
         return emptyList()
     }
