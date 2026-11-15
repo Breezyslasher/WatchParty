@@ -50,6 +50,13 @@ object MediaLink {
     // Discovery+ (the same player as HBO Max): its share link is on www., the
     // link that played on a phone on play. — the same move as HBO Max's.
     private val DISCOVERY = p("^https?://(?:www\\.|play\\.)?discoveryplus\\.com/video/watch/($UUID(?:/$UUID)?)$Q")
+    // Peacock: the app claims www.peacocktv.com/deeplink and /watch/asset (dumpsys,
+    // phone). JustWatch's deeplink asks for the title's page ("action":"PDP") and
+    // the web link opens it too; the same deeplink with "action":"PLAY" played
+    // The Grinch (adb, Samsung phone). pvid = the id at the end of the web link;
+    // type PROGRAMME for movies, EPISODE for episodes (as JustWatch sends them).
+    private val PEACOCK_DEEP = p("^https?://(?:www\\.)?peacocktv\\.com/deeplink\\?deeplinkData=([^&#]+).*$")
+    private val PEACOCK_ASSET = p("^https?://(?:www\\.)?peacocktv\\.com/watch/asset/(movies|tv)/([^?#]*)/([0-9a-f-]{36})$Q")
     // Crunchyroll: the TV app claims no web links, only crunchyroll://, which
     // opens the app but not the episode. Keep the web link clean.
     private val CRUNCHYROLL = p("^https?://(?:www\\.)?crunchyroll\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?watch/([A-Z0-9]+)(/[^?#]*)?$Q")
@@ -66,6 +73,11 @@ object MediaLink {
     // e.g. JustWatch's Crunchyroll links:
     // crunchyroll.pxf.io/xk92Nv?u=https%3A%2F%2Fwww.crunchyroll.com%2Fwatch%2F<id>&subId3=...
     private val REDIRECT = p("^https?://(?:[a-z0-9-]+\\.)*(?:pxf|sjv)\\.io/[^?#]*\\?([^#]*)(?:#.*)?$")
+
+    /** Peacock's deeplink that starts [pvid] ("action":"PLAY"). */
+    fun peacockPlay(pvid: String, type: String): String =
+        "https://www.peacocktv.com/deeplink?deeplinkData=" + java.net.URLEncoder.encode(
+            "{\"pvid\":\"$pvid\",\"type\":\"$type\",\"action\":\"PLAY\"}", "UTF-8")
 
     /** The link an affiliate redirect wraps, if [link] is one. */
     fun unwrapRedirect(link: String): String? {
@@ -136,6 +148,22 @@ object MediaLink {
             val query = (keep + "action=play").joinToString("&")
             return Shared("https://tv.apple.com/${it.group(1)}/episode/${it.group(2)}/${it.group(3)}?$query",
                 APPLE_TV_PACKAGE, "Apple TV episode")
+        }
+        PEACOCK_DEEP.match(text)?.let {
+            val data = try {
+                java.net.URLDecoder.decode(it.group(1), "UTF-8")
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+            val pvid = data?.let { d -> Regex("\"pvid\"\\s*:\\s*\"([^\"]+)\"").find(d)?.groupValues?.get(1) }
+            val type = data?.let { d -> Regex("\"type\"\\s*:\\s*\"([^\"]+)\"").find(d)?.groupValues?.get(1) }
+            if (pvid != null && type != null) return Shared(peacockPlay(pvid, type), null, "Peacock title")
+        }
+        PEACOCK_ASSET.match(text)?.let {
+            val episode = it.group(1) == "tv" && it.group(2).contains("/episodes/")
+            if (it.group(1) == "movies" || episode) {
+                return Shared(peacockPlay(it.group(3), if (episode) "EPISODE" else "PROGRAMME"), null, "Peacock title")
+            }
         }
         DISCOVERY.match(text)?.let {
             return Shared("https://play.discoveryplus.com/video/watch/${it.group(1)!!.lowercase()}", null, "Discovery+ title")

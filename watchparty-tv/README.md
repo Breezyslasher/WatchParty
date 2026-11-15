@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.9.27.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
+**Status: 0.9.28.** 0.7.2 was tested on a Sony Android TV 9 and a Chromecast HD
 (Google TV, Android 14): joining rooms, announcing titles, and **Set up access**
 on both (automatic on the Sony, the settings switch with the remote on the
 Chromecast). 0.8 is a new look (same behaviour) and 0.9 adds title and person
@@ -240,6 +240,7 @@ page links and tracking parameters (`?utm_…`, `?trackId…`) are fine:
 | Apple TV | `com.apple.atve.androidtv.appletv` | `tv.apple.com/<cc>/movie/<name>/<umc.cmc.id>` | same link + `?action=play` | ✓ starts playing after the profile picker |
 | Prime Video (phone) | Prime Video | `watch.amazon.com/watch?asin=…` / `?gti=…` (JustWatch; Amazon Channels like "Starz Amazon Channel" use the same) | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | YouTube (free, phone) | YouTube | `www.youtube.com/watch?v=<id>` (JustWatch) | same | ✓ movies start playing (Samsung phone, 2026-11-15) |
+| Peacock (phone) | `com.peacocktv.peacockandroid` | JustWatch: web `peacocktv.com/watch/asset/movies/<name>/<id>` (episodes `…/episodes/<name>/<id>`), Android TV `peacocktv.com/deeplink?deeplinkData={"pvid":…,"type":…,"action":"PDP"}` — both open the title's page | the deeplink with `"action":"PLAY"` (pvid = the web link's id; type PROGRAMME for movies, EPISODE for episodes) | ✓ The Grinch starts playing with `PLAY` (adb, Samsung phone, 2026-11-15); not yet tried from Watch Party, nor episodes |
 | Netflix (phone) | `com.netflix.mediaclient` | `netflix.com/watch/<id>` (an episode: its own web `/watch/<id>`) | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | Disney+ (phone) | `com.disney.disneyplus` | the same links | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 | Hulu (phone) | (found by Android) | JustWatch's links | same | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |

@@ -156,4 +156,21 @@ class MediaLinkTest {
         assertEquals("https://play.discoveryplus.com/video/watch/ef8dbdd7-9527-47a2-b322-9be4d25bdcbf",
             MediaLink.normalize("https://play.discoveryplus.com/video/watch/ef8dbdd7-9527-47a2-b322-9be4d25bdcbf?utm_source=x")!!.link)
     }
+
+    @Test fun peacockLinksBecomeThePlayDeeplink() {
+        // the deeplink that played The Grinch (adb, 2026-11-15)
+        val play = "https://www.peacocktv.com/deeplink?deeplinkData=%7B%22pvid%22%3A%22153a1aee-b720-356e-bac2-6a9b85fb81b3" +
+            "%22%2C%22type%22%3A%22PROGRAMME%22%2C%22action%22%3A%22PLAY%22%7D"
+        assertEquals(play, MediaLink.peacockPlay("153a1aee-b720-356e-bac2-6a9b85fb81b3", "PROGRAMME"))
+        // JustWatch's Android TV deeplink (opens the page): PDP becomes PLAY
+        assertEquals(play, MediaLink.normalize("https://www.peacocktv.com/deeplink?deeplinkData=%7B%22pvid%22%3A%22" +
+            "153a1aee-b720-356e-bac2-6a9b85fb81b3%22%2C%22type%22%3A%22PROGRAMME%22%2C%22action%22%3A%22PDP%22%7D")!!.link)
+        // the web link (opens the page)
+        assertEquals(play, MediaLink.normalize(
+            "https://www.peacocktv.com/watch/asset/movies/the-grinch/153a1aee-b720-356e-bac2-6a9b85fb81b3")!!.link)
+        // an episode's web link: type EPISODE (JustWatch, The King of Queens S1 E1)
+        assertEquals(MediaLink.peacockPlay("ae752e96-f1de-34ac-9d65-36c6c057bf51", "EPISODE"), MediaLink.normalize(
+            "https://www.peacocktv.com/watch/asset/tv/the-king-of-queens/8979760515297072112/seasons/1/episodes/" +
+                "pilot-episode-1/ae752e96-f1de-34ac-9d65-36c6c057bf51")!!.link)
+    }
 }
