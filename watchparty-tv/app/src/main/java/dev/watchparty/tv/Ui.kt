@@ -329,12 +329,18 @@ object Ui {
             setOnClickListener { onClick() }
         }
 
-    /** Poster cards: 2:3 poster (radius 16), 26/700 title, 20 muted meta; scale 1.05 only. */
+    /** Poster cards: 2:3 poster (radius 16), 26/700 title, 20 muted meta; ring 5 accent, scale 1.05. */
     fun posterCard(c: Context, title: String, meta: String, image: String?, onClick: () -> Unit): Tile =
         Tile(c).apply {
             orientation = LinearLayout.VERTICAL
             focusScale = 1.05f
             radius = pxf(c, 16)
+            // the design had scale only; across a room that's hard to see, so the
+            // accent ring too (drawn behind the card: the page-coloured fill keeps it a ring)
+            fill = BG
+            ring = ACCENT
+            ringWidth = pxf(c, 5)
+            setPadding(0, 0, 0, px(c, 12))
             val poster = PosterView(c, pxf(c, 16))
             addView(poster, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT))
