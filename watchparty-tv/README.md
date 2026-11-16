@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.13** (the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.14** (Remote only and the room's controls on Room; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -162,7 +162,18 @@ the rail folds into a bar at the top.
    everyone**, for what search can't find (a YouTube video, a title
    JustWatch lacks). Typing on a TV is easiest from the Google TV remote app
    on a phone. **Room** shows what's playing.
-3. **Leave room** stops syncing. **Back** returns to the page before (a title
+3. While something plays, **Room** has the whole room's controls: −30 s,
+   −10 s, Play / Pause, +10 s, +30 s, **Go to time** (`1:02:03`) and **Stop
+   for everyone** (press it twice). Everyone follows: TVs, phones, browsers
+   and Kodi.
+4. **This phone / This TV: Watch here or Remote only** (on Room, also before
+   joining). *Remote only* keeps the device in the room to start titles and
+   run those controls, but it opens and follows nothing itself — a phone as
+   the TVs' remote. It reports nothing playing (never on the item, so the
+   room doesn't wait for it or count its drift). Back to *Watch here*, it
+   opens what the room is playing. The relay's web page `/remote` does the
+   same from any browser.
+5. **Leave room** stops syncing. **Back** returns to the page before (a title
    page, a person, Browse, then Room), and leaves the app from Room.
 
 Kodi members can be in the same room: see [Kodi in the same room](#kodi-in-the-same-room-the-bridge).

@@ -147,6 +147,14 @@ class SyncCore(
     var corrections = 0
         private set
 
+    /** Forget the item, so the room's current one opens again on the next
+     *  tick (this device switching from Remote only back to watching). */
+    fun reset() {
+        openedFile = null
+        notPlayableFile = null
+        last = null
+    }
+
     /**
      * Whether the app launched for the current item is still starting up
      * (OPEN_GRACE_MS, until it has played STARTED_MS). Its buffering then

@@ -101,6 +101,22 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
     private val browseTile = Ui.homeTile(c, "Browse", "Search any title, or paste a link") { host.go(Screen.BROWSE) }
     private var shownFile: String? = "-"
 
+    // the whole room's controls (everyone follows), shown while something is playing
+    private val controls = Ui.column(c)
+    private val clock = Ui.text(c, "0:00", if (phone) 72 else 88, 700)
+    private val clockState = Ui.text(c, "", 28, 400, Ui.TEXT_2)
+    private val playPause = Ui.primary(c, "Pause", 80, 48, 30, 14, Ui.BG, 5, 1.05f) {
+        SyncService.control(if (SyncService.room?.paused == true) "play" else "pause")
+    }
+    private var stopArmedUntil = 0L
+    private val stop = Ui.tab(c, "Stop for everyone") { stopPressed() }
+    private val jumpField = Ui.field(c, "1:02:03", "", 76, 28, Ui.SURFACE, 14, 24)
+    private val controlsNote = Ui.text(c, "", 24, 400, Ui.WARN)
+    // this device: watch here, or only run the room (a phone as the TVs' remote)
+    private val watchHere = Ui.chip(c, "Watch here") { setMode(false) }
+    private val remoteOnly = Ui.chip(c, "Remote only") { setMode(true) }
+    private val modeNote = Ui.text(c, "", 24, 400, Ui.MUTED, lineHeight = 1.3f)
+
     override val view: View = ScrollView(c).apply {
         isFillViewport = true
         isVerticalScrollBarEnabled = false
@@ -124,6 +140,44 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
         backdrop.addView(overlay, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM))
         col.addView(backdrop, lp(MATCH, Ui.px(c, if (phone) 420 else 560)))
 
+        controls.addView(Ui.sectionLabel(c, "Everyone"))
+        val clockRow = Ui.row(c).apply { gravity = Gravity.BOTTOM }
+        clockRow.addView(clock)
+        clockRow.addView(clockState, lp().apply { leftMargin = Ui.px(c, 20); bottomMargin = Ui.px(c, 14) })
+        controls.addView(clockRow, lp(MATCH).apply { topMargin = Ui.px(c, 8) })
+        val seekButton = { label: String, by: Double -> Ui.tab(c, label) {
+            SyncService.roomNowSec()?.let { now -> SyncService.control("seek", maxOf(0.0, now + by)) }
+        }.apply { gravity = Gravity.CENTER } }
+        stop.gravity = Gravity.CENTER
+        val transport = listOf(seekButton("−30s", -30.0), seekButton("−10s", -10.0), playPause,
+            seekButton("+10s", 10.0), seekButton("+30s", 30.0))
+        if (phone) {
+            // −30 −10 / Play / +10 +30, each row filling the width
+            for (rowViews in listOf(transport.subList(0, 2), listOf(playPause), transport.subList(3, 5))) {
+                val r = Ui.row(c)
+                for (v in rowViews) r.addView(v, lp(0, Ui.tap(c, 80), 1f).apply { if (r.childCount > 0) leftMargin = Ui.px(c, 16) })
+                controls.addView(r, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
+            }
+            controls.addView(stop, lp(MATCH, Ui.tap(c, 72)).apply { topMargin = Ui.px(c, 20) })
+        } else {
+            val r = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+            for (v in transport) r.addView(v, lp(WRAP, Ui.tap(c, if (v === playPause) 80 else 68))
+                .apply { if (r.childCount > 0) leftMargin = Ui.px(c, 16) })
+            controls.addView(r, lp(MATCH).apply { topMargin = Ui.px(c, 24) })
+        }
+        val jump = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+        jumpField.imeOptions = EditorInfo.IME_ACTION_GO
+        jumpField.inputType = android.text.InputType.TYPE_CLASS_DATETIME or android.text.InputType.TYPE_DATETIME_VARIATION_TIME
+        jumpField.setOnEditorActionListener { _, _, _ -> jumpTo(); true }
+        jump.addView(jumpField, lp(Ui.px(c, if (phone) 300 else 280), Ui.tap(c, 76)))
+        jump.addView(Ui.primary(c, "Go to time", 76, 40, 28, 14, Ui.BG, 5, 1.05f) { jumpTo() },
+            lp(WRAP, Ui.tap(c, 76)).apply { leftMargin = Ui.px(c, 16) })
+        if (!phone) jump.addView(stop, lp(WRAP, Ui.tap(c, 68)).apply { leftMargin = Ui.px(c, 48) })   // phones: under the transport
+        controls.addView(jump, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
+        controls.addView(controlsNote, lp(MATCH).apply { topMargin = Ui.px(c, 12) })
+        controls.visibility = View.GONE
+        col.addView(controls, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
+
         idle.setPadding(0, Ui.px(c, 40), 0, 0)
         idle.addView(Ui.text(c, "What are we watching?", if (phone) 60 else 80, 800, spacingEm = -0.03f, lineHeight = 1.02f))
         idle.addView(Ui.text(c, "Pick a title and every TV in the room opens it in the same app.", 32, 400, Ui.TEXT_2)
@@ -132,7 +186,70 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
 
         col.addView(browseTile, (if (phone) lp(MATCH, Ui.px(c, 220)) else lp(Ui.px(c, 760), Ui.px(c, 260)))
             .apply { topMargin = Ui.px(c, 48) })
+
+        val mode = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+        mode.addView(Ui.sectionLabel(c, if (phone) "This phone" else "This TV"))
+        mode.addView(watchHere, lp(WRAP, Ui.tap(c, 52)).apply { leftMargin = Ui.px(c, 24) })
+        mode.addView(remoteOnly, lp(WRAP, Ui.tap(c, 52)).apply { leftMargin = Ui.px(c, 12) })
+        col.addView(mode, lp(MATCH).apply { topMargin = Ui.px(c, 48) })
+        col.addView(modeNote, lp(MATCH).apply { topMargin = Ui.px(c, 12) })
+        showMode()
         addView(col, FrameLayout.LayoutParams(MATCH, WRAP))
+    }
+
+    private fun setMode(remote: Boolean) {
+        SyncService.setRemoteOnly(c, remote)
+        showMode()
+    }
+
+    private fun showMode() {
+        val remote = SyncService.remoteOnly
+        watchHere.setChosen(!remote)
+        remoteOnly.setChosen(remote)
+        modeNote.text = if (remote) "Runs the room without playing here: start titles and control everyone from this " +
+            (if (phone) "phone." else "TV.")
+        else "Opens the room's titles in their apps here and keeps them in sync."
+    }
+
+    /** Stop asks twice (it ends the title for everyone): the first press arms it for 4 s. */
+    private fun stopPressed() {
+        val now = System.currentTimeMillis()
+        if (now < stopArmedUntil) {
+            stopArmedUntil = 0
+            stop.label.text = "Stop for everyone"
+            SyncService.control("stop", 0.0)
+        } else {
+            stopArmedUntil = now + 4_000
+            stop.label.text = "Press again to stop"
+        }
+    }
+
+    private fun jumpTo() {
+        val sec = parseTime(jumpField.text.toString())
+        if (sec == null) {
+            controlsNote.text = "Type a time like 1:02:03 or 45:10"
+            return
+        }
+        controlsNote.text = ""
+        jumpField.setText("")
+        SyncService.control("seek", sec)
+    }
+
+    companion object {
+        /** "1:02:03", "62:03" or "90" (seconds) → seconds, or null. */
+        fun parseTime(text: String): Double? {
+            val parts = text.trim().split(':')
+            if (parts.isEmpty() || parts.size > 3 || parts.any { it.isEmpty() || !it.all(Char::isDigit) }) return null
+            return parts.fold(0.0) { acc, p -> acc * 60 + p.toDouble() }
+        }
+
+        fun clockText(sec: Double): String {
+            val t = maxOf(0, sec.toLong())
+            val h = t / 3600
+            val m = t / 60 % 60
+            val s = t % 60
+            return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+        }
     }
 
     override fun defaultFocus(): View = browseTile
@@ -141,7 +258,12 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
         val room = SyncService.room
         val item = room?.item
         val file = item?.file
+        if (stopArmedUntil in 1 until System.currentTimeMillis()) {
+            stopArmedUntil = 0
+            stop.label.text = "Stop for everyone"
+        }
         if (item == null || !SyncService.running) {
+            controls.visibility = View.GONE
             if (shownFile != null) {
                 shownFile = null
                 backdrop.visibility = View.GONE
@@ -149,6 +271,10 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
             }
             return
         }
+        controls.visibility = View.VISIBLE
+        clock.text = clockText(SyncService.roomNowSec() ?: room.positionSec)
+        clockState.text = if (room.paused) "Paused" else "Playing"
+        playPause.label.text = if (room.paused) "Play" else "Pause"
         val mine = playingFor(item.file)
         val pkg = item.androidPackage
         val service = mine?.service ?: pkg?.let { Apps.name(c, it) } ?: "Kodi"

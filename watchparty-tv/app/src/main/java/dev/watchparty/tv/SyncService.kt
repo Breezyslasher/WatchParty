@@ -59,6 +59,38 @@ class SyncService : Service() {
             private set
         @Volatile private var instance: SyncService? = null
 
+        /** Remote only: this device stays in the room and runs it (starts titles,
+         *  plays, pauses, seeks, stops for everyone) but opens and follows
+         *  nothing itself — a phone controlling the TVs. Kept in the prefs. */
+        @Volatile var remoteOnly = false
+            private set
+        const val PREF_REMOTE_ONLY = "remote_only"
+
+        fun setRemoteOnly(context: Context, on: Boolean) {
+            remoteOnly = on
+            context.getSharedPreferences("watchparty", Context.MODE_PRIVATE).edit().putBoolean(PREF_REMOTE_ONLY, on).apply()
+            // back to watching: open what the room is playing now
+            instance?.let { s -> s.worker?.post { s.core.reset() } }
+        }
+
+        fun loadRemoteOnly(context: Context) {
+            remoteOnly = context.getSharedPreferences("watchparty", Context.MODE_PRIVATE).getBoolean(PREF_REMOTE_ONLY, false)
+        }
+
+        /** Where the room is now, in seconds (null when not in one). */
+        fun roomNowSec(): Double? {
+            val s = instance ?: return null
+            val c = s.client ?: return null
+            return room?.expectedSec(c.serverNowSec())
+        }
+
+        /** Play, pause, seek or stop the whole room ([positionSec]: where; now if null). */
+        fun control(cmd: String, positionSec: Double? = null): Boolean {
+            val s = instance ?: return false
+            s.worker?.post { s.sendControl(cmd, positionSec) }
+            return true
+        }
+
         /** Announce a link to the room (from the main screen). */
         fun share(link: String, label: String, pkg: String, positionSec: Double = 0.0, identity: Identity? = null): Boolean {
             val service = instance ?: return false
@@ -96,6 +128,7 @@ class SyncService : Service() {
         val relay = intent?.getStringExtra(EXTRA_RELAY).orEmpty()
         val room = intent?.getStringExtra(EXTRA_ROOM).orEmpty()
         name = intent?.getStringExtra(EXTRA_NAME).orEmpty().ifBlank { "Android TV" }
+        loadRemoteOnly(this)
         goForeground("Joining room…")
         if (relay.isBlank() || room.isBlank()) {
             setStatus("Enter a relay address and room code")
@@ -162,7 +195,10 @@ class SyncService : Service() {
             // Report the session of the party's app if it's running, else
             // whatever is playing; the room's answer then drives us.
             val previous = lastRoom
-            var controller = sessionFor(previous)
+            val remote = remoteOnly
+            // Remote only: report nothing playing here (never on the item, so the
+            // room neither waits for us nor counts our drift), and follow nothing
+            var controller = if (remote) null else sessionFor(previous)
             var local = localState(controller)
             val room = localize(c.poll(
                 positionSec = if (local.positionMs >= 0) local.positionMs / 1000.0 else 0.0,
@@ -176,11 +212,11 @@ class SyncService : Service() {
             lastRoom = room
             Companion.room = room
             lastError = null
-            if (room.item?.androidPackage != previous?.item?.androidPackage) {
+            if (!remote && room.item?.androidPackage != previous?.item?.androidPackage) {
                 controller = sessionFor(room)
                 local = localState(controller)
             }
-            val actions = core.tick(room, local, System.currentTimeMillis(), c.serverNowSec())
+            val actions = if (remote) emptyList() else core.tick(room, local, System.currentTimeMillis(), c.serverNowSec())
             if (actions.isNotEmpty()) {
                 // what this device was doing, to read the actions by
                 Log.i(TAG, "local ${local.play} at ${if (local.positionMs >= 0) "%.1f".format(local.positionMs / 1000.0) else "?"}s" +
@@ -311,6 +347,21 @@ class SyncService : Service() {
                 note = if (e.status == 403) "Controls are locked by the host" else e.message
             }
             is Action.Note -> note = a.text
+        }
+    }
+
+    private fun sendControl(cmd: String, positionSec: Double?) {
+        val c = client ?: return
+        val r = lastRoom ?: return
+        val at = maxOf(0.0, positionSec ?: r.expectedSec(c.serverNowSec()))
+        try {
+            val state = localize(c.command(cmd, at))
+            lastRoom = state
+            room = state
+        } catch (e: RelayClient.RelayException) {
+            note = if (e.status == 403) "Controls are locked by the host" else e.message
+        } catch (e: IOException) {
+            note = "Couldn't send it: ${e.message}"
         }
     }
 
@@ -493,7 +544,9 @@ class SyncService : Service() {
             val expected = room.expectedSec(c.serverNowSec())
             lines.append("Room: ").append(item.label.ifEmpty { item.file })
                 .append(if (room.paused) " · paused at " else " · playing at ").append(fmt(expected))
-            if (core.onItem(room, local) && local.positionMs >= 0) {
+            if (remoteOnly) {
+                lines.append("\nRemote only: nothing plays here")
+            } else if (core.onItem(room, local) && local.positionMs >= 0) {
                 val drift = local.positionMs / 1000.0 - expected
                 lines.append("\nHere: ").append(local.title ?: local.pkg)
                     .append(" at ").append(fmt(local.positionMs / 1000.0))

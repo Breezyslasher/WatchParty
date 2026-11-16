@@ -179,4 +179,14 @@ class SyncCoreTest {
         // played 3 s: one seek to the room, as for a link this device opened
         assertEquals(listOf<Action>(Action.SeekTo(108_000)), core.tick(room(it = found), local(3.0), 8_000L, 1008.0))
     }
+
+    /** Back from Remote only: the room's current item opens again. */
+    @Test fun resetOpensTheCurrentItemAgain() {
+        val core = SyncCore()
+        val r = room()
+        assertTrue(core.tick(r, local(0.0, LocalPlay.OTHER, null), 0L, 1000.0).any { it is Action.Open })
+        assertTrue(core.tick(r, local(0.0, LocalPlay.OTHER, null), 1_000L, 1001.0).none { it is Action.Open })
+        core.reset()
+        assertTrue(core.tick(r, local(0.0, LocalPlay.OTHER, null), 2_000L, 1002.0).any { it is Action.Open })
+    }
 }
