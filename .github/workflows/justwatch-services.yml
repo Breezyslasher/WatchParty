@@ -1,0 +1,36 @@
+name: JustWatch services
+
+# Manually run: every streaming service JustWatch offers for some movies and
+# shows, with a sample link each (tools/justwatch/services.py) — to find
+# services Watch Party hasn't tried yet.
+on:
+  workflow_dispatch:
+    inputs:
+      movies:
+        description: 'Movies, separated by "|"'
+        required: false
+        default: "Oppenheimer|Barbie|John Wick|The Batman|Inside Out 2|Twisters|Smile 2|The Shawshank Redemption|Pulp Fiction|Halloween|The Thing|Paddington 2|Gladiator|Elf|Get Out|Coco|Frozen|Shrek|Rocky|Jaws|The Notebook|Moana 2|Wicked|Anora|Nosferatu"
+      shows:
+        description: 'Shows, separated by "|"'
+        required: false
+        default: "The Office|Breaking Bad|The Walking Dead|Yellowstone|Doctor Who|Shameless|Friends|Grey's Anatomy|Seinfeld|Star Trek: The Next Generation|Midsomer Murders|Dexter|Survivor|Bluey|Naruto|The Bear|Severance|The Boys|Abbott Elementary|SpongeBob SquarePants|Love Island|Bob's Burgers|The Simpsons|Squid Game|One Piece"
+      country:
+        description: 'Country code'
+        required: false
+        default: 'US'
+
+permissions:
+  contents: read
+
+jobs:
+  services:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Services
+        env:
+          MOVIES: ${{ inputs.movies }}
+          SHOWS: ${{ inputs.shows }}
+          COUNTRY: ${{ inputs.country }}
+        run: python3 tools/justwatch/services.py --movies "$MOVIES" --shows "$SHOWS" --country "$COUNTRY"
