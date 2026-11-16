@@ -454,5 +454,5 @@ app. Then check the app can be controlled: Session Probe's
 - `SessionAccessService.kt` — empty notification listener (unlocks media sessions).
 
 Tests: `./gradlew test`. To include the relay tests, start a relay
-(`python3 relay_standalone.py --port 8765` from the Kodi addon) and run with
+(`python3 watchparty-relay/relay_standalone.py --port 8765`) and run with
 `WATCHPARTY_TEST_RELAY=http://127.0.0.1:8765`.

@@ -38,10 +38,12 @@ Not in an extension store yet; load it from this folder:
 that runs the room from any browser — Browse, start a title for everyone,
 play, pause, seek, go to a time, stop — without playing anything itself (a web
 page can't drive another site's video; that's what this extension is for).
-Its screens are this extension's own, copied in with
-`tools/vendor-remote.sh <path to service.watchparty>`: re-run it after
-changing `links.js`, `justwatch.js`, `hbomax.js`, `relay.js`, `ui.js`,
-`screens.js` or `room.css`.
+Its screens are this extension's own: the relay
+([watchparty-relay](../watchparty-relay)) serves `links.js`, `justwatch.js`,
+`hbomax.js`, `relay.js`, `ui.js`, `screens.js` and `room.css` straight from
+this folder (and its Docker image copies them in). After changing them, run
+`tools/vendor-kodi.sh <path to service.watchparty>` so the Kodi addon's
+built-in relay has them too.
 
 ## Use
 
@@ -148,8 +150,8 @@ WATCHPARTY_TEST_RELAY=http://127.0.0.1:8765 npm test     # + the relay client ag
 WATCHPARTY_TEST_RELAY=http://127.0.0.1:8765 node test/e2e.mjs [screenshots-dir]
 ```
 
-Start a relay first for the last two (`python3 relay_standalone.py --port
-8765` from the Kodi addon). The end-to-end test needs Playwright and ffmpeg:
+Start a relay first for the last two (`python3
+../watchparty-relay/relay_standalone.py --port 8765`). The end-to-end test needs Playwright and ffmpeg:
 it loads the extension into Chromium, answers `https://www.disneyplus.com/…`
 and `https://www.netflix.com/…` with a test page playing a generated video,
 and has a scripted member start a title, seek, pause and play; then pauses and

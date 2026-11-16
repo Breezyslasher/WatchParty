@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Does the relay's remote page search JustWatch through the relay?
 
-For the remote (/remote, served by the relay in Kodi-Addons'
-service.watchparty): a web page can't call JustWatch's API itself, so it
+For the remote (/remote, served by the relay, watchparty-relay/): a web page can't call JustWatch's API itself, so it
 posts the request to the relay's /remote/fetch, which makes it. This runs
 against a relay started from that code: joins a room, sends the remote's
 search query (the extension's SEARCH) and HBO Max's ASL page through

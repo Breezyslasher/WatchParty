@@ -1,0 +1,6 @@
+# the relay image only needs watchparty-relay/ and the extension's screens
+*
+!watchparty-relay/relay.py
+!watchparty-relay/relay_standalone.py
+!watchparty-relay/remote/
+!watchparty-browser/extension/

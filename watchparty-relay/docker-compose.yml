@@ -1,0 +1,24 @@
+# Watch Party relay
+#   docker compose up -d          (from this folder, in a clone of WatchParty)
+#
+# From a clone this builds the image locally and tags it with the published
+# name. On a bare server (no clone), delete the `build:` block — compose
+# then pulls the prebuilt multi-arch image from GHCR instead.
+services:
+  watchparty-relay:
+    image: ghcr.io/breezyslasher/watchparty-relay:latest
+    build:
+      context: ..
+      dockerfile: watchparty-relay/Dockerfile
+    container_name: watchparty-relay
+    ports:
+      - "8765:8765"
+    volumes:
+      - watchparty-state:/data          # parties survive restarts/updates
+    # environment:
+    #   WATCHPARTY_ROOMS: "MOVIE,SHOWS"   # omit for open mode
+    #   WATCHPARTY_SHOW_CODES: "1"        # show full room codes on /status
+    restart: unless-stopped
+
+volumes:
+  watchparty-state:
