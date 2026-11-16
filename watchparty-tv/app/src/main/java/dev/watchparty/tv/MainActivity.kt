@@ -243,11 +243,23 @@ class MainActivity : Activity(), Host {
         // phones: the room part folds away behind a header
         private val body = Ui.column(c)
         private val fold = Ui.listButton(c, "Room", null) { toggleFold() }
+        /** Phones, folded with a room saved: join it in one tap. */
+        private val quickJoin = Ui.primary(c, "Join", 68, 40, 28, 14, Ui.RAIL, 5, 1.03f) { toggleJoin() }
         private var shownMembers: List<Member>? = null
 
         init {
-            form.addView(Ui.sectionLabel(c, "Join a room"))
-            for (f in listOf(relay, room, name)) form.addView(f, lp(MATCH).apply { topMargin = Ui.px(c, 16) })
+            if (phone) {
+                // the fold above already says "Join a room"; the relay and the
+                // room code share a row (the form took half a phone's screen)
+                val pair = Ui.row(c)
+                pair.addView(relay, lp(0, WRAP, 2f))
+                pair.addView(room, lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, 16) })
+                form.addView(pair, lp(MATCH))
+                form.addView(name, lp(MATCH).apply { topMargin = Ui.px(c, 16) })
+            } else {
+                form.addView(Ui.sectionLabel(c, "Join a room"))
+                for (f in listOf(relay, room, name)) form.addView(f, lp(MATCH).apply { topMargin = Ui.px(c, 16) })
+            }
             info.addView(Ui.sectionLabel(c, "In room"))
             info.addView(roomCode, lp().apply { topMargin = Ui.px(c, 14) })
             info.addView(members, lp(MATCH).apply { topMargin = Ui.px(c, 14) })
@@ -262,7 +274,7 @@ class MainActivity : Activity(), Host {
 
             body.addView(form, lp(MATCH))
             body.addView(info, lp(MATCH))
-            body.addView(join, lp(MATCH, Ui.tap(c, 80)).apply { topMargin = Ui.px(c, 28) })
+            body.addView(join, lp(MATCH, Ui.tap(c, 80)).apply { topMargin = Ui.px(c, if (phone) 20 else 28) })
 
             view = if (phone) {
                 Ui.column(c).apply {
@@ -270,10 +282,14 @@ class MainActivity : Activity(), Host {
                     setPadding(Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 40), Ui.px(c, 28))
                     addView(Ui.brand(c, 18, 30, 14))
                     addView(navGroup, lp(MATCH).apply { topMargin = Ui.px(c, 28) })
-                    addView(fold, lp(MATCH, Ui.tap(c, 68)).apply { topMargin = Ui.px(c, 20) })
+                    val foldRow = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+                    foldRow.addView(fold, lp(0, Ui.tap(c, 68), 1f))
+                    foldRow.addView(quickJoin, lp(WRAP, Ui.tap(c, 68)).apply { leftMargin = Ui.px(c, 12) })
+                    addView(foldRow, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
                     addView(body, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
-                    body.addView(status, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
-                    body.visibility = if (SyncService.running) View.GONE else View.VISIBLE
+                    body.addView(status, lp(MATCH).apply { topMargin = Ui.px(c, 16) })
+                    // open only when there's nothing to join yet
+                    body.visibility = if (SyncService.running || saved()) View.GONE else View.VISIBLE
                 }
             } else {
                 Ui.column(c).apply {
@@ -298,12 +314,16 @@ class MainActivity : Activity(), Host {
 
         private fun value(f: LinearLayout) = (f.getChildAt(1) as EditText).text.toString().trim()
 
+        /** A relay and room code to join. */
+        private fun saved() = value(relay).isNotEmpty() && value(room).isNotEmpty()
+
         fun select(s: Screen) {
             for ((key, b) in navs) b.setChosen(key == s || (key == Screen.BROWSE && s == Screen.PICKER))
         }
 
         private fun toggleFold() {
             body.visibility = if (body.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            refresh()
         }
 
         private fun toggleJoin() {
@@ -326,14 +346,20 @@ class MainActivity : Activity(), Host {
             if (running != wasRunning) {
                 wasRunning = running
                 toast(if (running) "Joined $code" else "Left $code")
-                if (phone) body.visibility = if (running) View.GONE else View.VISIBLE
+                if (phone) body.visibility = if (running || saved()) View.GONE else View.VISIBLE
             }
             form.visibility = if (running) View.GONE else View.VISIBLE
             info.visibility = if (running) View.VISIBLE else View.GONE
             join.label.text = if (running) "Leave room" else "Join room"
             roomCode.text = code
             status.text = SyncService.status
-            fold.label.text = if (running) "In room $code · ${SyncService.room?.members?.size ?: 0} here" else "Join a room"
+            fold.label.text = when {
+                running -> "In room $code · ${SyncService.room?.members?.size ?: 0} here"
+                phone && body.visibility != View.VISIBLE && saved() -> "Room ${value(room).uppercase(Locale.US)} · ${value(relay)}"
+                else -> "Join a room"
+            }
+            // folded, with a room to join: one tap (the form's Join is inside the fold)
+            quickJoin.visibility = if (phone && !running && body.visibility != View.VISIBLE && saved()) View.VISIBLE else View.GONE
             val list = if (running) SyncService.room?.members ?: emptyList() else emptyList()
             if (list != shownMembers) {
                 shownMembers = list
