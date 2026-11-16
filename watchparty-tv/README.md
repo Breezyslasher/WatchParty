@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.16** (app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17** (targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -445,6 +445,32 @@ adb shell am start -W -f 0x10008000 -a android.intent.action.VIEW -d "WATCH_LINK
 Note whether it starts playing, opens the title's page, or just opens the
 app. Then check the app can be controlled: Session Probe's
 **Test what's playing in 20 s** must pass pause, seek and play.
+
+## Releasing (Google Play)
+
+The app targets Android 16 (API 36), as Play requires of new apps and
+updates since 2026-08-31. Its sync service is a `specialUse` foreground
+service (it keeps the device in the room and follows it; it plays nothing
+itself), described in the manifest's `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` — Play
+Console asks for the same description and a short video of it in use. Back
+goes through Android's `OnBackInvokedCallback` on Android 13+ (targeting 16,
+`onBackPressed` is no longer called).
+
+The **Android release** workflow (`.github/workflows/android-release.yml`)
+builds with the Android Gradle plugin: unit tests, then the release App
+Bundle (`.aab`, what Play takes) and APK, as the run's `watchparty-android`
+artifact. It signs them with your upload key when the repository secrets
+are set:
+
+```
+keytool -genkeypair -v -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 upload.jks     # → ANDROID_KEYSTORE_BASE64
+```
+
+plus `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`upload`) and
+`ANDROID_KEY_PASSWORD`. Keep `upload.jks` and its passwords somewhere safe
+(Play App Signing holds the app's real key; losing the upload key means asking
+Google to reset it). Raise `versionCode` for every upload.
 
 ## Code
 

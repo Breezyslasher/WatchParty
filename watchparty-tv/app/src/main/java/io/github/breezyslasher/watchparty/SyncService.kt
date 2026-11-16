@@ -583,8 +583,9 @@ class SyncService : Service() {
     private fun goForeground(text: String) {
         shownNotificationText = text
         val n = buildNotification(text)
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(NOTIFICATION_ID, n, 2 /* FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK, API 29 */)
+        if (Build.VERSION.SDK_INT >= 34) {
+            // the manifest's specialUse type (see AndroidManifest.xml)
+            startForeground(NOTIFICATION_ID, n, 1 shl 30 /* FOREGROUND_SERVICE_TYPE_SPECIAL_USE, API 34 */)
         } else {
             startForeground(NOTIFICATION_ID, n)
         }

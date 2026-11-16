@@ -102,6 +102,7 @@ class MainActivity : Activity(), Host {
             alpha = 0f
         }
         setContentView(root)
+        registerBack()
         if (SelfSetup.hasAccess(this)) showShell() else showSetup()
         root.addView(toastView, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.END).apply {
             rightMargin = Ui.px(this@MainActivity, if (phone) 32 else 72)
@@ -126,8 +127,13 @@ class MainActivity : Activity(), Host {
         handler.removeCallbacks(ticker)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
+    /**
+     * Back (the remote's, a phone's gesture): out of a title page, then
+     * Browse, then the app. Android 13+ sends it to an OnBackInvokedCallback
+     * (the manifest opts in; targeting Android 16 it no longer calls
+     * onBackPressed at all), older versions to onBackPressed.
+     */
+    private fun back() {
         if (shell != null) {
             when (screen) {
                 Screen.PICKER -> {
@@ -139,8 +145,20 @@ class MainActivity : Activity(), Host {
                 Screen.ROOM -> {}
             }
         }
-        @Suppress("DEPRECATION") super.onBackPressed()
+        // leave as Android 12+ does for a launcher's root activity: to the
+        // background, not finished (the room keeps syncing in SyncService)
+        moveTaskToBack(true)
     }
+
+    private fun registerBack() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { back() }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() = back()
 
     // ── Host ────────────────────────────────────────────────────────────
 

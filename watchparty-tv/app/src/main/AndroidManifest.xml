@@ -4,7 +4,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- keeps the room connection alive while you watch in another app -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- specialUse: the service keeps this device in a watch party (the relay
+         connection, following the room) while you watch in another app; it
+         plays no media itself, so mediaPlayback didn't fit -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -46,7 +49,8 @@
         android:icon="@drawable/banner"
         android:banner="@drawable/banner"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
             android:name=".MainActivity"
@@ -62,7 +66,11 @@
         <service
             android:name=".SyncService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps this device in a watch party the user joined: polls the party's relay once a second and keeps the streaming app the user is watching in sync with the other members (play, pause, seek). Runs only while the user is in a room; Leave room stops it." />
+        </service>
 
         <!-- Reads no notifications: notification access is what unlocks other
              apps' media sessions (see SessionAccessService).
