@@ -1,0 +1,30 @@
+name: Peacock slug probe
+
+# Manually run: do Peacock's web links (from JustWatch) name the slug that
+# Paco8's plugin.video.skyott plays? Uses the addon's own client
+# (tools/probe/peacock_slug.py), signed out.
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: '"Title:MOVIE" or "Title:SHOW", separated by "|"'
+        required: false
+        default: 'The Grinch:MOVIE|The Office:SHOW'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: git clone --depth 1 https://github.com/Paco8/plugin.video.skyott skyott
+      - run: pip install requests
+      - name: Probe
+        env:
+          TITLES: ${{ inputs.titles }}
+        run: |
+          IFS='|' read -ra list <<< "$TITLES"
+          python3 tools/probe/peacock_slug.py --addon skyott "${list[@]}"
