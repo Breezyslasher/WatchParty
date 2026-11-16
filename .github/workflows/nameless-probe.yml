@@ -1,0 +1,28 @@
+name: Nameless link probe
+
+# Manually run: do Paramount+ and Apple TV web links work without the
+# title's name (tools/probe/nameless_links.py)? Signed out.
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: '"Title:MOVIE|SHOW:paramount|apple", separated by "|"'
+        required: false
+        default: 'Top Gun: Maverick:MOVIE:paramount|Tulsa King:SHOW:paramount|Wolfs:MOVIE:apple|Severance:SHOW:apple'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - name: Probe
+        env:
+          TITLES: ${{ inputs.titles }}
+        run: |
+          IFS='|' read -ra list <<< "$TITLES"
+          python3 tools/probe/nameless_links.py "${list[@]}"
