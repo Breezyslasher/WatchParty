@@ -5,7 +5,7 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.5.1, not yet tried on a real streaming site or with a real Kodi.** It looks and works
+**Status: 0.5.2, not yet tried on a real streaming site or with a real Kodi.** It looks and works
 like the Android app: the same rail and screens. Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.
@@ -16,9 +16,22 @@ Not in an extension store yet; load it from this folder:
 
 - **Chrome / Edge:** open `chrome://extensions`, turn on **Developer mode**,
   **Load unpacked**, and pick the `extension/` folder.
-- **Firefox:** open `about:debugging#/runtime/this-firefox`, **Load Temporary
-  Add-on…**, and pick `extension/manifest.json` (it's removed when Firefox
-  restarts until the extension is signed).
+- **Firefox, for good:** Firefox only installs add-ons Mozilla has signed
+  (an unsigned one is "not verified"). The **Sign Firefox extension** workflow
+  (`.github/workflows/sign-firefox.yml`, run from the repository's Actions
+  tab) has Mozilla sign it as an *unlisted* add-on — not on
+  addons.mozilla.org's site, installable only from the file — and saves the
+  signed `.xpi` as the run's artifact; open that file in Firefox to install
+  it. It needs an addons.mozilla.org account's API key (Developer Hub →
+  **Manage API Keys**) saved as the repository secrets `AMO_JWT_ISSUER` and
+  `AMO_JWT_SECRET`. Mozilla signs each version once, so raise `version` in
+  `manifest.json` before signing changes. Firefox's install prompt lists what
+  the extension sends out (`data_collection_permissions`): your name (to the
+  relay), the titles you watch and their links (browsing activity), play,
+  pause and seek (website activity), and Browse searches (to JustWatch).
+- **Firefox, for testing:** open `about:debugging#/runtime/this-firefox`,
+  **Load Temporary Add-on…**, and pick `extension/manifest.json` or the
+  zipped extension (it's removed when Firefox restarts).
 
 ## Use
 

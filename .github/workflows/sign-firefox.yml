@@ -1,0 +1,60 @@
+name: Sign Firefox extension
+
+# Manually run: has Mozilla sign the browser extension as an unlisted add-on
+# (not on addons.mozilla.org's site; only whoever has the file can install it)
+# and saves the signed .xpi as this run's artifact.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions),
+# from addons.mozilla.org → Developer Hub → Manage API Keys:
+#   AMO_JWT_ISSUER  the "JWT issuer" (looks like user:12345:67)
+#   AMO_JWT_SECRET  the "JWT secret"
+#
+# Mozilla signs each version once: raise "version" in
+# watchparty-browser/extension/manifest.json before signing changes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check the secrets are set
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "::error::Add the AMO_JWT_ISSUER and AMO_JWT_SECRET repository secrets (see the top of this workflow)."
+            exit 1
+          fi
+      - name: Unit tests
+        working-directory: watchparty-browser
+        run: npm test
+      - name: Lint
+        run: npx --yes web-ext@8.10.0 lint --source-dir watchparty-browser/extension
+      - name: Sign (unlisted)
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          npx --yes web-ext@8.10.0 sign \
+            --source-dir watchparty-browser/extension \
+            --artifacts-dir dist \
+            --channel unlisted \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET" \
+            --approval-timeout 1500000
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watchparty-firefox
+          path: dist/*.xpi
+          if-no-files-found: error
