@@ -12,6 +12,16 @@ prints what the site does: status, where it redirects, the page's canonical
 link and title, and whether the page mentions the id.
 
     python3 nameless_links.py "Top Gun: Maverick:MOVIE:paramount" "Severance:SHOW:apple"
+
+Result (2026-11-16, signed out): neither needs the name. Paramount+'s own
+links have none: JustWatch's /movies/<name>/<id> and
+/shows/<show>/video/<id>/<name> 301 to /movies/video/<id>/ and
+/shows/video/<id>/ (canonical and og:url too), and /shows/video/<a movie's
+id>/ 301s on to /movies/video/<id>/; /movies/<id>/ and /shows/x/video/<id>/
+are 404s. Apple TV's tv.apple.com/[us/]movie|episode/<id> (and /x/<id>) 301
+to the full link, an episode's with its showId (playableId only if given);
+the wrong kind (/episode/<a movie's id>) is a 404. (Top Gun: Maverick, Tulsa
+King S1 E1-2, Wolfs, Severance S1 E1-2.)
 """
 import os
 import re

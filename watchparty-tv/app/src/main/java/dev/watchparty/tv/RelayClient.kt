@@ -118,7 +118,7 @@ class RelayClient(baseUrl: String, private val room: String) {
                 // a Kodi addon's title: its path's web link (its file is
                 // Kodi's own stream, e.g. on 127.0.0.1, never opened here)
                 // (normalized as a shared link is: Peacock's /watch/asset/ page → its PLAY deeplink)
-                link = if (plugin != null) AddonLinks.webLink(plugin)?.let { l -> MediaLink.normalize(l)?.link ?: l }
+                link = if (plugin != null) AddonLinks.webLink(plugin, it.optString("type", ""))?.let { l -> MediaLink.normalize(l)?.link ?: l }
                 else file.takeIf { f -> f.startsWith("https://") || f.startsWith("http://") },
             )
         }

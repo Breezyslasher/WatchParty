@@ -69,6 +69,12 @@ object MediaLink {
     // playableId (they say which show and which playable) and dropping tracking.
     private val APPLE_EPISODE = p("^https?://tv\\.apple\\.com/([a-z]{2})/episode/([^/?#]+)/(umc\\.[A-Za-z0-9.]+)(?:\\?([^#]*))?(?:#.*)?$")
 
+    // Apple TV by id alone (what Kodi's plugin.video.appletv has): tv.apple.com/
+    // [<cc>/]movie|episode/<umc id> redirects to the title's full link, with its
+    // name and an episode's showId (the nameless probe, 2026-11-16). The app
+    // was only tried with full links, so the redirect is followed first.
+    private val APPLE_BARE = p("^https?://tv\\.apple\\.com/(?:[a-z]{2}/)?(?:movie|episode)/(umc\\.[A-Za-z0-9.]+)/?$")
+
     // Affiliate redirects (Impact: *.pxf.io, *.sjv.io) wrap the real link in u=,
     // e.g. JustWatch's Crunchyroll links:
     // crunchyroll.pxf.io/xk92Nv?u=https%3A%2F%2Fwww.crunchyroll.com%2Fwatch%2F<id>&subId3=...
@@ -78,6 +84,21 @@ object MediaLink {
     fun peacockPlay(pvid: String, type: String): String =
         "https://www.peacocktv.com/deeplink?deeplinkData=" + java.net.URLEncoder.encode(
             "{\"pvid\":\"$pvid\",\"type\":\"$type\",\"action\":\"PLAY\"}", "UTF-8")
+
+    /** An Apple TV link by id alone, to expand with [expand] before launching. */
+    fun isBareApple(link: String): Boolean = APPLE_BARE.match(link.trim()) != null
+
+    /** [link]'s full form: where it redirects ([location]: the Location header, or
+     *  null), normalized (Apple TV: + ?action=play); [link] itself if that fails. */
+    fun expand(link: String, location: (String) -> String?): String {
+        val to = try {
+            location(link)?.let { java.net.URL(java.net.URL(link), it).toString() }
+        } catch (e: Exception) {
+            null
+        } ?: return link
+        if (!to.startsWith("https://tv.apple.com/")) return link
+        return normalize(to)?.link ?: link
+    }
 
     /** The link an affiliate redirect wraps, if [link] is one. */
     fun unwrapRedirect(link: String): String? {

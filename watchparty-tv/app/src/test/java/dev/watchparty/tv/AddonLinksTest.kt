@@ -35,11 +35,24 @@ class AddonLinksTest {
         for ((plugin, link) in cases) assertEquals(plugin, link, AddonLinks.webLink(plugin))
     }
 
+    /** Paramount+ and Apple TV by id alone (the nameless probe, 2026-11-16). */
+    @Test fun paramountAndAppleTvNeedNoName() {
+        val p = "plugin://slyguy.paramount.plus/?_=play&video_id=Alcn0hcGx0HosdhcawKteH8DXh3RiOF7"
+        assertEquals("https://www.paramountplus.com/movies/video/Alcn0hcGx0HosdhcawKteH8DXh3RiOF7/", AddonLinks.webLink(p, "movie"))
+        // an episode, or a Kodi item without a type (the site sends a movie's id on to the movie)
+        assertEquals("https://www.paramountplus.com/shows/video/Alcn0hcGx0HosdhcawKteH8DXh3RiOF7/", AddonLinks.webLink(p, "episode"))
+        assertEquals("https://www.paramountplus.com/shows/video/Alcn0hcGx0HosdhcawKteH8DXh3RiOF7/", AddonLinks.webLink(p))
+        assertEquals("https://tv.apple.com/movie/umc.cmc.c3xhu25rw4jxxxzq4oio6snu",
+            AddonLinks.webLink("plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.c3xhu25rw4jxxxzq4oio6snu&item_type=Movie"))
+        assertEquals("https://tv.apple.com/episode/umc.cmc.s80mx1ic96pu6ewupz8pfasf",
+            AddonLinks.webLink("plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.s80mx1ic96pu6ewupz8pfasf&item_type=Episode"))
+    }
+
     @Test fun leavesOtherPathsAlone() {
         for (plugin in listOf(
-            "plugin://slyguy.paramount.plus/?_=play&video_id=abc",       // its links need the title's name
             "plugin://slyguy.max/?_=play&edit_id=0fc1d4b1-0f6a-4b5b-9c39-6a6e2ee44b3f",
-            "plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Movie",
+            "plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Show",
+            "plugin://slyguy.paramount.plus/?_=play_trailer&video_id=abc",
             "plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C100012345",
             "plugin://plugin.video.netflix/directory/home/",
             "plugin://plugin.video.skyott/?action=play&service_key=NBCU",   // a live channel

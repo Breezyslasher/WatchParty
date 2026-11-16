@@ -9,6 +9,12 @@ JustWatch's HBO Max links, fetches HBO Max's public pages for them (signed
 out) and prints every edit / show / movie id they mention, with context.
 
     python3 hbo_ids.py "Dune: Part Two:MOVIE" "The White Lotus:SHOW"
+
+Result (2026-11-16, signed out): JustWatch's links are
+play.hbomax.com/video/watch/<video id> (one id, no edit id), and the public
+pages for them, on play. and www., are HBO Max's error page (404,
+"isCMSErrorPage":true) with no edit, show or movie ids. So a shared HBO Max
+link can't be turned into slyguy.max's edit_id, nor its path back into a link.
 """
 import os
 import re

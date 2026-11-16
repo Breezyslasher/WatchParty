@@ -26,14 +26,25 @@ import java.net.URLDecoder
  *    /movies/the-grinch/153a1aee-… and /tv/the-office/…/episodes/…/58fabbf4-…
  *    with the addon's own client. The addon also plays SkyShowtime and NOW,
  *    whose paths look the same; Peacock is assumed (the US service).
+ *  - slyguy.paramount.plus: ?_=play&video_id=<id> → paramountplus.com/movies/video/<id>/
+ *    (a movie) or /shows/video/<id>/ (anything else). Paramount+'s own links
+ *    have no name: JustWatch's /movies/<name>/<id> and /shows/<show>/video/<id>/<name>
+ *    redirect there, and /shows/video/<a movie's id>/ redirects to the movie
+ *    (the nameless probe, tools/probe/nameless_links.py, 2026-11-16).
+ *  - plugin.video.appletv: ?action=play&item_id=<umc id>&item_type=Movie|Episode
+ *    → tv.apple.com/movie/<id> or /episode/<id>, which redirect to the title's
+ *    full link (with its name, and an episode's showId; same probe). The kind
+ *    has to be right (the other one is a 404). SyncService follows that
+ *    redirect before launching (MediaLink.isBareApple).
  *
- * Not converted (no web link in the path): Paramount+ (its links need the
- * title's name), HBO Max and Discovery+ (edit ids), Apple TV (its links need
- * a name too). Those still play through the title's identity (Bridge).
+ * Not converted: HBO Max and Discovery+ (edit ids, which no public page
+ * gives: HBO Max's public /video/watch/ pages are an error page, the HBO Max
+ * probe, 2026-11-16). Those still play through the title's identity (Bridge).
  */
 object AddonLinks {
 
-    fun webLink(plugin: String?): String? {
+    /** [type]: the Kodi item's media type ("movie", "episode"), if it gave one. */
+    fun webLink(plugin: String?, type: String? = null): String? {
         if (plugin.isNullOrBlank() || !plugin.startsWith("plugin://")) return null
         val uri = try {
             URI(plugin.replace(" ", "%20").replace("|", "%7C"))
@@ -81,6 +92,20 @@ object AddonLinks {
                 val slug = args["slug"]?.takeIf { args["action"] == "play" } ?: return null
                 if (!slug.matches(Regex("/(movies|tv)/[^?#\\s]+"))) return null
                 "https://www.peacocktv.com/watch/asset$slug"
+            }
+            "slyguy.paramount.plus" -> {
+                val id = args["video_id"]?.takeIf { args["_"] == "play" && it.matches(Regex("[A-Za-z0-9_-]+")) } ?: return null
+                if (type == "movie") "https://www.paramountplus.com/movies/video/$id/"
+                else "https://www.paramountplus.com/shows/video/$id/"
+            }
+            "plugin.video.appletv" -> {
+                val id = args["item_id"]?.takeIf { args["action"] == "play" && it.matches(Regex("umc\\.[A-Za-z0-9.]+")) }
+                    ?: return null
+                when (args["item_type"]?.lowercase()) {
+                    "movie" -> "https://tv.apple.com/movie/$id"
+                    "episode" -> "https://tv.apple.com/episode/$id"
+                    else -> null
+                }
             }
             "plugin.video.crunchyroll" -> {
                 if (path.firstOrNull() != "video") return null

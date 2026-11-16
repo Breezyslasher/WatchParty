@@ -234,10 +234,15 @@ export function parseIdentity(it) {
  * SlyGuy Disney+ (?_=play&deeplink_id=) and Hulu (?_=play&id=EAB::<id>::…),
  * Amazon (?mode=PlayVideo&asin=), Tubi (?mode=GV&url=), Crunchyroll
  * (/video/[<series>/]<episode>/<stream>), SkyOTT for Peacock (?action=play&slug=
- * <web link's path>, probed 2026-11-16). Others (Paramount+, HBO Max,
- * Discovery+, Apple TV) have no web link in their paths: null.
+ * <web link's path>, probed 2026-11-16), Paramount+ (?_=play&video_id=:
+ * /movies/video/<id>/ for a movie, else /shows/video/<id>/, which sends a
+ * movie's id on to the movie) and Apple TV (?action=play&item_id=<umc>&
+ * item_type=: tv.apple.com/movie|episode/<umc>, which redirects to the full
+ * link) — both by id alone (tools/probe/nameless_links.py, 2026-11-16).
+ * HBO Max and Discovery+ (edit ids, which no public page gives): null.
+ * [type]: the Kodi item's media type ("movie", "episode"), if it gave one.
  */
-export function pluginLink(plugin) {
+export function pluginLink(plugin, type) {
   if (!plugin || !plugin.startsWith('plugin://')) return null;
   let url;
   try {
@@ -279,6 +284,17 @@ export function pluginLink(plugin) {
       // Peacock (Paco8's SkyOTT): the slug is the web link's path (tools/probe/peacock_slug.py)
       const slug = arg('action') === 'play' && arg('slug');
       return slug && /^\/(movies|tv)\/[^?#\s]+$/.test(slug) ? `https://www.peacocktv.com/watch/asset${slug}` : null;
+    }
+    case 'slyguy.paramount.plus': {
+      const id = arg('_') === 'play' && arg('video_id');
+      if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) return null;
+      return `https://www.paramountplus.com/${type === 'movie' ? 'movies' : 'shows'}/video/${id}/`;
+    }
+    case 'plugin.video.appletv': {
+      const id = arg('action') === 'play' && arg('item_id');
+      const kind = (arg('item_type') || '').toLowerCase();
+      if (!id || !/^umc\.[A-Za-z0-9.]+$/.test(id) || !['movie', 'episode'].includes(kind)) return null;
+      return `https://tv.apple.com/${kind}/${id}`;
     }
     case 'plugin.video.crunchyroll': {
       if (path[0] !== 'video') return null;

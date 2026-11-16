@@ -99,8 +99,16 @@ test("Kodi addons' paths become web links", () => {
       'https://www.peacocktv.com/watch/asset/movies/the-grinch/153a1aee-b720-356e-bac2-6a9b85fb81b3'],
   ];
   for (const [plugin, link] of cases) assert.equal(pluginLink(plugin), link, plugin);
-  for (const plugin of ['plugin://slyguy.paramount.plus/?_=play&video_id=abc', 'plugin://slyguy.max/?_=play&edit_id=1',
-    'plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Movie', 'plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C1',
+  // Paramount+ and Apple TV by id alone (tools/probe/nameless_links.py)
+  const p = 'plugin://slyguy.paramount.plus/?_=play&video_id=Alcn0hcGx0HosdhcawKteH8DXh3RiOF7';
+  assert.equal(pluginLink(p, 'movie'), 'https://www.paramountplus.com/movies/video/Alcn0hcGx0HosdhcawKteH8DXh3RiOF7/');
+  assert.equal(pluginLink(p), 'https://www.paramountplus.com/shows/video/Alcn0hcGx0HosdhcawKteH8DXh3RiOF7/');
+  assert.equal(pluginLink('plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.c3xhu&item_type=Movie'),
+    'https://tv.apple.com/movie/umc.cmc.c3xhu');
+  assert.equal(pluginLink('plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.s80mx&item_type=Episode'),
+    'https://tv.apple.com/episode/umc.cmc.s80mx');
+  for (const plugin of ['plugin://slyguy.paramount.plus/?_=play_trailer&video_id=abc', 'plugin://slyguy.max/?_=play&edit_id=1',
+    'plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Show', 'plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C1',
     'plugin://plugin.video.netflix/directory/home/', 'plugin://plugin.video.skyott/?action=play&service_key=NBCU',
     'smb://nas/x.mkv', '', null]) assert.equal(pluginLink(plugin), null, String(plugin));
 });

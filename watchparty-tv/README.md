@@ -187,10 +187,16 @@ same title from its own source:
 - **Kodi's streaming addons.** A Kodi member playing a title in a streaming
   addon shares the addon's `plugin://` path; Android turns it into the web
   link of the same title and opens it in the service's app
-  (`AddonLinks.kt`): Netflix (CastagnaIT's addon), YouTube, SlyGuy's Disney+
-  and Hulu, Sandmann79's Prime Video, Tubi and Crunchyroll. Formats read from
-  each addon's source. Paramount+, HBO Max, Discovery+ and Apple TV paths
-  carry no web link; those go through the title's identity instead. The
+  (`AddonLinks.kt`): Netflix (CastagnaIT's addon), YouTube, SlyGuy's Disney+,
+  Hulu and Paramount+, Sandmann79's Prime Video, Paco8's SkyOTT (Peacock),
+  and the Apple TV, Tubi and Crunchyroll addons. Formats read from each
+  addon's source. Paramount+ and Apple TV need no title name: Paramount+'s
+  own links are `/movies/video/<id>/` and `/shows/video/<id>/`, and
+  `tv.apple.com/movie|episode/<id>` redirects to the full link, which
+  Android follows before opening the app (`tools/probe/nameless_links.py`,
+  2026-11-16). HBO Max and Discovery+ paths carry an edit id that no public
+  page maps to a link (`tools/probe/hbo_ids.py`); those go through the
+  title's identity instead. The
   other way, Kodi plays a shared link in an installed addon when it has no
   library copy (the Kodi addon's `addon_links.py`).
 - **The catch:** a library file and a streaming copy can start a few seconds

@@ -2,6 +2,8 @@ package dev.watchparty.tv
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MediaLinkTest {
@@ -172,5 +174,23 @@ class MediaLinkTest {
         assertEquals(MediaLink.peacockPlay("ae752e96-f1de-34ac-9d65-36c6c057bf51", "EPISODE"), MediaLink.normalize(
             "https://www.peacocktv.com/watch/asset/tv/the-king-of-queens/8979760515297072112/seasons/1/episodes/" +
                 "pilot-episode-1/ae752e96-f1de-34ac-9d65-36c6c057bf51")!!.link)
+    }
+
+    /** Kodi's Apple TV titles (id alone) follow tv.apple.com's redirect to the full link. */
+    @Test fun bareAppleTvLinksExpandToTheFullLink() {
+        val movie = "https://tv.apple.com/movie/umc.cmc.c3xhu25rw4jxxxzq4oio6snu"
+        assertTrue(MediaLink.isBareApple(movie))
+        assertFalse(MediaLink.isBareApple("https://tv.apple.com/us/movie/wolfs/umc.cmc.c3xhu25rw4jxxxzq4oio6snu"))
+        assertEquals("https://tv.apple.com/us/movie/wolfs/umc.cmc.c3xhu25rw4jxxxzq4oio6snu?action=play",
+            MediaLink.expand(movie) { "https://tv.apple.com/us/movie/wolfs/umc.cmc.c3xhu25rw4jxxxzq4oio6snu" })
+        // an episode, its Location relative (the probe saw absolute ones): showId kept
+        assertEquals("https://tv.apple.com/us/episode/good-news-about-hell/umc.cmc.s80mx1ic96pu6ewupz8pfasf?showId=umc.cmc.1srk2goyh2q2zdxcx605w8vtx&action=play",
+            MediaLink.expand("https://tv.apple.com/episode/umc.cmc.s80mx1ic96pu6ewupz8pfasf") {
+                "/us/episode/good-news-about-hell/umc.cmc.s80mx1ic96pu6ewupz8pfasf?showId=umc.cmc.1srk2goyh2q2zdxcx605w8vtx"
+            })
+        // no redirect, an error, or somewhere else: the link as it was
+        assertEquals(movie, MediaLink.expand(movie) { null })
+        assertEquals(movie, MediaLink.expand(movie) { throw java.io.IOException("offline") })
+        assertEquals(movie, MediaLink.expand(movie) { "https://example.com/x" })
     }
 }

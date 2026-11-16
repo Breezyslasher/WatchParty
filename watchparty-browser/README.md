@@ -5,7 +5,7 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.5.0, not yet tried on a real streaming site or with a real Kodi.** It looks and works
+**Status: 0.5.1, not yet tried on a real streaming site or with a real Kodi.** It looks and works
 like the Android app: the same rail and screens. Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.
@@ -98,8 +98,9 @@ the first of its services the browser can sync, then follows the room ("From
 Kodi · on Disney+"). A file and a streaming copy can start a few seconds
 apart (logos, recaps); sync keeps that offset. Kodi items without an identity
 can't play in a browser, and the page says so. A title playing in one of
-Kodi's streaming addons (Netflix, YouTube, SlyGuy's Disney+ and Hulu, Prime
-Video, Tubi, Crunchyroll) opens on that service's website, from the addon's
+Kodi's streaming addons (Netflix, YouTube, SlyGuy's Disney+, Hulu and
+Paramount+, Prime Video, Peacock via SkyOTT, Apple TV, Tubi, Crunchyroll)
+opens on that service's website, from the addon's
 path (`pluginLink` in `links.js`); Kodi's own stream address is never opened.
 
 ## Not yet confirmed

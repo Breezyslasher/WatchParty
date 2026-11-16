@@ -288,7 +288,7 @@ class SyncService : Service() {
     private fun perform(a: Action, controller: MediaController?, c: RelayClient) {
         Log.i(TAG, "action: $a")
         when (a) {
-            is Action.Open -> openLink(a.link, a.pkg)
+            is Action.Open -> if (MediaLink.isBareApple(a.link)) expandThenOpen(a.link, a.pkg) else openLink(a.link, a.pkg)
             is Action.Resolve -> resolve(a)
             is Action.Play -> controller?.transportControls?.play()
             is Action.Pause -> controller?.transportControls?.pause()
@@ -313,6 +313,29 @@ class SyncService : Service() {
     }
 
     // ── launching the app ───────────────────────────────────────────────
+
+    /** A Kodi Apple TV title (its id alone): follow tv.apple.com's redirect to
+     *  the full link, off the sync thread, then open that. */
+    private fun expandThenOpen(link: String, pkg: String) {
+        note = "Opening in ${appName(pkg)}…"
+        Thread {
+            val full = MediaLink.expand(link) { url ->
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                try {
+                    conn.instanceFollowRedirects = false
+                    conn.connectTimeout = 8000
+                    conn.readTimeout = 8000
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) WatchParty")
+                    conn.responseCode
+                    conn.getHeaderField("Location")
+                } finally {
+                    conn.disconnect()
+                }
+            }
+            Log.i(TAG, "Apple TV $link → $full")
+            worker?.post { openLink(full, pkg) }
+        }.start()
+    }
 
     /** Same as the adb test: VIEW the link in that app, in a fresh task,
      *  so an app that's already open doesn't swallow it. */

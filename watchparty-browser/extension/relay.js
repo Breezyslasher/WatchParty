@@ -117,7 +117,7 @@ export class RelayClient {
       const file = String(it.file || '');
       // a Kodi addon's title: its path's web link (its file is Kodi's own
       // stream, e.g. on 127.0.0.1, never opened here)
-      const link = it.plugin ? pluginLink(String(it.plugin)) : (/^https?:\/\//.test(file) ? file : null);
+      const link = it.plugin ? pluginLink(String(it.plugin), it.type ? String(it.type) : '') : (/^https?:\/\//.test(file) ? file : null);
       item = { file, link, label: String(it.label || ''), service: link ? serviceOf(link) : null, identity: parseIdentity(it) };
     }
     return {
