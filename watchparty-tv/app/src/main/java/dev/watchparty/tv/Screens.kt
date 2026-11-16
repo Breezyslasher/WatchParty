@@ -352,12 +352,17 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     private var loading = false
     private var generation = 0
     private val items = ArrayList<YamtrackClient.Item>()
-    /** Titles per status, for "movie" and "tv": chips with none are hidden. */
+    /** Titles per status, for "movie" and "tv": statuses with none aren't offered. */
     private val counts = HashMap<String, Map<Int, Int>>()
     private var countGeneration = 0
 
     private val tabs = LinkedHashMap<String, TextTile>()
-    private val chips = LinkedHashMap<Int, TextTile>()
+    // the library's status and order: dropdowns (a second row of chips for the
+    // order crowded a phone's screen; a dropdown opens a list a remote moves through too)
+    private var sort = host.prefs.getString(KEY_SORT, null)?.takeIf { s -> YamtrackClient.SORTS.any { it.first == s } }
+        ?: YamtrackClient.SORTS.first().first
+    private val statusButton = Ui.dropdown(c, "Watching") { pickStatus() }
+    private val sortButton = Ui.dropdown(c, "Recently updated") { pickSort() }
     private val chipRow = Ui.row(c)
     private val typeChips = LinkedHashMap<String, TextTile>()
     private val typeRow = Ui.row(c)
@@ -385,11 +390,8 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         }
         addView(tabRow)
 
-        for ((code, name) in STATUSES) {
-            val chip = Ui.chip(c, name) { status = code; reload() }
-            chips[code] = chip
-            chipRow.addView(chip, lp(WRAP, Ui.tap(c, 52)).apply { if (chipRow.childCount > 0) leftMargin = Ui.px(c, 10) })
-        }
+        chipRow.addView(statusButton, lp(WRAP, Ui.tap(c, 56)))
+        chipRow.addView(sortButton, lp(WRAP, Ui.tap(c, 56)).apply { leftMargin = Ui.px(c, 12) })
         val chipScroll = android.widget.HorizontalScrollView(c).apply {
             isHorizontalScrollBarEnabled = false
             Ui.noClip(this)
@@ -397,7 +399,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         }
         addView(chipScroll, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
 
-        // Search: movies or TV shows, in the same place as the status chips
+        // Search: movies or TV shows, in the same place as the status and order
         for ((key, name) in listOf("movie" to "Movies", "tv" to "TV shows")) {
             val chip = Ui.chip(c, name) {
                 searchType = key
@@ -538,7 +540,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         counts[type] = result
         if (tab != type) return
         val shown = YamtrackClient.statusesWithTitles(result, STATUSES.map { it.first }, ALL)
-        val hadFocus = chips.values.any { it.isFocused }
+        val hadFocus = statusButton.isFocused || sortButton.isFocused
         updateHeader()
         if (shown.isNotEmpty() && status !in shown) {
             // e.g. nothing being watched: open the first list that has something
@@ -549,7 +551,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             empty.text = emptyText()
             empty.visibility = View.VISIBLE
         }
-        if (hadFocus) (chips[status]?.takeIf { it.visibility == View.VISIBLE } ?: tabs[tab])?.requestFocus()
+        if (hadFocus) (statusButton.takeIf { (chipRow.parent as View).visibility == View.VISIBLE } ?: tabs[tab])?.requestFocus()
     }
 
     private fun emptyText(): String = when {
@@ -613,6 +615,29 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         start.requestFocus()
     }
 
+    /** The statuses with titles in them (all of them until the counts arrive), with how many. */
+    private fun pickStatus() {
+        val known = counts[tab]
+        val shown = if (known == null) STATUSES.map { it.first }
+        else YamtrackClient.statusesWithTitles(known, STATUSES.map { it.first }, ALL)
+        ChoiceDialog(c, "Show", STATUSES.filter { it.first in shown }.map { (code, name) ->
+            ChoiceDialog.Option(code.toString(), name, known?.get(code)?.takeIf { it >= 0 }?.toString(), code == status)
+        }) { key ->
+            status = key.toInt()
+            reload()
+            statusButton.requestFocus()
+        }.show()
+    }
+
+    private fun pickSort() {
+        ChoiceDialog(c, "Order", YamtrackClient.SORTS.map { (key, name) -> ChoiceDialog.Option(key, name, chosen = key == sort) }) { key ->
+            sort = key
+            host.prefs.edit().putString(KEY_SORT, key).apply()
+            reload()
+            sortButton.requestFocus()
+        }.show()
+    }
+
     private fun updateHeader() {
         val ok = configured()
         serverBox.visibility = if (tab == "yamtrack") View.VISIBLE else View.GONE
@@ -625,13 +650,10 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
                 else -> if (ok) View.VISIBLE else View.GONE
             }
         }
-        for ((code, chip) in chips) chip.setChosen(code == status)
         (chipRow.parent as View).visibility =
             if (ok && tab != "search" && counts[tab]?.get(ALL) != 0) View.VISIBLE else View.GONE
-        // chips hidden for an empty status on this tab (counts arrive a moment later)
-        val known = counts[tab]
-        val shown = if (known == null) null else YamtrackClient.statusesWithTitles(known, STATUSES.map { it.first }, ALL)
-        for ((code, chip) in chips) chip.visibility = if (shown == null || code in shown) View.VISIBLE else View.GONE
+        statusButton.label.text = statusName(status) ?: "All"
+        sortButton.label.text = YamtrackClient.SORTS.firstOrNull { it.first == sort }?.second ?: "Recently updated"
         for ((key, chip) in typeChips) chip.setChosen(key == searchType)
         typeRow.visibility = if (tab == "search") View.VISIBLE else View.GONE
         searchField.hint = if (searchType == "tv") "Search TV shows, or paste a link" else "Search movies, or paste a link"
@@ -665,6 +687,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         val gen = generation
         val type = if (tab == "tv") "tv" else "movie"
         val code = status
+        val order = sort
         val from = offset
         val text = query
         empty.text = if (searching) "Searching…" else "Loading…"
@@ -676,7 +699,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
                 page = if (searching) {
                     search(searchType, text)
                 } else {
-                    client().library(type, if (code == ALL) null else code, from)
+                    client().library(type, if (code == ALL) null else code, from, sort = order)
                 }
             } catch (e: Exception) {
                 error = e
@@ -760,6 +783,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     companion object {
         const val KEY_URL = "yamtrack_url"
         const val KEY_TOKEN = "yamtrack_token"
+        const val KEY_SORT = "yamtrack_sort"
 
         fun configured(prefs: SharedPreferences) =
             !prefs.getString(KEY_URL, "").isNullOrBlank() && !prefs.getString(KEY_TOKEN, "").isNullOrBlank()

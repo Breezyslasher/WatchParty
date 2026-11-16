@@ -11,8 +11,8 @@ android {
         applicationId = "dev.watchparty.tv"
         minSdk = 21
         targetSdk = 35
-        versionCode = 57
-        versionName = "0.14.1"
+        versionCode = 58
+        versionName = "0.15"
     }
 
     compileOptions {

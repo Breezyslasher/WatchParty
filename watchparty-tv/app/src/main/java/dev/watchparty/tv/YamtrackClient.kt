@@ -100,12 +100,26 @@ class YamtrackClient(baseUrl: String, private val token: String) {
     /** A season or an episode of a show (Yamtrack's TMDB data). */
     data class Numbered(val number: Int, val title: String)
 
-    class YamtrackException(message: String) : IOException(message)
+    class YamtrackException(message: String, val code: Int = 0) : IOException(message)
 
-    /** Your tracked [mediaType] ("movie" or "tv") with [status] (null = all). */
-    fun library(mediaType: String, status: Int?, offset: Int, limit: Int = PAGE_SIZE): Page {
+    /**
+     * Your tracked [mediaType] ("movie" or "tv") with [status] (null = all),
+     * in [sort] order: `<field>[_asc|_desc]` (api/helpers.py parse_sort_filter,
+     * Breezyslasher/Yamtrack feat/justwatch-links), e.g. "updated_desc" —
+     * last progress first, never-updated titles last. Without a sort the
+     * server lists titles in the order they were first added. A server that
+     * rejects the sort (400, an older API) is asked again without it.
+     */
+    fun library(mediaType: String, status: Int?, offset: Int, limit: Int = PAGE_SIZE, sort: String? = null): Page {
         val query = StringBuilder("limit=$limit&offset=$offset")
         if (status != null) query.append("&status=").append(status)
+        if (!sort.isNullOrBlank()) {
+            try {
+                return parseLibrary(get("api/v1/media/$mediaType/?$query&sort=" + URLEncoder.encode(sort, "UTF-8")))
+            } catch (e: YamtrackException) {
+                if (e.code != 400) throw e
+            }
+        }
         return parseLibrary(get("api/v1/media/$mediaType/?$query"))
     }
 
@@ -172,7 +186,7 @@ class YamtrackClient(baseUrl: String, private val token: String) {
             val code = conn.responseCode
             if (code == 401 || code == 403) throw YamtrackException("Yamtrack didn't accept the API token")
             if (code == 404) throw YamtrackException("No Yamtrack API at that address (needs a server with the API)")
-            if (code >= 400) throw YamtrackException("Yamtrack error $code")
+            if (code >= 400) throw YamtrackException("Yamtrack error $code", code)
             return conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
             conn.disconnect()
@@ -181,6 +195,14 @@ class YamtrackClient(baseUrl: String, private val token: String) {
 
     companion object {
         const val PAGE_SIZE = 40
+
+        /** Library orders (the API's sort values), the first the default. */
+        val SORTS = listOf(
+            "updated_desc" to "Recently updated",
+            "added_desc" to "Recently added",
+            "title" to "Title A–Z",
+            "score_desc" to "Your rating",
+        )
         /** The API's largest page (api/helpers.py MAX_RESULT_LIMIT). */
         const val MAX_LIMIT = 200
 

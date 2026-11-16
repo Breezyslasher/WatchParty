@@ -229,6 +229,16 @@ object Ui {
         setOnClickListener { onClick() }
     }
 
+    /** A dropdown: a chip-styled button with the current choice and a ▾. */
+    fun dropdown(c: Context, text: String, onClick: () -> Unit): TextTile = chip(c, text, onClick).apply {
+        val g = Glyph(Glyph.Kind.CHEVRON, CHIP_TEXT)
+        val d = px(c, 22)
+        g.setBounds(0, 0, d, d)
+        label.setCompoundDrawables(null, null, g, null)
+        label.compoundDrawablePadding = px(c, 14)
+        setPadding(px(c, 26), 0, px(c, 22), 0)
+    }
+
     /** Rail navigation: 72px, left-aligned 28/600, ring 4 text, scale 1.03. */
     fun nav(c: Context, text: String, onClick: () -> Unit): TextTile = TextTile(c).apply {
         style(c, text, 28, 600, CHIP_TEXT)
@@ -707,7 +717,7 @@ class PageScroll(context: Context) : ScrollView(context) {
  */
 class Glyph(private val kind: Kind, color: Int, private val number: String? = null,
             private val typeface: Typeface? = null) : Drawable() {
-    enum class Kind { PLAY, PAUSE, STOP, DOT, BACK, FORWARD }
+    enum class Kind { PLAY, PAUSE, STOP, DOT, BACK, FORWARD, CHEVRON }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
     private val path = android.graphics.Path()
@@ -744,6 +754,17 @@ class Glyph(private val kind: Kind, color: Int, private val number: String? = nu
                 canvas.drawRoundRect(cx - h / 2, cy - h / 2, cx + h / 2, cy + h / 2, h * 0.16f, h * 0.16f, paint)
             }
             Kind.DOT -> canvas.drawCircle(cx, cy, s * 0.3f, paint)
+            Kind.CHEVRON -> {
+                // ▾ as a stroke: a dropdown
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = s * 0.12f
+                paint.strokeCap = Paint.Cap.ROUND
+                paint.strokeJoin = Paint.Join.ROUND
+                path.moveTo(cx - s * 0.3f, cy - s * 0.14f)
+                path.lineTo(cx, cy + s * 0.16f)
+                path.lineTo(cx + s * 0.3f, cy - s * 0.14f)
+                canvas.drawPath(path, paint)
+            }
             Kind.BACK, Kind.FORWARD -> {
                 canvas.save()
                 if (kind == Kind.BACK) canvas.scale(-1f, 1f, cx, cy)
