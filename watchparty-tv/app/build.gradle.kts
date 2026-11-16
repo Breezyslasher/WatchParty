@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "dev.watchparty.tv"
+    namespace = "io.github.breezyslasher.watchparty"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.watchparty.tv"
+        applicationId = "io.github.breezyslasher.watchparty"
         minSdk = 21
         targetSdk = 35
-        versionCode = 59
-        versionName = "0.15.1"
+        versionCode = 60
+        versionName = "0.16"
     }
 
     compileOptions {

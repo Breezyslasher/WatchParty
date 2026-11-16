@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.15.1** (Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.16** (app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -120,10 +120,10 @@ From a computer instead (Android 11+: Wireless debugging → `adb pair`, then
 `adb connect`):
 
 ```
-adb shell cmd notification allow_listener dev.watchparty.tv/dev.watchparty.tv.SessionAccessService
+adb shell cmd notification allow_listener io.github.breezyslasher.watchparty/io.github.breezyslasher.watchparty.SessionAccessService
 ```
 
-(On Android 8 and older: `adb shell settings put secure enabled_notification_listeners dev.watchparty.tv/dev.watchparty.tv.SessionAccessService`.)
+(On Android 8 and older: `adb shell settings put secure enabled_notification_listeners io.github.breezyslasher.watchparty/io.github.breezyslasher.watchparty.SessionAccessService`.)
 
 Updates installed over the app (same signing key) keep the access; only an
 uninstall clears it.

@@ -90,7 +90,7 @@ def playing_session():
     """The session that's playing (state 3), skipping our own apps. Falls
     back to Session Probe if this device's dumpsys format isn't understood."""
     for s in parse_media_sessions(shell("dumpsys media_session")):
-        if s["state"] == PLAYING and not s["package"].startswith("dev.watchparty"):
+        if s["state"] == PLAYING and not s["package"].startswith(("dev.watchparty", "io.github.breezyslasher.watchparty")):
             return s
     s = parse_probe_status(adb("shell", "am", "broadcast", "-n",
                                "dev.watchparty.sessionprobe/.ControlReceiver", "--es", "cmd", "status"))
