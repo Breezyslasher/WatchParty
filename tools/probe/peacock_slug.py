@@ -100,6 +100,12 @@ def main():
                 show('get_video_info(%r)' % candidate, info)
             except Exception as e:
                 print('   get_video_info(%r) failed: %r' % (candidate, e))
+            # what the apps share is Peacock's play deeplink: only this id (pvid)
+            pvid = candidate.rstrip('/').split('/')[-1]
+            try:
+                show('get_video_info_uuid(%r) [the pvid alone]' % pvid, sky.get_video_info_uuid(pvid))
+            except Exception as e:
+                print('   get_video_info_uuid(%r) failed: %r' % (pvid, e))
         try:
             found = sky.search(title) or []
             for item in found[:4]:
