@@ -1,6 +1,5 @@
 package io.github.breezyslasher.watchparty
 
-import android.util.Base64
 import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.io.File
@@ -154,7 +153,7 @@ class AdbClientTest {
         // android_pubkey_decode's layout
         val offered = seen.publicKey!!
         assertTrue(offered.endsWith(" watchparty@tv\u0000"))
-        val raw = Base64.decode(offered.substring(0, offered.indexOf(' ')), Base64.DEFAULT)
+        val raw = java.util.Base64.getDecoder().decode(offered.substring(0, offered.indexOf(' ')))
         assertEquals(524, raw.size)
         val buffer = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
         assertEquals(64, buffer.int)
@@ -208,6 +207,17 @@ class AdbClientTest {
             fail("expected ConnectException")
         } catch (e: java.net.ConnectException) {
             // SelfSetup tries the next port
+        }
+    }
+
+    @Test fun base64MatchesTheJdk() {
+        val random = java.util.Random(7)
+        for (size in 0..40) {
+            val data = ByteArray(size).also { random.nextBytes(it) }
+            val text = B64.encode(data)
+            assertEquals(java.util.Base64.getEncoder().encodeToString(data), text)
+            assertArrayEquals(data, B64.decode(text))
+            assertArrayEquals(data, B64.decode(text.chunked(5).joinToString("\n ")))
         }
     }
 

@@ -1,6 +1,5 @@
 package io.github.breezyslasher.watchparty
 
-import android.util.Base64
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
@@ -18,6 +17,50 @@ import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+
+/**
+ * Standard base64 (RFC 4648, padded). Its own because android.util.Base64 is
+ * a stub in plain JVM unit tests and java.util.Base64 needs API 26.
+ */
+internal object B64 {
+    private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+    fun encode(data: ByteArray): String {
+        val out = StringBuilder((data.size + 2) / 3 * 4)
+        var i = 0
+        while (i < data.size) {
+            val b0 = data[i].toInt() and 0xff
+            val b1 = if (i + 1 < data.size) data[i + 1].toInt() and 0xff else 0
+            val b2 = if (i + 2 < data.size) data[i + 2].toInt() and 0xff else 0
+            out.append(ALPHABET[b0 shr 2])
+            out.append(ALPHABET[(b0 and 3) shl 4 or (b1 shr 4)])
+            out.append(if (i + 1 < data.size) ALPHABET[(b1 and 15) shl 2 or (b2 shr 6)] else '=')
+            out.append(if (i + 2 < data.size) ALPHABET[b2 and 63] else '=')
+            i += 3
+        }
+        return out.toString()
+    }
+
+    /** Skips whitespace; stops at padding. */
+    fun decode(text: String): ByteArray {
+        val out = java.io.ByteArrayOutputStream(text.length * 3 / 4)
+        var acc = 0
+        var bits = 0
+        for (c in text) {
+            if (c == '=') break
+            if (c.isWhitespace()) continue
+            val v = ALPHABET.indexOf(c)
+            if (v < 0) throw IOException("bad base64")
+            acc = (acc shl 6) or v
+            bits += 6
+            if (bits >= 8) {
+                bits -= 8
+                out.write((acc shr bits) and 0xff)
+            }
+        }
+        return out.toByteArray()
+    }
+}
 
 /** Something went wrong talking to adbd; [message] is shown to the user. */
 class AdbException(message: String) : IOException(message)
@@ -63,14 +106,14 @@ class AdbKey(val privateKey: RSAPrivateKey, val publicKey: RSAPublicKey) {
         buffer.put(unsignedBytes(n, bytes, littleEndian = true))
         buffer.put(unsignedBytes(rr, bytes, littleEndian = true))
         buffer.putInt(publicKey.publicExponent.toInt())
-        val encoded = Base64.encodeToString(buffer.array(), Base64.NO_WRAP)
+        val encoded = B64.encode(buffer.array())
         return "$encoded $name".toByteArray(Charsets.UTF_8) + byteArrayOf(0)
     }
 
     /** Both keys, base64, one per line — what [load] reads back. */
     fun serialize(): String =
-        Base64.encodeToString(privateKey.encoded, Base64.NO_WRAP) + "\n" +
-            Base64.encodeToString(publicKey.encoded, Base64.NO_WRAP) + "\n"
+        B64.encode(privateKey.encoded) + "\n" +
+            B64.encode(publicKey.encoded) + "\n"
 
     companion object {
         const val MODULUS_BYTES = 256
@@ -91,10 +134,10 @@ class AdbKey(val privateKey: RSAPrivateKey, val publicKey: RSAPublicKey) {
             if (newline < 0) throw IOException("bad key file")
             val factory = KeyFactory.getInstance("RSA")
             val private = factory.generatePrivate(
-                PKCS8EncodedKeySpec(Base64.decode(trimmed.substring(0, newline).trim(), Base64.DEFAULT)),
+                PKCS8EncodedKeySpec(B64.decode(trimmed.substring(0, newline))),
             )
             val public = factory.generatePublic(
-                X509EncodedKeySpec(Base64.decode(trimmed.substring(newline + 1).trim(), Base64.DEFAULT)),
+                X509EncodedKeySpec(B64.decode(trimmed.substring(newline + 1))),
             )
             return AdbKey(private as RSAPrivateKey, public as RSAPublicKey)
         }
