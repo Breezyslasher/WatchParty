@@ -213,6 +213,22 @@ object Ui {
             setOnClickListener { onClick() }
         }
 
+    /** A round icon button ([sizePx] across; the icon [iconPx]): the room's
+     *  transport (Room screen). Ring 4 text on focus, scale 1.08. */
+    fun roundButton(c: Context, sizePx: Int, iconPx: Int, glyph: Glyph, fillColor: Int,
+                    onClick: () -> Unit): Tile = Tile(c).apply {
+        fill = fillColor
+        radius = pxf(c, sizePx / 2)
+        ring = TEXT
+        ringWidth = pxf(c, 4)
+        gapColor = BG
+        gapWidth = pxf(c, 4)
+        focusScale = 1.08f
+        gravity = Gravity.CENTER
+        addView(ImageView(c).apply { setImageDrawable(glyph) }, LinearLayout.LayoutParams(px(c, iconPx), px(c, iconPx)))
+        setOnClickListener { onClick() }
+    }
+
     /** Rail navigation: 72px, left-aligned 28/600, ring 4 text, scale 1.03. */
     fun nav(c: Context, text: String, onClick: () -> Unit): TextTile = TextTile(c).apply {
         style(c, text, 28, 600, CHIP_TEXT)
@@ -682,4 +698,89 @@ class PageScroll(context: Context) : ScrollView(context) {
         }
         return super.computeScrollDeltaToGetChildRectOnScreen(rect)
     }
+}
+
+/**
+ * The transport's icons, drawn (the app has no icon set): play, pause, stop,
+ * a dot, and a circular arrow with a number in it for skipping back or
+ * forward ("replay 10" / "forward 30").
+ */
+class Glyph(private val kind: Kind, color: Int, private val number: String? = null,
+            private val typeface: Typeface? = null) : Drawable() {
+    enum class Kind { PLAY, PAUSE, STOP, DOT, BACK, FORWARD }
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+    private val path = android.graphics.Path()
+
+    var color: Int
+        get() = paint.color
+        set(value) { paint.color = value; invalidateSelf() }
+
+    override fun draw(canvas: Canvas) {
+        val b = bounds
+        val s = minOf(b.width(), b.height()).toFloat()
+        val cx = b.exactCenterX()
+        val cy = b.exactCenterY()
+        paint.style = Paint.Style.FILL
+        path.reset()
+        when (kind) {
+            Kind.PLAY -> {
+                // nudged right: a triangle's visual centre is left of its box's
+                path.moveTo(cx - s * 0.26f, cy - s * 0.36f)
+                path.lineTo(cx + s * 0.38f, cy)
+                path.lineTo(cx - s * 0.26f, cy + s * 0.36f)
+                path.close()
+                canvas.drawPath(path, paint)
+            }
+            Kind.PAUSE -> {
+                val w = s * 0.2f
+                val h = s * 0.68f
+                val gap = s * 0.16f
+                canvas.drawRoundRect(cx - gap / 2 - w, cy - h / 2, cx - gap / 2, cy + h / 2, w * 0.25f, w * 0.25f, paint)
+                canvas.drawRoundRect(cx + gap / 2, cy - h / 2, cx + gap / 2 + w, cy + h / 2, w * 0.25f, w * 0.25f, paint)
+            }
+            Kind.STOP -> {
+                val h = s * 0.62f
+                canvas.drawRoundRect(cx - h / 2, cy - h / 2, cx + h / 2, cy + h / 2, h * 0.16f, h * 0.16f, paint)
+            }
+            Kind.DOT -> canvas.drawCircle(cx, cy, s * 0.3f, paint)
+            Kind.BACK, Kind.FORWARD -> {
+                canvas.save()
+                if (kind == Kind.BACK) canvas.scale(-1f, 1f, cx, cy)
+                // a clockwise arc ending at the top, the arrowhead there pointing on
+                val r = s * 0.4f
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = s * 0.075f
+                paint.strokeCap = Paint.Cap.ROUND
+                val end = 285f
+                val sweep = 290f
+                canvas.drawArc(cx - r, cy - r, cx + r, cy + r, end - sweep, sweep, false, paint)
+                val a = Math.toRadians(end.toDouble())
+                val px = cx + r * Math.cos(a).toFloat()
+                val py = cy + r * Math.sin(a).toFloat()
+                val dx = -Math.sin(a).toFloat()          // the clockwise tangent
+                val dy = Math.cos(a).toFloat()
+                val h = s * 0.2f
+                paint.style = Paint.Style.FILL
+                path.moveTo(px + dx * h * 0.7f, py + dy * h * 0.7f)
+                path.lineTo(px - dx * h * 0.3f - dy * h * 0.55f, py - dy * h * 0.3f + dx * h * 0.55f)
+                path.lineTo(px - dx * h * 0.3f + dy * h * 0.55f, py - dy * h * 0.3f - dx * h * 0.55f)
+                path.close()
+                canvas.drawPath(path, paint)
+                canvas.restore()
+                if (number != null) {
+                    paint.textSize = s * 0.3f
+                    paint.typeface = typeface
+                    paint.textAlign = Paint.Align.CENTER
+                    val m = paint.fontMetrics
+                    canvas.drawText(number, cx, cy - (m.ascent + m.descent) / 2, paint)
+                }
+            }
+        }
+    }
+
+    override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+    override fun setColorFilter(colorFilter: ColorFilter?) { paint.colorFilter = colorFilter }
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }

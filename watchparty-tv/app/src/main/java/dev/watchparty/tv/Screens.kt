@@ -103,14 +103,39 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
 
     // the whole room's controls (everyone follows), shown while something is playing
     private val controls = Ui.column(c)
-    private val clock = Ui.text(c, "0:00", if (phone) 72 else 88, 700)
-    private val clockState = Ui.text(c, "", 28, 400, Ui.TEXT_2)
-    private val playPause = Ui.primary(c, "Pause", 80, 48, 30, 14, Ui.BG, 5, 1.05f) {
+    private val clock = Ui.text(c, "0:00", if (phone) 88 else 104, 700, spacingEm = -0.02f)
+        .apply { fontFeatureSettings = "tnum" }
+    private val stateDot = Glyph(Glyph.Kind.DOT, Ui.ACCENT)
+    private val clockState = Ui.text(c, "", 24, 600, Ui.TEXT_2).apply {
+        val d = Ui.px(c, 22)
+        stateDot.setBounds(0, 0, d, d)
+        setCompoundDrawables(stateDot, null, null, null)
+        compoundDrawablePadding = Ui.px(c, 10)
+        gravity = Gravity.CENTER_VERTICAL
+        background = GradientDrawable().apply { setColor(Ui.CHIP); cornerRadius = Ui.pxf(c, 30) }
+        setPadding(Ui.px(c, 22), Ui.px(c, 12), Ui.px(c, 24), Ui.px(c, 12))
+    }
+    private val playGlyph = Glyph(Glyph.Kind.PAUSE, Ui.ON_ACCENT)
+    private var shownPaused: Boolean? = null
+    private val playPause = Ui.roundButton(c, if (phone) 150 else 156, if (phone) 64 else 68, playGlyph, Ui.ACCENT) {
         SyncService.control(if (SyncService.room?.paused == true) "play" else "pause")
     }
     private var stopArmedUntil = 0L
-    private val stop = Ui.tab(c, "Stop for everyone") { stopPressed() }
-    private val jumpField = Ui.field(c, "1:02:03", "", 76, 28, Ui.SURFACE, 14, 24)
+    private val stop = Ui.chip(c, "Stop for everyone") { stopPressed() }.apply {
+        val g = Glyph(Glyph.Kind.STOP, Ui.WARN)
+        val d = Ui.px(c, 26)
+        g.setBounds(0, 0, d, d)
+        label.setCompoundDrawables(g, null, null, null)
+        label.compoundDrawablePadding = Ui.px(c, 12)
+        label.setTextColor(Ui.WARN)
+        fill = 0
+        border = 0x66F3C47A
+        borderFocus = Ui.WARN
+        ring = Ui.TEXT
+        ringWidth = Ui.pxf(c, 4)
+        gravity = Gravity.CENTER
+    }
+    private val jumpField = Ui.field(c, "Go to 1:02:03", "", 68, 26, Ui.BG, 12, 22)
     private val controlsNote = Ui.text(c, "", 24, 400, Ui.WARN)
     // this device: watch here, or only run the room (a phone as the TVs' remote)
     private val watchHere = Ui.chip(c, "Watch here") { setMode(false) }
@@ -140,40 +165,49 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
         backdrop.addView(overlay, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM))
         col.addView(backdrop, lp(MATCH, Ui.px(c, if (phone) 420 else 560)))
 
-        controls.addView(Ui.sectionLabel(c, "Everyone"))
-        val clockRow = Ui.row(c).apply { gravity = Gravity.BOTTOM }
-        clockRow.addView(clock)
-        clockRow.addView(clockState, lp().apply { leftMargin = Ui.px(c, 20); bottomMargin = Ui.px(c, 14) })
-        controls.addView(clockRow, lp(MATCH).apply { topMargin = Ui.px(c, 8) })
-        val seekButton = { label: String, by: Double -> Ui.tab(c, label) {
+        // a card: the room's clock and state, the transport, then go-to-time and stop
+        controls.background = GradientDrawable().apply { setColor(Ui.SURFACE); cornerRadius = Ui.pxf(c, 28) }
+        val pad = Ui.px(c, if (phone) 36 else 48)
+        controls.setPadding(pad, Ui.px(c, if (phone) 32 else 40), pad, Ui.px(c, if (phone) 32 else 40))
+        val head = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(Ui.sectionLabel(c, "Everyone"), lp(0, WRAP, 1f))
+        head.addView(clockState)
+        controls.addView(head, lp(MATCH))
+        controls.addView(clock, lp().apply { topMargin = Ui.px(c, 8) })
+
+        val small = if (phone) 104 else 112
+        val icon = if (phone) 64 else 68
+        val bold = Ui.font(c, 700)
+        val seek = { kind: Glyph.Kind, n: Int -> Ui.roundButton(c, small, icon, Glyph(kind, Ui.TEXT, n.toString(), bold), Ui.CHIP) {
+            val by = if (kind == Glyph.Kind.BACK) -n.toDouble() else n.toDouble()
             SyncService.roomNowSec()?.let { now -> SyncService.control("seek", maxOf(0.0, now + by)) }
-        }.apply { gravity = Gravity.CENTER } }
-        stop.gravity = Gravity.CENTER
-        val transport = listOf(seekButton("−30s", -30.0), seekButton("−10s", -10.0), playPause,
-            seekButton("+10s", 10.0), seekButton("+30s", 30.0))
-        if (phone) {
-            // −30 −10 / Play / +10 +30, each row filling the width
-            for (rowViews in listOf(transport.subList(0, 2), listOf(playPause), transport.subList(3, 5))) {
-                val r = Ui.row(c)
-                for (v in rowViews) r.addView(v, lp(0, Ui.tap(c, 80), 1f).apply { if (r.childCount > 0) leftMargin = Ui.px(c, 16) })
-                controls.addView(r, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
-            }
-            controls.addView(stop, lp(MATCH, Ui.tap(c, 72)).apply { topMargin = Ui.px(c, 20) })
-        } else {
-            val r = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
-            for (v in transport) r.addView(v, lp(WRAP, Ui.tap(c, if (v === playPause) 80 else 68))
-                .apply { if (r.childCount > 0) leftMargin = Ui.px(c, 16) })
-            controls.addView(r, lp(MATCH).apply { topMargin = Ui.px(c, 24) })
+        } }
+        val transport = Ui.row(c).apply { gravity = Gravity.CENTER }
+        for (v in listOf(seek(Glyph.Kind.BACK, 30), seek(Glyph.Kind.BACK, 10), playPause,
+            seek(Glyph.Kind.FORWARD, 10), seek(Glyph.Kind.FORWARD, 30))) {
+            val size = if (v === playPause) (if (phone) 150 else 156) else small
+            transport.addView(v, lp(Ui.px(c, size), Ui.px(c, size))
+                .apply { if (transport.childCount > 0) leftMargin = Ui.px(c, if (phone) 18 else 32) })
         }
-        val jump = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+        controls.addView(transport, if (phone) lp(MATCH).apply { topMargin = Ui.px(c, 28) }
+            else lp().apply { topMargin = Ui.px(c, 28) })
+
+        controls.addView(Ui.divider(c), lp(MATCH, maxOf(1, Ui.px(c, 2) / 2)).apply { topMargin = Ui.px(c, 36) })
+        val bottom = Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
         jumpField.imeOptions = EditorInfo.IME_ACTION_GO
         jumpField.inputType = android.text.InputType.TYPE_CLASS_DATETIME or android.text.InputType.TYPE_DATETIME_VARIATION_TIME
         jumpField.setOnEditorActionListener { _, _, _ -> jumpTo(); true }
-        jump.addView(jumpField, lp(Ui.px(c, if (phone) 300 else 280), Ui.tap(c, 76)))
-        jump.addView(Ui.primary(c, "Go to time", 76, 40, 28, 14, Ui.BG, 5, 1.05f) { jumpTo() },
-            lp(WRAP, Ui.tap(c, 76)).apply { leftMargin = Ui.px(c, 16) })
-        if (!phone) jump.addView(stop, lp(WRAP, Ui.tap(c, 68)).apply { leftMargin = Ui.px(c, 48) })   // phones: under the transport
-        controls.addView(jump, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
+        bottom.addView(jumpField, if (phone) lp(0, Ui.tap(c, 68), 1f) else lp(Ui.px(c, 300), Ui.tap(c, 68)))
+        bottom.addView(Ui.primary(c, "Go", 68, 36, 26, 12, Ui.SURFACE, 5, 1.05f) { jumpTo() },
+            lp(WRAP, Ui.tap(c, 68)).apply { leftMargin = Ui.px(c, 14) })
+        if (phone) {
+            controls.addView(bottom, lp(MATCH).apply { topMargin = Ui.px(c, 28) })
+            controls.addView(stop, lp(MATCH, Ui.tap(c, 68)).apply { topMargin = Ui.px(c, 18) })
+        } else {
+            bottom.addView(View(c), lp(0, 1, 1f))
+            bottom.addView(stop, lp(WRAP, Ui.tap(c, 68)))
+            controls.addView(bottom, lp(MATCH).apply { topMargin = Ui.px(c, 28) })
+        }
         controls.addView(controlsNote, lp(MATCH).apply { topMargin = Ui.px(c, 12) })
         controls.visibility = View.GONE
         col.addView(controls, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
@@ -218,6 +252,7 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
             stopArmedUntil = 0
             stop.label.text = "Stop for everyone"
             SyncService.control("stop", 0.0)
+            shownPaused = null
         } else {
             stopArmedUntil = now + 4_000
             stop.label.text = "Press again to stop"
@@ -232,6 +267,7 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
         }
         controlsNote.text = ""
         jumpField.setText("")
+        jumpField.clearFocus()
         SyncService.control("seek", sec)
     }
 
@@ -273,8 +309,16 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
         }
         controls.visibility = View.VISIBLE
         clock.text = clockText(SyncService.roomNowSec() ?: room.positionSec)
-        clockState.text = if (room.paused) "Paused" else "Playing"
-        playPause.label.text = if (room.paused) "Play" else "Pause"
+        if (shownPaused != room.paused) {
+            shownPaused = room.paused
+            clockState.text = if (room.paused) "Paused" else "Playing"
+            stateDot.color = if (room.paused) Ui.WARN else Ui.ACCENT
+            // the button shows what it does: play when paused, pause when playing
+            playPause.removeAllViews()
+            playPause.addView(ImageView(c).apply {
+                setImageDrawable(Glyph(if (room.paused) Glyph.Kind.PLAY else Glyph.Kind.PAUSE, Ui.ON_ACCENT))
+            }, LinearLayout.LayoutParams(Ui.px(c, if (phone) 64 else 68), Ui.px(c, if (phone) 64 else 68)))
+        }
         val mine = playingFor(item.file)
         val pkg = item.androidPackage
         val service = mine?.service ?: pkg?.let { Apps.name(c, it) } ?: "Kodi"
