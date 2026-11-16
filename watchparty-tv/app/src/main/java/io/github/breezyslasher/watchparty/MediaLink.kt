@@ -103,7 +103,7 @@ object MediaLink {
     /** The link an affiliate redirect wraps, if [link] is one. */
     fun unwrapRedirect(link: String): String? {
         val m = REDIRECT.match(link.trim()) ?: return null
-        for (param in m.group(1).split('&')) {
+        for (param in m.group(1).orEmpty().split('&')) {
             if (!param.startsWith("u=")) continue
             val inner = try {
                 java.net.URLDecoder.decode(param.substring(2), "UTF-8")
@@ -181,9 +181,9 @@ object MediaLink {
             if (pvid != null && type != null) return Shared(peacockPlay(pvid, type), null, "Peacock title")
         }
         PEACOCK_ASSET.match(text)?.let {
-            val episode = it.group(1) == "tv" && it.group(2).contains("/episodes/")
+            val episode = it.group(1) == "tv" && it.group(2).orEmpty().contains("/episodes/")
             if (it.group(1) == "movies" || episode) {
-                return Shared(peacockPlay(it.group(3), if (episode) "EPISODE" else "PROGRAMME"), null, "Peacock title")
+                return Shared(peacockPlay(it.group(3).orEmpty(), if (episode) "EPISODE" else "PROGRAMME"), null, "Peacock title")
             }
         }
         DISCOVERY.match(text)?.let {
