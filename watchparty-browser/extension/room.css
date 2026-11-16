@@ -187,13 +187,13 @@ h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.
 .service:focus-visible { transform: scale(1.02); }
 
 /* paste a link */
-.paste { max-width: 744px; }
-.paste .field { height: 50px; margin-top: 19px; }
+/* a link typed into Browse's search box */
+.linkResult { margin-top: 24px; max-width: 900px; }
+.linkTitle { font-size: 26px; font-weight: 700; margin-top: 6px; }
+.linkSub { color: var(--text-2); font-size: 16px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pasteActions { display: flex; align-items: center; gap: 17px; margin-top: 19px; }
 .pasteActions .primary { height: 53px; }
-.footnotes { display: flex; gap: 19px; margin-top: 19px; padding-top: 19px; border-top: 1px solid var(--line); }
-.footnotes > div { flex: 1; }
-.footnotes p { font-size: 16px; line-height: 1.4; margin: 5px 0 0; }
+.linkHint { color: var(--muted); font-size: 15px; line-height: 1.4; margin: 14px 0 0; }
 
 .toast {
   position: fixed; right: 43px; bottom: 38px; background: var(--text); color: var(--bg); border-radius: 8px;
@@ -209,7 +209,7 @@ h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.
   .railSpacer { display: none; }
   .content { padding: 24px 16px 40px; }
   h1 { font-size: 36px; }
-  .tiles, .hero, .footnotes { flex-direction: column; }
+  .tiles, .hero { flex-direction: column; }
   .cols { flex-direction: column; height: auto; }
   .col.seasons { width: auto; }
   .list { overflow: visible; }

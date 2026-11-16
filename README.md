@@ -35,7 +35,7 @@ its library copy; Kodi's titles are found on a streaming service by the apps
    [watchparty-tv/README.md](watchparty-tv/README.md#grant-access-to-whats-playing-once)),
    then enter the relay address and a room code and press **Join room**.
 4. Press **Browse** to search for a movie or episode (or pick one from your
-   Yamtrack library), or paste a title's link in **Start for everyone**.
+   Yamtrack library), or paste a title's link into its search box.
 5. On a computer, the [browser extension](watchparty-browser) joins the same
    room and plays along in a browser tab.
 

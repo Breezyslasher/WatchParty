@@ -109,9 +109,14 @@ sealed class Action {
     data class Open(val link: String, val pkg: String) : Action()
     /** A Kodi item: find the title on a streaming app here (JustWatch), then open it. */
     data class Resolve(val file: String, val label: String, val identity: Identity) : Action()
-    object Play : Action()
-    object Pause : Action()
-    data class SeekTo(val ms: Long) : Action()
+    object Play : Action() { override fun toString() = "Play" }
+    object Pause : Action() { override fun toString() = "Pause" }
+    /** [pauseAfter]: the room is paused, so pause again once the seek has
+     *  landed. A phone's Netflix app starts playing when it's seeked while
+     *  paused: with the room paused, each correction set it playing again,
+     *  and sync paused and seeked it every 4 s for most of a minute (logcat,
+     *  Samsung phone, 2026-11-15). */
+    data class SeekTo(val ms: Long, val pauseAfter: Boolean = false) : Action()
     /** Tell the room about something the user did here. */
     data class Send(val cmd: String, val positionSec: Double) : Action()
     /** A one-line note for the status screen. */
@@ -265,7 +270,7 @@ class SyncCore(
             if (Math.abs(localSec - expected) > driftThresholdSec &&
                 nowMs - lastCorrectionMs > CORRECTION_COOLDOWN_MS
             ) {
-                actions += Action.SeekTo((expected * 1000).toLong())
+                actions += Action.SeekTo((expected * 1000).toLong(), pauseAfter = room.paused)
                 lastCorrectionMs = nowMs
                 suppressUntilMs = nowMs + SUPPRESS_MS
                 corrections++

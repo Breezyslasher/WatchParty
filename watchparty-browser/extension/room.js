@@ -1,5 +1,5 @@
 // The Watch Party page, laid out like the Android app (MainActivity.kt):
-// a rail with Room, Browse and Paste a link, the room form or its members,
+// a rail with Room and Browse, the room form or its members,
 // and the status line; the chosen screen beside it (screens.js). Once a
 // second it reports the player tab's state and follows the room
 // (sync-core.js decides; this file carries it out). Titles play in their own
@@ -10,7 +10,7 @@ import { RelayClient, RelayError, normalizeBase } from './relay.js';
 import { serviceOf, roomItem, browserLink } from './links.js';
 import { JustWatch } from './justwatch.js';
 import { el, label, toast } from './ui.js';
-import { roomScreen, browseScreen, titleScreen, linkScreen, serviceName } from './screens.js';
+import { roomScreen, browseScreen, titleScreen, serviceName } from './screens.js';
 import { regularEpisode, isHboMax } from './hbomax.js';
 
 const $ = id => document.getElementById(id);
@@ -70,7 +70,7 @@ const app = {
 
 // ── layout: the rail and the screens ─────────────────────────────────────
 
-const screens = { room: roomScreen(app), browse: browseScreen(app), link: linkScreen(app) };
+const screens = { room: roomScreen(app), browse: browseScreen(app) };
 let current = 'room';
 const pages = [];   // title pages opened from Browse (Back returns through them)
 
@@ -86,7 +86,7 @@ const joinButton = el('button', { class: 'primary', id: 'join', onclick: toggleJ
 const statusLine = el('div', { class: 'status' }, status);
 $('rail').append(
   el('div', { class: 'brand' }, 'Watch Party'),
-  el('nav', { class: 'navs' }, [['room', 'Room'], ['browse', 'Browse'], ['link', 'Paste a link']].map(([key, text]) => {
+  el('nav', { class: 'navs' }, [['room', 'Room'], ['browse', 'Browse']].map(([key, text]) => {
     navs[key] = el('button', { class: 'nav', onclick: () => go(key) }, text);
     return navs[key];
   })),

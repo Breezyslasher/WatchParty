@@ -22,7 +22,7 @@ import java.util.Locale
 /**
  * Watch Party's only activity, in the "Cinema" design: the one-time setup
  * screen until notification access is granted, then a rail (Room, Browse,
- * Paste a link, the room form or members) beside the content
+ * the room form or members) beside the content
  * screens (Screens.kt). On phones the rail becomes a top section. The
  * syncing itself happens in [SyncService], which keeps running while you
  * watch in the other app.
@@ -61,7 +61,6 @@ class MainActivity : Activity(), Host {
     private var screen = Screen.ROOM
     private lateinit var roomScreen: RoomScreen
     private var browseScreen: BrowseScreen? = null
-    private var linkScreen: LinkScreen? = null
     /** Title and person pages, newest last: Back goes to the one before, then to Browse. */
     private val pages = ArrayList<ContentScreen>()
     private val playing = HashMap<String, Playing>()
@@ -136,7 +135,7 @@ class MainActivity : Activity(), Host {
                     go(if (pages.isEmpty()) Screen.BROWSE else Screen.PICKER)
                     return
                 }
-                Screen.BROWSE, Screen.LINK -> { go(Screen.ROOM); return }
+                Screen.BROWSE -> { go(Screen.ROOM); return }
                 Screen.ROOM -> {}
             }
         }
@@ -149,7 +148,6 @@ class MainActivity : Activity(), Host {
         val target = when (screen) {
             Screen.ROOM -> roomScreen
             Screen.BROWSE -> browseScreen ?: BrowseScreen(this).also { browseScreen = it }
-            Screen.LINK -> linkScreen ?: LinkScreen(this).also { linkScreen = it }
             Screen.PICKER -> pages.lastOrNull() ?: return
         }
         if (screen != Screen.PICKER) pages.clear()
@@ -198,7 +196,6 @@ class MainActivity : Activity(), Host {
     private fun current(): ContentScreen? = when (screen) {
         Screen.ROOM -> roomScreen
         Screen.BROWSE -> browseScreen
-        Screen.LINK -> linkScreen
         Screen.PICKER -> pages.lastOrNull()
     }
 
@@ -256,7 +253,7 @@ class MainActivity : Activity(), Host {
             info.addView(members, lp(MATCH).apply { topMargin = Ui.px(c, 14) })
 
             val navGroup = if (phone) Ui.row(c) else Ui.column(c)
-            for ((s, label) in listOf(Screen.ROOM to "Room", Screen.BROWSE to "Browse", Screen.LINK to "Paste a link")) {
+            for ((s, label) in listOf(Screen.ROOM to "Room", Screen.BROWSE to "Browse")) {
                 val b = Ui.nav(c, if (phone && s == Screen.BROWSE) "Browse" else label) { go(s) }
                 navs[s] = b
                 navGroup.addView(b, if (phone) lp(0, Ui.tap(c, 72), 1f).apply { if (navGroup.childCount > 0) leftMargin = Ui.px(c, 10) }

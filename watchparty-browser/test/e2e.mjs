@@ -1,7 +1,7 @@
 // End to end, in Chromium with the extension loaded: a scripted room member
 // (relay.js in node) starts a title; the extension opens it in a player tab
 // and follows play / pause / seek; a pause and seek in the browser reach the
-// room; Paste a link and Browse (search, title page, Watch, the services
+// room; a link pasted into Browse's search, and Browse (search, title page, Watch, the services
 // dialog, season and episode) start titles with the Android app's links.
 //
 // Streaming sites are stood in for by a test page with a real <video>
@@ -203,23 +203,26 @@ ok(Math.abs(roomAt - 120) < 3 && Math.abs(browserAt - 120) < 3,
 const me = state.members.find(m => m.name === 'Laptop');
 ok(me && me.driftSec != null && Math.abs(me.driftSec) < 3, `the relay sees the browser in sync (drift ${me && me.driftSec})`);
 
-// 5. Paste a link: the room gets the link the Android app would share
+// 5. A link pasted into Browse's search: the room gets the link the Android app would share
 await roomPage.bringToFront();
 if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '2-room-playing.png') });
-await roomPage.click('.nav:has-text("Paste a link")');
-await roomPage.fill('#link', 'https://www.netflix.com/title/70264888?trackId=14170286');
-await roomPage.fill('#linkTitle', 'Iron Man');
+ok(!(await roomPage.isVisible('.nav:has-text("Paste a link")')), 'no Paste a link screen');
+await roomPage.click('.nav:has-text("Browse")');
+await roomPage.fill('#query', 'https://www.netflix.com/title/70264888?trackId=14170286');
+await roomPage.press('#query', 'Enter');
+await until('the link result', () => roomPage.isVisible('#startLink'));
+ok((await roomPage.textContent('.linkTitle')) === 'Netflix title', 'Search shows the link as one result, not a search');
 if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '6-paste.png') });
 await roomPage.click('#startLink');
 await until('room has the Netflix title', () => state && state.item && state.item.file === 'https://www.netflix.com/watch/70264888');
-ok(state.item.label === 'Iron Man', `pasted "${state.item.label}" as ${state.item.file}`);
+ok(state.item.label === 'Netflix title', `pasted "${state.item.label}" as ${state.item.file}`);
 const raw = await (await fetch(`${RELAY}/poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ room: code, member_id: other.memberId, position: 0, paused: true, file: '', caching: false, on_item: false, corrections: 0 }) })).json();
 ok(raw.state.item.ids && raw.state.item.ids.android === 'com.netflix.ninja', 'the item names an Android app, so TVs and phones open it');
 await until('the browser opened it', () => context.pages().some(p => p.url() === 'https://www.netflix.com/watch/70264888'));
 ok(true, 'and the browser opened it in its player tab');
 await roomPage.bringToFront();
-await until('Room shows it', () => roomPage.isVisible('.nowTitle:has-text("Iron Man")'));
+await until('Room shows it', () => roomPage.isVisible('.nowTitle:has-text("Netflix title")'));
 ok(true, 'the Room screen shows it');
 
 // 6. Browse: search JustWatch, Watch a movie — one service, so it starts at once (as on Android)

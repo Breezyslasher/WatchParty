@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.12** (the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.13** (the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -149,17 +149,19 @@ can be a member of the room or pick what to watch with **Browse**:
 
 ## Use
 
-The screen has a rail on the left (**Room**, **Browse**, **Paste a
-link**, and the room itself) and the chosen screen on the right. On a phone
+The screen has a rail on the left (**Room**, **Browse**, and the room
+itself) and the chosen screen on the right. On a phone
 the rail folds into a bar at the top.
 
 1. In the rail, enter the relay address (e.g. `192.168.1.5:8765` or
    `https://relay.example.com`), the room code and a name, and press
    **Join room**. It stays in the room while you watch in other apps; the
    rail lists everyone in the room with what they're doing and their drift.
-2. To start something, use **Browse** (below) or **Paste a link**
-   and **Start for everyone** (typing on a TV is easiest from the Google TV
-   remote app on a phone). **Room** shows what's playing.
+2. To start something, use **Browse** (below). Its search box also takes a
+   link (`https://…`): it shows the link as one result with **Start for
+   everyone**, for what search can't find (a YouTube video, a title
+   JustWatch lacks). Typing on a TV is easiest from the Google TV remote app
+   on a phone. **Room** shows what's playing.
 3. **Leave room** stops syncing. **Back** returns to the page before (a title
    page, a person, Browse, then Room), and leaves the app from Room.
 
@@ -365,6 +367,15 @@ Discovery player and `play.discoveryplus.com/video/watch/<id>` links) failed
 the same way with the fresh task and gets the same treatment. ✓ Episodes
 start with 0.9.21 (Samsung phone, 2026-11-15).
 
+**Seeking while paused:** a phone's Netflix app starts playing when it's
+seeked while paused. With the room paused, each drift correction set it
+playing, so sync paused and seeked it every 4 s for most of a minute
+(logcat, Samsung phone, 2026-11-15; a lone pause, with no seek, held). So in a
+paused room, a seek is followed by a pause 1 s later (`Action.SeekTo`'s
+`pauseAfter`); pausing a paused app does nothing. The log line before each
+action shows the app's state then (`local PAUSED at 33.0s in …; room paused
+at 33.0s`).
+
 **Discovery+ movies:** JustWatch's Discovery+ movie link is the movie's page
 (`discoveryplus.com/movie/<id>`), which doesn't play, and the movie id isn't
 its video id ("content not available"). But HBO Max and Discovery+ share one
@@ -430,7 +441,7 @@ app. Then check the app can be controlled: Session Probe's
 - `Ui.kt` — the design system: colours, Figtree / JetBrains Mono (`assets/fonts`, OFL),
   focus rings, buttons, cards, fields. Design px ÷ 2 = dp.
 - `Screens.kt` — Room, Browse (library grid and search), the title page (details, season /
-  episode, cast, More like this), the person page and Paste a link.
+  episode, cast, More like this) and the person page.
 - `ServiceDialog.kt` — "Start for everyone on": the services in a centered dialog.
 - `Posters.kt` — poster thumbnails for the list.
 - `Apps.kt` — which installed app opens a link.

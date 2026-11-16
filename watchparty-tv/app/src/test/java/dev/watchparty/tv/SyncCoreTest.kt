@@ -56,6 +56,17 @@ class SyncCoreTest {
         assertEquals(listOf<Action>(Action.Pause), actions)
     }
 
+    /** The room paused and us playing elsewhere: pause, and the seek pauses again
+     *  once it lands (a phone's Netflix plays when seeked while paused). */
+    @Test fun aSeekInAPausedRoomPausesAgain() {
+        val (core, t) = opened()
+        assertEquals(listOf(Action.Pause, Action.SeekTo(33_000, pauseAfter = true)),
+            core.tick(room(pos = 33.0, paused = true), local(40.0), t, 1010.0))
+        // a playing room's corrections don't
+        val (core2, t2) = opened()
+        assertEquals(listOf<Action>(Action.SeekTo(110_000)), core2.tick(room(), local(125.0), t2, 1010.0))
+    }
+
     @Test fun roomPlayingResumesUs() {
         val (core, t) = opened()
         val actions = core.tick(room(), local(110.0, LocalPlay.PAUSED), t, 1010.0)

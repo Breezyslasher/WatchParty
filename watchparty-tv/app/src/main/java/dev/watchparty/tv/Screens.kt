@@ -18,7 +18,7 @@ import java.util.Locale
 
 /*
  * The content screens of the "Cinema" design: Room (home), Browse,
- * the season / episode / service picker, and Paste a link. Values are the
+ * (search, or a pasted link) and the season / episode / service picker. Values are the
  * design file's px (Ui.px halves them to dp). Behaviour is the same as
  * before the redesign: Yamtrack for titles, seasons, episodes and links,
  * JustWatch when Yamtrack has none, SyncService to start it for the room.
@@ -46,7 +46,7 @@ interface Host {
     fun sent(playing: Playing)
 }
 
-enum class Screen { ROOM, BROWSE, PICKER, LINK }
+enum class Screen { ROOM, BROWSE, PICKER }
 
 abstract class ContentScreen(protected val host: Host) {
     protected val c get() = host.activity
@@ -98,8 +98,7 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
     private val nowTitle = Ui.text(c, "", 84, 800, spacingEm = -0.03f).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
     private val nowSub = Ui.oneLine(Ui.text(c, "", 30, 400, Ui.TEXT_2))
     private val idle = Ui.column(c)
-    private val browseTile = Ui.homeTile(c, "Browse", "Search any title, or your Yamtrack library") { host.go(Screen.BROWSE) }
-    private val linkTile = Ui.homeTile(c, "Paste a link", "From Disney+, Netflix, HBO Max and more") { host.go(Screen.LINK) }
+    private val browseTile = Ui.homeTile(c, "Browse", "Search any title, or paste a link") { host.go(Screen.BROWSE) }
     private var shownFile: String? = "-"
 
     override val view: View = ScrollView(c).apply {
@@ -131,15 +130,8 @@ class RoomScreen(host: Host, private val playingFor: (String) -> Playing?) : Con
             .apply { maxWidth = Ui.px(c, 1000) }, lp().apply { topMargin = Ui.px(c, 18) })
         col.addView(idle, lp(MATCH))
 
-        val tiles = if (phone) Ui.column(c) else Ui.row(c)
-        if (phone) {
-            tiles.addView(browseTile, lp(MATCH, Ui.px(c, 220)))
-            tiles.addView(linkTile, lp(MATCH, Ui.px(c, 220)).apply { topMargin = Ui.px(c, 32) })
-        } else {
-            tiles.addView(browseTile, lp(0, Ui.px(c, 260), 1f))
-            tiles.addView(linkTile, lp(0, Ui.px(c, 260), 1f).apply { leftMargin = Ui.px(c, 32) })
-        }
-        col.addView(tiles, lp(MATCH).apply { topMargin = Ui.px(c, 48) })
+        col.addView(browseTile, (if (phone) lp(MATCH, Ui.px(c, 220)) else lp(Ui.px(c, 760), Ui.px(c, 260)))
+            .apply { topMargin = Ui.px(c, 48) })
         addView(col, FrameLayout.LayoutParams(MATCH, WRAP))
     }
 
@@ -204,6 +196,8 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     private val serverField = Ui.field(c, "yamtrack.example.com or 192.168.1.5:8000", "", 76, 28, Ui.SURFACE, 14, 28)
     private val tokenField = Ui.field(c, "API token", "", 76, 28, Ui.SURFACE, 14, 28)
     private val empty = Ui.text(c, "", 30, 400, Ui.MUTED)
+    /** A link typed into Search: one result, to start it for everyone. */
+    private val linkResult = Ui.column(c)
     private val grid = Ui.column(c)
     private val scroll = ScrollView(c)
     private var rowView: LinearLayout? = null
@@ -268,6 +262,8 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             lp(WRAP, Ui.tap(c, 80)).apply { topMargin = Ui.px(c, 28) })
         addView(serverBox, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
 
+        linkResult.visibility = View.GONE
+        addView(linkResult, lp(MATCH).apply { topMargin = Ui.px(c, 40) })
         addView(empty, lp().apply { topMargin = Ui.px(c, 32) })
         empty.setPadding(0, Ui.px(c, 40), 0, 0)
 
@@ -300,7 +296,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             reload()
             countStatuses(tab)
         } else {
-            empty.text = "Type a title to search."
+            empty.text = "Type a title to search, or paste a link."
             empty.visibility = View.VISIBLE
         }
     }
@@ -337,7 +333,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
             serverField.requestFocus()
         } else if (key == "search") {
             clearGrid()
-            empty.text = if (query.isEmpty()) "Type a title to search." else ""
+            empty.text = if (query.isEmpty()) "Type a title to search, or paste a link." else ""
             empty.visibility = View.VISIBLE
             searchField.requestFocus()
             if (query.isNotEmpty()) reload()
@@ -393,14 +389,58 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
     }
 
     private fun runSearch() {
-        query = searchField.text.toString().trim()
+        val text = searchField.text.toString().trim()
+        if (isLink(text)) {
+            showLink(text)
+            return
+        }
+        query = text
         if (query.isEmpty()) {
             clearGrid()
-            empty.text = "Type a title to search."
+            empty.text = "Type a title to search, or paste a link."
             empty.visibility = View.VISIBLE
             return
         }
         reload()
+    }
+
+    private fun isLink(text: String) = text.startsWith("https://") || text.startsWith("http://")
+
+    /** A pasted link: its service and app here, and Start for everyone. */
+    internal fun showLink(text: String) {
+        clearGrid()
+        linkResult.removeAllViews()
+        val shared = MediaLink.normalize(text)
+        val pkg = shared?.let { Apps.packageFor(c, it.link) }
+        if (shared == null || pkg == null) {
+            empty.text = if (shared == null) "That isn't a web link." else "No app on this device opens that link."
+            empty.visibility = View.VISIBLE
+            return
+        }
+        empty.visibility = View.GONE
+        val note = Ui.text(c, "", 26, 400, Ui.WARN)
+        linkResult.addView(Ui.sectionLabel(c, "Link"))
+        linkResult.addView(Ui.oneLine(Ui.text(c, shared.label, 44, 700)), lp(MATCH).apply { topMargin = Ui.px(c, 10) })
+        linkResult.addView(Ui.oneLine(Ui.text(c, "Opens in ${Apps.name(c, pkg)} · ${shared.link}", 26, 400, Ui.TEXT_2)),
+            lp(MATCH).apply { topMargin = Ui.px(c, 8) })
+        val row = if (phone) Ui.column(c) else Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
+        val start = Ui.primary(c, "Start for everyone", 80, 52, 30, 16, Ui.BG, 5, 1.05f) {
+            if (!SyncService.running) {
+                note.text = "Join a room first."
+                return@primary
+            }
+            SyncService.share(shared.link, shared.label, pkg)
+            host.sent(Playing(shared.link, shared.label, "Shared link", Apps.name(c, pkg), null))
+        }
+        row.addView(start, lp(WRAP, Ui.tap(c, 80)))
+        row.addView(note, if (phone) lp(MATCH).apply { topMargin = Ui.px(c, 16) }
+        else lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, 28) })
+        linkResult.addView(row, lp(MATCH).apply { topMargin = Ui.px(c, 24) })
+        linkResult.addView(Ui.text(c, "Links copied while the title plays work best. Without a title's details, " +
+            "Kodi members can't play their own copy.", 24, 400, Ui.MUTED, lineHeight = 1.3f),
+            lp(MATCH).apply { topMargin = Ui.px(c, 20) })
+        linkResult.visibility = View.VISIBLE
+        start.requestFocus()
     }
 
     private fun updateHeader() {
@@ -424,7 +464,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         for ((code, chip) in chips) chip.visibility = if (shown == null || code in shown) View.VISIBLE else View.GONE
         for ((key, chip) in typeChips) chip.setChosen(key == searchType)
         typeRow.visibility = if (tab == "search") View.VISIBLE else View.GONE
-        searchField.hint = if (searchType == "tv") "Search TV shows" else "Search movies"
+        searchField.hint = if (searchType == "tv") "Search TV shows, or paste a link" else "Search movies, or paste a link"
         searchField.visibility = if (tab == "search") View.VISIBLE else View.GONE
         scroll.visibility = if (tab == "yamtrack") View.GONE else View.VISIBLE
         if (tab == "yamtrack") empty.visibility = View.GONE
@@ -432,6 +472,7 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
 
     private fun clearGrid() {
         generation++
+        linkResult.visibility = View.GONE
         items.clear()
         grid.removeAllViews()
         rowView = null
@@ -1180,78 +1221,5 @@ class PersonScreen(host: Host, private val member: YamtrackClient.CastMember) : 
         firstCard = cards.first()
         known.addView(posterGrid(c, cards, columns), lp(MATCH))
         if (nothingFocused()) firstCard?.requestFocus()
-    }
-}
-
-// ── Paste a link ────────────────────────────────────────────────────────
-
-class LinkScreen(host: Host) : ContentScreen(host) {
-    private val phone = Ui.isPhone(c)
-    private val linkField = Ui.field(c, "https://www.disneyplus.com/play/…", "", 84, 30, Ui.SURFACE, 14, 28, mono = true)
-    private val titleField = Ui.field(c, "Title (optional)", "", 84, 30, Ui.SURFACE, 14, 28)
-    private val note = Ui.text(c, "", 26, 400, Ui.WARN)
-
-    override val view: View = ScrollView(c).apply {
-        Ui.noClip(this)
-        isVerticalScrollBarEnabled = false
-        val col = Ui.column(c).apply {
-            val p = Ui.px(c, if (phone) 40 else 96)
-            setPadding(p, p, p, p)
-        }
-        col.addView(Ui.text(c, "Start for everyone", if (phone) 60 else 80, 800, spacingEm = -0.03f))
-        col.addView(Ui.text(c, "Paste a movie or episode link from the app's website, ideally copied while it plays. " +
-            "Typing is easiest from the Google TV app on your phone.", 30, 400, Ui.TEXT_2, lineHeight = 1.4f),
-            lp(MATCH).apply { topMargin = Ui.px(c, 32) })
-        col.addView(linkField, lp(MATCH, Ui.tap(c, 84)).apply { topMargin = Ui.px(c, 32) })
-        col.addView(titleField, lp(MATCH, Ui.tap(c, 84)).apply { topMargin = Ui.px(c, 32) })
-        val actions = if (phone) Ui.column(c) else Ui.row(c).apply { gravity = Gravity.CENTER_VERTICAL }
-        actions.addView(Ui.primary(c, "Start for everyone", 88, 52, 30, 16, Ui.BG, 6, 1.05f) { share() },
-            lp(WRAP, Ui.tap(c, 88)))
-        actions.addView(note, if (phone) lp(MATCH).apply { topMargin = Ui.px(c, 20) }
-        else lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, 28) })
-        col.addView(actions, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
-
-        col.addView(Ui.divider(c), lp(MATCH, maxOf(1, Ui.px(c, 2) / 2)).apply { topMargin = Ui.px(c, 56) })
-        val footer = if (phone) Ui.column(c) else Ui.row(c)
-        footer.addView(footnote("Starts playing", "Disney+, Netflix, HBO Max, Starz, Apple TV"),
-            if (phone) lp(MATCH) else lp(0, WRAP, 1f))
-        footer.addView(footnote("Opens the app", "Crunchyroll and others. Everyone presses Play, then sync takes over."),
-            if (phone) lp(MATCH).apply { topMargin = Ui.px(c, 24) } else lp(0, WRAP, 1f).apply { leftMargin = Ui.px(c, 32) })
-        col.addView(footer, lp(MATCH).apply { topMargin = Ui.px(c, 32) })
-        addView(col, FrameLayout.LayoutParams(if (phone) MATCH else Ui.px(c, 1240), WRAP))
-    }
-
-    private fun footnote(title: String, body: String) = Ui.column(c).apply {
-        addView(Ui.sectionLabel(c, title))
-        addView(Ui.text(c, body, 26, 400, lineHeight = 1.4f), lp(MATCH).apply { topMargin = Ui.px(c, 8) })
-    }
-
-    override fun defaultFocus(): View = linkField
-
-    private fun share() {
-        if (!SyncService.running) {
-            note.text = "Join a room first."
-            return
-        }
-        val shared = MediaLink.normalize(linkField.text.toString())
-        if (shared == null) {
-            note.text = "That isn't a web link. It should start with https://"
-            return
-        }
-        val pkg = Apps.packageFor(c, shared.link)
-        if (pkg == null) {
-            note.text = "No app on this TV opens that link."
-            return
-        }
-        note.text = ""
-        val label = titleField.text.toString().trim().ifEmpty { shared.label }
-        SyncService.share(shared.link, label, pkg)
-        host.sent(Playing(shared.link, label, "Shared link", Apps.name(c, pkg), null))
-    }
-
-    fun clear() {
-        linkField.setText("")
-        titleField.setText("")
-        note.text = ""
     }
 }

@@ -41,6 +41,8 @@ class SyncService : Service() {
          *  confirmed; Discovery+ showed the same failure. */
         private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE, "com.discovery.discoveryplus.mobile")
         private const val RESEND_AFTER_MS = 8_000L
+        /** How long after a seek in a paused room to pause again (see Action.SeekTo). */
+        private const val PAUSE_AFTER_SEEK_MS = 1_000L
 
         const val EXTRA_RELAY = "relay"
         const val EXTRA_ROOM = "room"
@@ -179,6 +181,11 @@ class SyncService : Service() {
                 local = localState(controller)
             }
             val actions = core.tick(room, local, System.currentTimeMillis(), c.serverNowSec())
+            if (actions.isNotEmpty()) {
+                // what this device was doing, to read the actions by
+                Log.i(TAG, "local ${local.play} at ${if (local.positionMs >= 0) "%.1f".format(local.positionMs / 1000.0) else "?"}s" +
+                    " in ${local.pkg}; room ${if (room.paused) "paused" else "playing"} at %.1fs".format(room.expectedSec(c.serverNowSec())))
+            }
             for (a in actions) perform(a, controller, c)
             showRoom(room, local)
         } catch (e: RelayClient.RelayException) {
@@ -292,7 +299,12 @@ class SyncService : Service() {
             is Action.Resolve -> resolve(a)
             is Action.Play -> controller?.transportControls?.play()
             is Action.Pause -> controller?.transportControls?.pause()
-            is Action.SeekTo -> controller?.transportControls?.seekTo(maxOf(0L, a.ms))
+            is Action.SeekTo -> {
+                controller?.transportControls?.seekTo(maxOf(0L, a.ms))
+                if (a.pauseAfter && controller != null) {
+                    worker?.postDelayed({ controller.transportControls.pause() }, PAUSE_AFTER_SEEK_MS)
+                }
+            }
             is Action.Send -> try {
                 c.command(a.cmd, a.positionSec)
             } catch (e: RelayClient.RelayException) {

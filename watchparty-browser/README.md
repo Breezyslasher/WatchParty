@@ -5,7 +5,7 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.5.2, not yet tried on a real streaming site or with a real Kodi.** It looks and works
+**Status: 0.6.0, not yet tried on a real streaming site or with a real Kodi.** It looks and works
 like the Android app: the same rail and screens. Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.
@@ -36,8 +36,8 @@ Not in an extension store yet; load it from this folder:
 ## Use
 
 Click the Watch Party button in the toolbar: the Watch Party page opens in a
-tab, laid out like the Android app — a rail with **Room**, **Browse** and
-**Paste a link**, then the room form (or the room's members), and the screen
+tab, laid out like the Android app — a rail with **Room** and **Browse**,
+then the room form (or the room's members), and the screen
 beside it.
 
 1. In the rail, enter the relay address, the room code and a name, and press
@@ -45,7 +45,9 @@ beside it.
    Firefox, to the streaming sites and JustWatch).
 2. **Browse**: search for a movie or a TV show, open it, and press **Watch**
    (a movie) or pick the season and episode; the services open in a dialog.
-   With one service it starts at once, as on Android. Or **Paste a link**.
+   With one service it starts at once, as on Android. A link (`https://…`)
+   typed into the search box shows as one result with **Start for
+   everyone**, for what search can't find.
 3. Everyone's TV, phone or browser opens the title. In the browser it opens in
    its own tab (the "player tab") and follows the room: play, pause and seek
    on any device and the browser follows; pause or seek in the browser and
@@ -76,7 +78,7 @@ The browser's Back goes back from a title page, like the remote's Back.
 - `screens.js`, `ui.js`, `room.css` — the Android app's screens (`Screens.kt`,
   `ServiceDialog.kt`) and components (`Ui.kt`): Room, Browse (search; no
   Yamtrack library), the title page with its season and episode columns and
-  More like this, the "Start for everyone on" dialog, Paste a link; the same
+  More like this, the "Start for everyone on" dialog, a link in search; the same
   colours, Figtree and sizes (0.6 × the TV design's).
 - `justwatch.js`, `hbomax.js` — search and title pages: a port of the Android
   app's Browse without Yamtrack (`JustWatch.kt`, `HboMax.kt`):
@@ -142,7 +144,7 @@ it loads the extension into Chromium, answers `https://www.disneyplus.com/…`
 and `https://www.netflix.com/…` with a test page playing a generated video,
 and has a scripted member start a title, seek, pause and play; then pauses and
 seeks in the browser (and checks the room, the browser and the relay's drift
-agree after it), and starts a title with Paste a link. It also answers
+agree after it), and starts a title from a link typed into Browse's search. It also answers
 JustWatch's API with responses shaped like the live ones, searches, opens a
 movie's page and presses Watch, picks a show's episode in the services
 dialog, checks the room gets the Android app's link and label (`Andor · S1 ·

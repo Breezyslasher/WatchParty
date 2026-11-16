@@ -1,7 +1,7 @@
 // The content screens, ported from the Android app (watchparty-tv
 // Screens.kt, ServiceDialog.kt): Room, Browse (search; there's no Yamtrack
 // library in the browser), a title's page with its season and episode
-// columns, the "Start for everyone on" dialog, and Paste a link.
+// columns, and the "Start for everyone on" dialog. Browse's search also takes a link.
 
 import { el, label, art, posterCard, serviceCard, listButton, rating, date, toast } from './ui.js';
 import { discoveryPlayLinks, sharedLinks, runtimeText } from './justwatch.js';
@@ -34,10 +34,8 @@ export function roomScreen(app) {
     el('h1', {}, 'What are we watching?'),
     el('p', { class: 'lead' }, 'Pick a title and everyone in the room opens it: TVs and phones in their apps, browsers in a tab.'));
   const browseTile = el('button', { class: 'tile', onclick: () => app.go('browse') },
-    el('b', {}, 'Browse'), el('span', {}, 'Search any movie or show'));
-  const linkTile = el('button', { class: 'tile', onclick: () => app.go('link') },
-    el('b', {}, 'Paste a link'), el('span', {}, 'From Disney+, Netflix, HBO Max and more'));
-  const view = el('div', { class: 'screen' }, backdrop, idle, el('div', { class: 'tiles' }, browseTile, linkTile));
+    el('b', {}, 'Browse'), el('span', {}, 'Search any movie or show, or paste a link'));
+  const view = el('div', { class: 'screen' }, backdrop, idle, el('div', { class: 'tiles' }, browseTile));
   let shownFile = '-';
 
   return {
@@ -82,7 +80,8 @@ export function browseScreen(app) {
     tabRow.append(tabs[key]);
   }
   const query = el('input', { class: 'field surface', id: 'query', placeholder: 'Search movies', autocomplete: 'off', enterkeyhint: 'search' });
-  query.addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+  // (preventDefault: a pasted link's search moves focus to Start, and the same Enter would press it)
+  query.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
   const country = el('select', { class: 'field surface country', id: 'country', title: 'Where to watch: country' },
     COUNTRIES.map(c => el('option', { value: c }, c)));
   if (!COUNTRIES.includes(app.country)) country.prepend(el('option', { value: app.country }, app.country));
@@ -91,23 +90,32 @@ export function browseScreen(app) {
     app.setCountry(country.value);
     if (query.value.trim()) search();
   });
-  const empty = el('div', { class: 'empty' }, 'Type a title to search.');
+  const empty = el('div', { class: 'empty' }, 'Type a title to search, or paste a link.');
   const grid = el('div', { class: 'grid' });
-  const view = el('div', { class: 'screen' }, tabRow, el('div', { class: 'searchRow' }, query, country), empty, grid);
+  /** A link typed into the search box: one result, to start it for everyone. */
+  const linkResult = el('div', { class: 'linkResult', hidden: true });
+  const view = el('div', { class: 'screen' }, tabRow, el('div', { class: 'searchRow' }, query, country), linkResult, empty, grid);
   select('MOVIE', false);
 
   function select(key, run = true) {
     type = key;
     for (const [k, t] of Object.entries(tabs)) t.classList.toggle('on', k === key);
-    query.placeholder = key === 'SHOW' ? 'Search TV shows' : 'Search movies';
+    query.placeholder = key === 'SHOW' ? 'Search TV shows, or paste a link' : 'Search movies, or paste a link';
     if (run && query.value.trim()) search();
   }
 
   async function search() {
     const text = query.value.trim();
+    linkResult.hidden = true;
+    if (/^https?:\/\//.test(text)) {
+      ++generation;
+      grid.replaceChildren();
+      showLink(text);
+      return;
+    }
     if (!text) {
       grid.replaceChildren();
-      empty.textContent = 'Type a title to search.';
+      empty.textContent = 'Type a title to search, or paste a link.';
       empty.hidden = false;
       return;
     }
@@ -129,6 +137,44 @@ export function browseScreen(app) {
     } catch (e) {
       if (my === generation) empty.textContent = `Couldn't load: ${e.message}`;
     }
+  }
+
+  /** A pasted link: its service and Start for everyone (what Paste a link was). */
+  function showLink(text) {
+    const shared = normalize(text);
+    if (!shared) {
+      empty.textContent = "That isn't a web link.";
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    const service = serviceOf(shared);
+    const name = SERVICE_NAMES[service] || new URL(shared).hostname;
+    const title = service ? `${name} title` : name;
+    const note = el('span', { class: 'warn' });
+    const start = el('button', { class: 'primary', id: 'startLink' }, 'Start for everyone');
+    start.addEventListener('click', async () => {
+      if (!app.joined) {
+        note.textContent = 'Join a room first.';
+        return;
+      }
+      note.textContent = '';
+      try {
+        await app.start(shared, title, { title, sub: 'Shared link', service: name, image: null });
+        query.value = '';
+        linkResult.hidden = true;
+      } catch (e) {
+        note.textContent = `Couldn't share: ${e.message}`;
+      }
+    });
+    linkResult.replaceChildren(
+      label('Link'),
+      el('div', { class: 'linkTitle' }, title),
+      el('div', { class: 'linkSub' }, `${service ? `Opens on ${name}` : "Opens in a tab; can't be synced here"} · ${shared}`),
+      el('div', { class: 'pasteActions' }, start, note),
+      el('p', { class: 'linkHint' }, "Links copied while the title plays work best. Without a title's details, Kodi members can't play their own copy."));
+    linkResult.hidden = false;
+    start.focus();
   }
 
   return { view, defaultFocus: () => (query.value ? grid.querySelector('.poster') || query : query) };
@@ -367,50 +413,6 @@ function serviceDialog(title, sub, returnFocus = document.activeElement) {
     },
   };
   return d;
-}
-
-// ── Paste a link ─────────────────────────────────────────────────────────
-
-export function linkScreen(app) {
-  const link = el('input', { class: 'field surface mono', id: 'link', placeholder: 'https://www.disneyplus.com/play/…', autocomplete: 'off' });
-  const title = el('input', { class: 'field surface', id: 'linkTitle', placeholder: 'Title (optional)', autocomplete: 'off' });
-  const note = el('span', { class: 'warn' });
-  const button = el('button', { class: 'primary', id: 'startLink', onclick: share }, 'Start for everyone');
-  for (const f of [link, title]) f.addEventListener('keydown', e => { if (e.key === 'Enter') share(); });
-  const footnote = (head, body) => el('div', {}, label(head), el('p', {}, body));
-  const view = el('div', { class: 'screen paste' },
-    el('h1', {}, 'Start for everyone'),
-    el('p', { class: 'lead' }, "Paste a movie or episode link from the service's website, ideally copied while it plays."),
-    link, title,
-    el('div', { class: 'pasteActions' }, button, note),
-    el('div', { class: 'footnotes' },
-      footnote('Syncs in a browser', 'Netflix, Disney+, HBO Max, Prime Video, Hulu, Peacock, Paramount+, Apple TV, YouTube and more.'),
-      footnote('Other sites', "Open in a tab, but can't be synced here. TVs and phones open what their apps take.")));
-
-  async function share() {
-    if (!app.joined) {
-      note.textContent = 'Join a room first.';
-      return;
-    }
-    const shared = normalize(link.value);
-    if (!shared) {
-      note.textContent = "That isn't a web link. It should start with https://";
-      return;
-    }
-    note.textContent = '';
-    const service = serviceOf(shared);
-    const name = SERVICE_NAMES[service] || new URL(shared).hostname;
-    const label = title.value.trim() || (service ? `${name} title` : name);
-    try {
-      await app.start(shared, label, { title: label, sub: 'Shared link', service: name, image: null });
-      link.value = '';
-      title.value = '';
-    } catch (e) {
-      note.textContent = `Couldn't share: ${e.message}`;
-    }
-  }
-
-  return { view, defaultFocus: () => link };
 }
 
 export { toast };
