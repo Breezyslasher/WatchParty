@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17** (targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.1** (Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -31,7 +31,7 @@ Which services start playing a title, by device (details in
 | Tubi | ✓ movies, episodes | untested |
 | Pluto TV | ✓ movies, episode links (some shows only have the show's page) | untested |
 | Plex | ✓ movies, episodes | untested |
-| Crunchyroll | ✓ movies, episodes | opens the app only (earlier test) |
+| Crunchyroll | ✓ movies, episodes | ✓ episodes start playing with `crunchyroll://episode?id=` (adb, Sony TV; through Watch Party untested); movies untested |
 | Discovery+ | ✓ episodes; movies via HBO Max's video id (adb) | untested |
 | The Roku Channel | ✗ opens the app's home screen only | untested |
 
@@ -354,7 +354,7 @@ tracking parameters (`?utm_…`, `?trackId…`) are fine:
 | Apple TV (phone) | `com.apple.atve.androidtv.appletv` | movies as above; an episode `tv.apple.com/<cc>/episode/<name>/<umc id>?showId=…&playableId=…` | the same + `action=play` | ✓ movies and episodes start playing (episodes only with `action=play`; without it they opened their page) (Samsung phone, 2026-11-15) |
 | Tubi | (found by Android) | `tubitv.com/movies/<id>`; an episode `tubitv.com/tv-shows/<episode id>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; on a Samsung phone, 2026-11-15) |
 | Paramount+ | (found by Android) | `paramountplus.com/movies/<name>/<id>`; an episode `paramountplus.com/shows/<show>/video/<id>/<name>` (JustWatch's links) | same | ✓ starts playing (movies and episodes; Samsung phone and Sony TV, 2026-11-15) |
-| Crunchyroll | `com.crunchyroll.crunchyroid` | `crunchyroll.com/watch/<id>/…` | `crunchyroll://watch/<id>` | opens the app only — the app claims no web links |
+| Crunchyroll | `com.crunchyroll.crunchyroid` | `crunchyroll.com/watch/<id>/…` (JustWatch has no Android TV link for it) | `crunchyroll://episode?id=<id>` — the app claims no web links, only `crunchyroll://`; its links take the id as a query (Google TV's home screen opened a show with `crunchyroll://series?id=<show id>`, seen with `dumpsys activity activities`) | ✓ the episode starts playing (adb, Sony TV, 2026-11-16); `crunchyroll://watch/<id>` only opened the app. A movie (also a `/watch/<id>` link) is untested |
 | Crunchyroll (phone) | `com.crunchyroll.crunchyroid` | the same; JustWatch's link is an affiliate redirect (`crunchyroll.pxf.io/…?u=<the real link>`, unwrapped) | `www.crunchyroll.com/watch/<episode id>` as is — the phone app claims `/watch/*` and `/<lang>/watch/*` (dumpsys) | ✓ movies and episodes start playing (Samsung phone, 2026-11-15) |
 
 HBO Max show pages use a *different* id from the watch link, so for HBO Max

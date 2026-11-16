@@ -57,8 +57,12 @@ object MediaLink {
     // type PROGRAMME for movies, EPISODE for episodes (as JustWatch sends them).
     private val PEACOCK_DEEP = p("^https?://(?:www\\.)?peacocktv\\.com/deeplink\\?deeplinkData=([^&#]+).*$")
     private val PEACOCK_ASSET = p("^https?://(?:www\\.)?peacocktv\\.com/watch/asset/(movies|tv)/([^?#]*)/([0-9a-f-]{36})$Q")
-    // Crunchyroll: the TV app claims no web links, only crunchyroll://, which
-    // opens the app but not the episode. Keep the web link clean.
+    // Crunchyroll: the TV app claims no web links, only crunchyroll:// (any
+    // path, MainActivity). Its links take the id as a query: Google TV's home
+    // screen opened a show with crunchyroll://series?id=<show id> (dumpsys
+    // activity), and crunchyroll://episode?id=<the web link's id> starts the
+    // episode (adb, Sony TV, 2026-11-16); crunchyroll://watch/<id> only opened
+    // the app. Keep the web link clean.
     private val CRUNCHYROLL = p("^https?://(?:www\\.)?crunchyroll\\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?watch/([A-Z0-9]+)(/[^?#]*)?$Q")
 
     // Apple TV: the app claims all of tv.apple.com. A movie page link opens the
@@ -208,8 +212,8 @@ object MediaLink {
             }
         }
         if (pkg == CRUNCHYROLL_PACKAGE && !appTakesLink) {
-            // The TV app's only link: opens the app (not the episode) so everyone can pick it.
-            CRUNCHYROLL.match(link)?.let { return Launch("crunchyroll://watch/${it.group(1)}") }
+            // The TV app's own link: starts the episode (a movie is an episode too).
+            CRUNCHYROLL.match(link)?.let { return Launch("crunchyroll://episode?id=${it.group(1)}") }
         }
         return Launch(link)
     }

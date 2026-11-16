@@ -71,13 +71,13 @@ class MediaLinkTest {
         assertNull(MediaLink.normalize(show)!!.knownPackage)
     }
 
-    @Test fun crunchyrollKeepsACleanWebLinkAndOpensTheApp() {
+    @Test fun crunchyrollKeepsACleanWebLinkAndStartsTheEpisode() {
         val s = MediaLink.normalize(
             "https://www.crunchyroll.com/watch/G9DU92MQK/one-piece-film-strong-world?irclickid=2kORXdV&utm_source=impact"
         )!!
         assertEquals("https://www.crunchyroll.com/watch/G9DU92MQK/one-piece-film-strong-world", s.link)
         assertEquals(MediaLink.CRUNCHYROLL_PACKAGE, s.knownPackage)
-        assertEquals(MediaLink.Launch("crunchyroll://watch/G9DU92MQK"),
+        assertEquals(MediaLink.Launch("crunchyroll://episode?id=G9DU92MQK"),
             MediaLink.launchFor(s.link, MediaLink.CRUNCHYROLL_PACKAGE))
     }
 
@@ -146,7 +146,7 @@ class MediaLinkTest {
     @Test fun crunchyrollUsesTheWebLinkWhereTheAppTakesIt() {
         val link = "https://www.crunchyroll.com/watch/GE00324920ARSA"
         // the TV app claims no web links: its own scheme (opens the app)
-        assertEquals(MediaLink.Launch("crunchyroll://watch/GE00324920ARSA"), MediaLink.launchFor(link, MediaLink.CRUNCHYROLL_PACKAGE))
+        assertEquals(MediaLink.Launch("crunchyroll://episode?id=GE00324920ARSA"), MediaLink.launchFor(link, MediaLink.CRUNCHYROLL_PACKAGE))
         // a phone's app claims www.crunchyroll.com/watch/*: the link as is
         assertEquals(MediaLink.Launch(link), MediaLink.launchFor(link, MediaLink.CRUNCHYROLL_PACKAGE, appTakesLink = true))
     }

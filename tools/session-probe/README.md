@@ -153,7 +153,7 @@ landed on the TV home screen instead — use the flags.
 | Netflix (`com.netflix.ninja`) | `https://www.netflix.com/watch/<id>` with `-e source 30` | starts playing after a few seconds; without `source` it only opened the app |
 | HBO Max (`com.wbd.stream`) | `https://play.hbomax.com/video/watch/<id>` | opens the movie; `www.hbomax.com` links aren't claimed by the app ("no app can perform this action") |
 | Starz | `https://www.starz.com/us/en/play/<id>` | starts playing |
-| Crunchyroll (`com.crunchyroll.crunchyroid`) | `crunchyroll://watch/<id>` | opens the app only; it claims no web links |
+| Crunchyroll (`com.crunchyroll.crunchyroid`) | `crunchyroll://episode?id=<id>` | starts the episode (2026-11-16); `crunchyroll://watch/<id>` only opened the app. It claims no web links |
 | Apple TV (`com.apple.atve.androidtv.appletv`) | `https://tv.apple.com/us/movie/<name>/<id>?action=play` | starts playing after picking a profile; without `?action=play` it opens the movie page |
 
 Use `adb shell dumpsys package <pkg> | grep -E "Scheme:|Authority:|Path:"`
