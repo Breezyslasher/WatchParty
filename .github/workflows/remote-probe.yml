@@ -1,0 +1,33 @@
+name: Relay remote probe
+
+# Manually run: starts the relay from Kodi-Addons (service.watchparty) and
+# checks that its remote page's searches reach JustWatch through the relay
+# (tools/probe/remote_fetch.py).
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Kodi-Addons branch with the relay'
+        required: false
+        default: 'claude/kodi-sync-research-ekx3xo'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Breezyslasher/Kodi-Addons
+          ref: ${{ inputs.ref }}
+          path: kodi
+          sparse-checkout: service.watchparty
+      - name: Probe
+        run: |
+          python3 kodi/service.watchparty/relay_standalone.py --port 8799 &
+          sleep 2
+          python3 tools/probe/remote_fetch.py http://127.0.0.1:8799
