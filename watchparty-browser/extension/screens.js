@@ -121,7 +121,8 @@ export function browseScreen(app) {
     }
     const my = ++generation;
     if (!(await app.justWatchAccess())) {
-      empty.textContent = 'Watch Party needs access to JustWatch to search.';
+      empty.textContent = app.noSearchText || 'Watch Party needs access to JustWatch to search.';
+      empty.hidden = false;
       return;
     }
     grid.replaceChildren();

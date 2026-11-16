@@ -33,6 +33,16 @@ Not in an extension store yet; load it from this folder:
   **Load Temporary Add-on…**, and pick `extension/manifest.json` or the
   zipped extension (it's removed when Firefox restarts).
 
+**No install, no syncing: the relay's remote.** The relay also serves
+`/remote` (e.g. `https://relay.example.com/remote?room=MOVIE7`): a web page
+that runs the room from any browser — Browse, start a title for everyone,
+play, pause, seek, go to a time, stop — without playing anything itself (a web
+page can't drive another site's video; that's what this extension is for).
+Its screens are this extension's own, copied in with
+`tools/vendor-remote.sh <path to service.watchparty>`: re-run it after
+changing `links.js`, `justwatch.js`, `hbomax.js`, `relay.js`, `ui.js`,
+`screens.js` or `room.css`.
+
 ## Use
 
 Click the Watch Party button in the toolbar: the Watch Party page opens in a
