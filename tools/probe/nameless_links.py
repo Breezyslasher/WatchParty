@@ -64,7 +64,8 @@ def variants(link):
         return cid, [('as given', link),
                      ('movies/video/<id>', base + pre + 'movies/video/%s/' % cid),
                      ('movies/<id>', base + pre + 'movies/%s/' % cid),
-                     ('movies/x/<id>', base + pre + 'movies/x/%s/' % cid)]
+                     ('movies/x/<id>', base + pre + 'movies/x/%s/' % cid),
+                     ('shows/video/<id> (a movie as an episode)', base + pre + 'shows/video/%s/' % cid)]
     m = re.match(r'^(/(?:[a-z]{2}/)?)shows/([^/]+)/video/([A-Za-z0-9_-]+)(/.*)?$', p)
     if 'paramountplus' in u.netloc and m:
         pre, _, cid, _ = m.groups()
@@ -80,7 +81,9 @@ def variants(link):
         keep = urlencode([(k, v) for k, v in q if k in ('showId', 'playableId')])
         out = [('as given', link),
                ('<kind>/<id>', '%s/%s/%s/%s' % (base, cc, kind, umc)),
-               ('<kind>/x/<id>', '%s/%s/%s/x/%s' % (base, cc, kind, umc))]
+               ('<kind>/x/<id>', '%s/%s/%s/x/%s' % (base, cc, kind, umc)),
+               ('no country', '%s/%s/%s' % (base, kind, umc)),
+               ('other kind', '%s/%s/%s/%s' % (base, cc, 'episode' if kind == 'movie' else 'movie', umc))]
         if kind == 'episode':
             out.insert(1, ('name kept, no showId', '%s/%s/%s/%s/%s' % (base, cc, kind, m.group(3), umc)))
             if keep:

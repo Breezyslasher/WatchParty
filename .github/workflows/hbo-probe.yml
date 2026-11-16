@@ -1,0 +1,28 @@
+name: HBO Max id probe
+
+# Manually run: do HBO Max's public pages give the edit / show ids that
+# slyguy.max plays (tools/probe/hbo_ids.py)? Signed out.
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: '"Title:MOVIE" or "Title:SHOW", separated by "|"'
+        required: false
+        default: 'Dune: Part Two:MOVIE|The White Lotus:SHOW'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - name: Probe
+        env:
+          TITLES: ${{ inputs.titles }}
+        run: |
+          IFS='|' read -ra list <<< "$TITLES"
+          python3 tools/probe/hbo_ids.py "${list[@]}"
