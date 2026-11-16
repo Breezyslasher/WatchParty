@@ -26,6 +26,11 @@ class AddonLinksTest {
             "plugin://plugin.video.tubitv/?mode=GV&url=200012345%7C300012345%7C1" to "https://tubitv.com/tv-shows/200012345",
             "plugin://plugin.video.crunchyroll/video/GY5P48XEY/GRDQPM1ZY/abc123" to "https://www.crunchyroll.com/watch/GRDQPM1ZY",
             "plugin://plugin.video.crunchyroll/video/G4PH0WXVJ/abc123" to "https://www.crunchyroll.com/watch/G4PH0WXVJ",
+            // SkyOTT (Peacock): the slug is the web link's path (the peacock probe)
+            "plugin://plugin.video.skyott/?action=play&slug=%2Fmovies%2Fthe-grinch%2F153a1aee-b720-356e-bac2-6a9b85fb81b3" to
+                "https://www.peacocktv.com/watch/asset/movies/the-grinch/153a1aee-b720-356e-bac2-6a9b85fb81b3",
+            "plugin://plugin.video.skyott/?action=play&slug=%2Ftv%2Fthe-office%2F4902514835143843112%2Fseasons%2F1%2Fepisodes%2Fpilot-episode-1%2F58fabbf4-9291-3575-bcdc-bd25eee192c8" to
+                "https://www.peacocktv.com/watch/asset/tv/the-office/4902514835143843112/seasons/1/episodes/pilot-episode-1/58fabbf4-9291-3575-bcdc-bd25eee192c8",
         )
         for ((plugin, link) in cases) assertEquals(plugin, link, AddonLinks.webLink(plugin))
     }
@@ -37,6 +42,7 @@ class AddonLinksTest {
             "plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Movie",
             "plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C100012345",
             "plugin://plugin.video.netflix/directory/home/",
+            "plugin://plugin.video.skyott/?action=play&service_key=NBCU",   // a live channel
             "plugin://slyguy.disney.plus/?_=play_trailer&deeplink_id=x",
             "smb://nas/movie.mkv", "", null,
         )) assertNull(plugin, AddonLinks.webLink(plugin))
@@ -55,6 +61,11 @@ class AddonLinksTest {
             "item":{"file":"http://127.0.0.1:52103/manifest.mpd","label":"Thunderbolts*",
             "plugin":"plugin://slyguy.max/?_=play&edit_id=1"}}""")
         assertNull((m.invoke(RelayClient("relay.example.com", "X"), other) as RoomState).item?.link)
+        // a SkyOTT (Peacock) title opens by Peacock's PLAY deeplink, the form that starts playback
+        val peacock = org.json.JSONObject("""{"seq":1,"item":{"file":"http://127.0.0.1:57012/manifest.mpd","label":"The Grinch",
+            "plugin":"plugin://plugin.video.skyott/?action=play&slug=%2Fmovies%2Fthe-grinch%2F153a1aee-b720-356e-bac2-6a9b85fb81b3"}}""")
+        assertEquals(MediaLink.peacockPlay("153a1aee-b720-356e-bac2-6a9b85fb81b3", "PROGRAMME"),
+            (m.invoke(RelayClient("relay.example.com", "X"), peacock) as RoomState).item?.link)
 
         // the app that opens the link is named on the item (SyncService.localize): it opens like an app link
         val core = SyncCore()

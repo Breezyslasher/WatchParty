@@ -233,7 +233,8 @@ export function parseIdentity(it) {
  * (play/movie/<id>/, play/show/…/episode/<id>/), YouTube (play/?video_id=),
  * SlyGuy Disney+ (?_=play&deeplink_id=) and Hulu (?_=play&id=EAB::<id>::…),
  * Amazon (?mode=PlayVideo&asin=), Tubi (?mode=GV&url=), Crunchyroll
- * (/video/[<series>/]<episode>/<stream>). Others (Paramount+, HBO Max,
+ * (/video/[<series>/]<episode>/<stream>), SkyOTT for Peacock (?action=play&slug=
+ * <web link's path>, probed 2026-11-16). Others (Paramount+, HBO Max,
  * Discovery+, Apple TV) have no web link in their paths: null.
  */
 export function pluginLink(plugin) {
@@ -273,6 +274,11 @@ export function pluginLink(plugin) {
       const parts = arg('mode') === 'GV' ? (arg('url') || '').split('|') : [];
       if (!parts.length || !/^\d+$/.test(parts[0])) return null;
       return parts.length >= 3 ? `https://tubitv.com/tv-shows/${parts[0]}` : `https://tubitv.com/movies/${parts[0]}`;
+    }
+    case 'plugin.video.skyott': {
+      // Peacock (Paco8's SkyOTT): the slug is the web link's path (tools/probe/peacock_slug.py)
+      const slug = arg('action') === 'play' && arg('slug');
+      return slug && /^\/(movies|tv)\/[^?#\s]+$/.test(slug) ? `https://www.peacocktv.com/watch/asset${slug}` : null;
     }
     case 'plugin.video.crunchyroll': {
       if (path[0] !== 'video') return null;

@@ -20,6 +20,12 @@ import java.net.URLDecoder
  *  - plugin.video.tubitv: ?mode=GV&url=<id> → tubitv.com/movies/<id>;
  *    url=<episode>|<series>|<season> → tubitv.com/tv-shows/<episode>
  *  - plugin.video.crunchyroll: /video/[<series>/]<episode>/<stream> → crunchyroll.com/watch/<episode>
+ *  - plugin.video.skyott (Paco8; Peacock): ?action=play&slug=<slug> →
+ *    peacocktv.com/watch/asset<slug>. The slug is the web link's path: the
+ *    peacock probe (tools/probe/peacock_slug.py, 2026-11-16) looked up
+ *    /movies/the-grinch/153a1aee-… and /tv/the-office/…/episodes/…/58fabbf4-…
+ *    with the addon's own client. The addon also plays SkyShowtime and NOW,
+ *    whose paths look the same; Peacock is assumed (the US service).
  *
  * Not converted (no web link in the path): Paramount+ (its links need the
  * title's name), HBO Max and Discovery+ (edit ids), Apple TV (its links need
@@ -70,6 +76,11 @@ object AddonLinks {
                     parts.size >= 3 -> "https://tubitv.com/tv-shows/${parts[0]}"
                     else -> "https://tubitv.com/movies/${parts[0]}"
                 }
+            }
+            "plugin.video.skyott" -> {
+                val slug = args["slug"]?.takeIf { args["action"] == "play" } ?: return null
+                if (!slug.matches(Regex("/(movies|tv)/[^?#\\s]+"))) return null
+                "https://www.peacocktv.com/watch/asset$slug"
             }
             "plugin.video.crunchyroll" -> {
                 if (path.firstOrNull() != "video") return null

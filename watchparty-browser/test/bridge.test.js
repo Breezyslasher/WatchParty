@@ -95,11 +95,14 @@ test("Kodi addons' paths become web links", () => {
     ['plugin://plugin.video.tubitv/?mode=GV&url=200012345%7C300012345%7C1', 'https://tubitv.com/tv-shows/200012345'],
     ['plugin://plugin.video.crunchyroll/video/GY5P48XEY/GRDQPM1ZY/abc123', 'https://www.crunchyroll.com/watch/GRDQPM1ZY'],
     ['plugin://plugin.video.crunchyroll/video/G4PH0WXVJ/abc123', 'https://www.crunchyroll.com/watch/G4PH0WXVJ'],
+    ['plugin://plugin.video.skyott/?action=play&slug=%2Fmovies%2Fthe-grinch%2F153a1aee-b720-356e-bac2-6a9b85fb81b3',
+      'https://www.peacocktv.com/watch/asset/movies/the-grinch/153a1aee-b720-356e-bac2-6a9b85fb81b3'],
   ];
   for (const [plugin, link] of cases) assert.equal(pluginLink(plugin), link, plugin);
   for (const plugin of ['plugin://slyguy.paramount.plus/?_=play&video_id=abc', 'plugin://slyguy.max/?_=play&edit_id=1',
     'plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Movie', 'plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C1',
-    'plugin://plugin.video.netflix/directory/home/', 'smb://nas/x.mkv', '', null]) assert.equal(pluginLink(plugin), null, String(plugin));
+    'plugin://plugin.video.netflix/directory/home/', 'plugin://plugin.video.skyott/?action=play&service_key=NBCU',
+    'smb://nas/x.mkv', '', null]) assert.equal(pluginLink(plugin), null, String(plugin));
 });
 
 test("a Kodi addon's title opens by its web link, never Kodi's own stream", () => {

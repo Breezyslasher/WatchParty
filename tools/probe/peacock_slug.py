@@ -10,6 +10,13 @@ addon's own SkyShowtime client (signed out), and prints the slugs the
 addon's search returns for comparison.
 
     python3 peacock_slug.py --addon plugin.video.skyott "The Grinch:MOVIE" "The Office:SHOW"
+
+Result (2026-11-16, signed out): the slug is the link's path. The Grinch's
+/movies/the-grinch/153a1aee-… and The Office S1 E1/E2's
+/tv/the-office/4902514835143843112/seasons/1/episodes/…/<id> all resolve
+(content_id GMO_…, provider_variant_id = the trailing id = the deeplink's
+pvid). The pvid alone (get_video_info_uuid) finds nothing, so Peacock's play
+deeplink can't be turned back into a slug.
 """
 import argparse
 import json
