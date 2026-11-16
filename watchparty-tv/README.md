@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.15** (Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.15.1** (Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -248,7 +248,7 @@ JustWatch's fields were checked against the live API with
    watched it opens the first list that has something) and the order:
    **Recently updated** (the default: the last progress you logged first,
    `sort=updated_desc`), **Recently added**, **Title A–Z** or **Your
-   rating** — remembered. A dropdown opens a short list (Up / Down and OK on
+   rating** — remembered. A dropdown opens a short list just under its button (Up / Down and OK on
    a remote). Without a sort Yamtrack lists titles in the order they were
    first added; a server whose API rejects the sort (an older one) is asked
    again without it. Or **Search** for a movie or a TV show (pick which with

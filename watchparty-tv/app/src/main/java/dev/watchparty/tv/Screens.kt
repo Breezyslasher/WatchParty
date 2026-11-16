@@ -620,22 +620,22 @@ class BrowseScreen(host: Host) : ContentScreen(host) {
         val known = counts[tab]
         val shown = if (known == null) STATUSES.map { it.first }
         else YamtrackClient.statusesWithTitles(known, STATUSES.map { it.first }, ALL)
-        ChoiceDialog(c, "Show", STATUSES.filter { it.first in shown }.map { (code, name) ->
+        ChoiceDialog(c, STATUSES.filter { it.first in shown }.map { (code, name) ->
             ChoiceDialog.Option(code.toString(), name, known?.get(code)?.takeIf { it >= 0 }?.toString(), code == status)
         }) { key ->
             status = key.toInt()
             reload()
             statusButton.requestFocus()
-        }.show()
+        }.show(statusButton)
     }
 
     private fun pickSort() {
-        ChoiceDialog(c, "Order", YamtrackClient.SORTS.map { (key, name) -> ChoiceDialog.Option(key, name, chosen = key == sort) }) { key ->
+        ChoiceDialog(c, YamtrackClient.SORTS.map { (key, name) -> ChoiceDialog.Option(key, name, chosen = key == sort) }) { key ->
             sort = key
             host.prefs.edit().putString(KEY_SORT, key).apply()
             reload()
             sortButton.requestFocus()
-        }.show()
+        }.show(sortButton)
     }
 
     private fun updateHeader() {
