@@ -73,6 +73,18 @@ test("a Kodi episode is found by its show's title, season and episode", async ()
   assert.deepEqual(offers.map(o => o.link), ['https://www.disneyplus.com/play/2']);   // Pluto's show page left out
   assert.equal(asked[0], 'search Andor SHOW');
   assert.deepEqual(await jw.offersFor(parseIdentity({ type: 'episode', show: 'Andor', season: 3, episode: 1 })), []);
+  // a show sharing its name with another: its own ids pick it, and the wrong one is no match
+  asked.length = 0;
+  assert.deepEqual(await jw.offersFor(parseIdentity({ type: 'episode', show: 'Andor', season: 1, episode: 2, year: 2022,
+    ids: { show_tmdb: '99999' } })), []);
+  assert.deepEqual(asked, ['search Andor SHOW']);
+});
+
+test("an episode's item carries its show's premiere year", () => {
+  const item = roomItem('https://www.netflix.com/watch/81000000', 'One Piece', 'Netflix',
+    { type: 'episode', show: 'One Piece', season: 1, episode: 1, year: 2023, ids: { show_tmdb: '111110' } });
+  assert.equal(item.year, 2023);
+  assert.equal(item.ids.show_tmdb, '111110');
 });
 
 // ── Kodi streaming addons' paths (the Android app's AddonLinksTest cases) ──

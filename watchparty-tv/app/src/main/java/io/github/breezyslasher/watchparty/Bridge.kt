@@ -27,8 +27,10 @@ object Bridge {
                 ?: return emptyList()
             return JustWatch.discoveryPlayLinks(titleOffers(t.id))
         }
-        // an episode's ids are the episode's, not the show's: find the show by its title
-        val show = find(identity.show ?: return emptyList(), null, "SHOW", null, null) ?: return emptyList()
+        // an episode's ids are the episode's, not the show's: find the show by its title, and
+        // its show_tmdb / show_imdb and premiere year when sent (Kodi 2026.11.17.8, shows sharing a name)
+        val show = find(identity.show ?: return emptyList(), identity.ids["show_tmdb"], "SHOW", identity.ids["show_imdb"],
+            identity.year) ?: return emptyList()
         val season = seasons(show.id).firstOrNull { it.number == identity.season } ?: return emptyList()
         val list = episodes(season.id)
         val episode = list.firstOrNull { it.number == identity.episode } ?: return emptyList()

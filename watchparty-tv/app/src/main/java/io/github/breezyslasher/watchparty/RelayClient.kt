@@ -181,6 +181,7 @@ class RelayClient(baseUrl: String, private val room: String) {
                     identity.year?.let { item.put("year", it) }
                 } else {
                     item.put("show", identity.show).put("season", identity.season).put("episode", identity.episode)
+                    identity.year?.let { item.put("year", it) }   // the show's premiere year
                 }
                 for ((k, v) in identity.ids) ids.put(k, v)
             }

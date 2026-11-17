@@ -976,8 +976,8 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private fun identity(): Identity? {
         if (show) {
             val (season, episode) = picked ?: return null
-            val id = Identity.episode(item.title, season, episode)
-            return wbd?.let { id.copy(ids = mapOf("wbd" to it)) } ?: id
+            val ids = listOfNotNull(tmdb?.let { "show_tmdb" to it }, wbd?.let { "wbd" to it }).toMap()
+            return Identity.episode(item.title, season, episode, Ui.year(detailDate ?: item.date)?.toIntOrNull(), ids)
         }
         return Identity.movie(item.title, Ui.year(detailDate ?: item.date)?.toIntOrNull(), tmdb)
     }

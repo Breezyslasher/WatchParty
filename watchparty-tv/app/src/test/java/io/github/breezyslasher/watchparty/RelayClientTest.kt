@@ -83,6 +83,12 @@ class RelayClientTest {
         assertEquals(1, episode.getInt("episode"))
         // the label stays the item's title, as before
         assertEquals("Andor · S1 · E1 · Kassa", episode.getString("title"))
+        assertFalse(episode.has("year"))
+        // the show's id and premiere year, which tell same-named shows apart
+        val onePiece = RelayClient.appItem(link, "One Piece", "com.netflix.ninja",
+            Identity.episode("One Piece", 1, 1, 2023, mapOf("show_tmdb" to "111110")))
+        assertEquals(2023, onePiece.getInt("year"))
+        assertEquals("111110", onePiece.getJSONObject("ids").getString("show_tmdb"))
 
         // without an identity: as before
         val plain = RelayClient.appItem(link, "X", MediaLink.DISNEY_PACKAGE)

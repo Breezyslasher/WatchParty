@@ -72,8 +72,10 @@ data class Identity(
             Identity("movie", title = title, year = year?.takeIf { it > 0 },
                 ids = if (tmdbId.isNullOrBlank()) emptyMap() else mapOf("tmdb" to tmdbId))
 
-        fun episode(show: String, season: Int, episode: Int) =
-            Identity("episode", show = show, season = season, episode = episode)
+        /** [year] is the show's premiere year and [ids] its show_tmdb etc.: shows can share a
+         *  name (One Piece, 1999 and 2023), and Kodi's library match tells them apart by these. */
+        fun episode(show: String, season: Int, episode: Int, year: Int? = null, ids: Map<String, String> = emptyMap()) =
+            Identity("episode", show = show, season = season, episode = episode, year = year?.takeIf { it > 0 }, ids = ids)
     }
 }
 

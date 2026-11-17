@@ -43,6 +43,13 @@ class BridgeTest {
         assertEquals(listOf("SHOW Andor tmdb=null imdb=null year=null"), searched)
     }
 
+    @Test fun aKodiEpisodesShowIsFoundByTheShowsIdsAndYear() {
+        // shows share names (One Piece, 1999 and 2023): Kodi sends its show's ids and premiere year
+        Bridge.offers(Identity.episode("One Piece", 1, 1, 2023, mapOf("tmdb" to "2229460", "show_tmdb" to "111110", "show_imdb" to "tt11737520")),
+            ::find, titleOffers = { emptyList() }, seasons = { emptyList() }, episodes = { emptyList() })
+        assertEquals(listOf("SHOW One Piece tmdb=111110 imdb=tt11737520 year=2023"), searched)
+    }
+
     @Test fun nothingWhenTheSeasonOrEpisodeIsMissing() {
         assertEquals(emptyList<JustWatch.Offer>(), Bridge.offers(Identity.episode("Andor", 3, 1), ::find,
             titleOffers = { emptyList() }, seasons = { listOf(JustWatch.Season("tss1", 1, "")) }, episodes = { emptyList() }))
