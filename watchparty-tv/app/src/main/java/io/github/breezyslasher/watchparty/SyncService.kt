@@ -32,6 +32,8 @@ class SyncService : Service() {
 
     companion object {
         private const val TAG = "WatchPartyTV"
+        /** androidx MediaMetadataCompat.METADATA_KEY_ADVERTISEMENT (1 = an ad). */
+        private const val METADATA_KEY_ADVERTISEMENT = "android.media.metadata.ADVERTISEMENT"
         private const val CHANNEL = "sync"
         private const val NOTIFICATION_ID = 1
         private const val POLL_MS = 1_000L
@@ -509,6 +511,7 @@ class SyncService : Service() {
     private fun localState(c: MediaController?): LocalState {
         if (c == null) return LocalState(null, -1, LocalPlay.OTHER, null)
         val s = c.playbackState
+        trace(c, s)
         val play = when (s?.state) {
             PlaybackState.STATE_PLAYING -> LocalPlay.PLAYING
             PlaybackState.STATE_PAUSED -> LocalPlay.PAUSED
@@ -522,6 +525,63 @@ class SyncService : Service() {
             title = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
             durationMs = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0 } ?: -1,
         )
+    }
+
+    // What the playing app reports, for finding out how apps show ads: a
+    // line whenever its state, length, title, metadata keys, the standard
+    // ad flag (androidx's METADATA_KEY_ADVERTISEMENT, set by apps on
+    // ExoPlayer's MediaSessionConnector), custom actions ("Skip ad"?) or
+    // playback extras change, and whenever its position jumps. Read with
+    // adb logcat -s WatchPartyTV.
+    private var traceKey: String? = null
+    private var tracePosMs = -1L
+    private var traceAtMs = 0L
+    private var tracePlaying = false
+
+    private fun trace(c: MediaController, s: PlaybackState?) {
+        val md = c.metadata
+        val keys = md?.keySet()?.sorted()?.joinToString(",") ?: "-"
+        val ad = md?.takeIf { it.containsKey(METADATA_KEY_ADVERTISEMENT) }?.getLong(METADATA_KEY_ADVERTISEMENT)
+        val key = listOf(
+            c.packageName, s?.state, md?.getLong(MediaMetadata.METADATA_KEY_DURATION),
+            md?.getString(MediaMetadata.METADATA_KEY_TITLE), md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE),
+            keys, ad, s?.customActions?.joinToString(",") { it.action + "/" + it.name },
+            s?.extras?.keySet()?.sorted()?.joinToString(","),
+        ).joinToString(" | ")
+        val now = System.currentTimeMillis()
+        val pos = if (s != null) positionOf(s) else -1
+        val predicted = if (tracePosMs >= 0) tracePosMs + (if (tracePlaying) now - traceAtMs else 0) else -1
+        val jumped = pos >= 0 && predicted >= 0 && Math.abs(pos - predicted) > 2_000
+        if (key != traceKey || jumped) {
+            Log.i(TAG, "session ${c.packageName}: state ${s?.state} (${stateName(s?.state)}) at ${"%.1f".format(pos / 1000.0)}s" +
+                (if (jumped) " (jumped from ${"%.1f".format(predicted / 1000.0)}s)" else "") +
+                ", length ${md?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.let { "%.1f".format(it / 1000.0) + "s" }}" +
+                ", title ${md?.getString(MediaMetadata.METADATA_KEY_TITLE)}" +
+                ", subtitle ${md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)}" +
+                ", ad flag ${ad ?: "absent"}" +
+                ", metadata keys [$keys]" +
+                ", custom actions [${s?.customActions?.joinToString(", ") { it.name.toString() } ?: ""}]" +
+                ", extras [${s?.extras?.keySet()?.sorted()?.joinToString(",") ?: ""}]")
+            traceKey = key
+        }
+        tracePosMs = pos
+        traceAtMs = now
+        tracePlaying = s?.state == PlaybackState.STATE_PLAYING
+    }
+
+    private fun stateName(state: Int?): String = when (state) {
+        PlaybackState.STATE_PLAYING -> "playing"
+        PlaybackState.STATE_PAUSED -> "paused"
+        PlaybackState.STATE_BUFFERING -> "buffering"
+        PlaybackState.STATE_CONNECTING -> "connecting"
+        PlaybackState.STATE_STOPPED -> "stopped"
+        PlaybackState.STATE_NONE -> "none"
+        PlaybackState.STATE_ERROR -> "error"
+        PlaybackState.STATE_FAST_FORWARDING -> "fast-forwarding"
+        PlaybackState.STATE_REWINDING -> "rewinding"
+        PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
+        PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> "skipping"
+        else -> "?"
     }
 
     /** Last reported position, advanced by elapsed time while playing. */

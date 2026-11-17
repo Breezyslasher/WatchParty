@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17.2** (polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.3** (logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -445,6 +445,26 @@ adb shell am start -W -f 0x10008000 -a android.intent.action.VIEW -d "WATCH_LINK
 Note whether it starts playing, opens the title's page, or just opens the
 app. Then check the app can be controlled: Session Probe's
 **Test what's playing in 20 s** must pass pause, seek and play.
+
+## Ads (not handled yet)
+
+Nothing in Watch Party knows an ad is playing: an ad break looks like
+whatever the app reports. Depending on that, a member's ad may pause the
+room (reported as loading), get seeked every 4 s and leave them an ad's
+length behind (position frozen), or — the bad case — look like a seek and
+send everyone back to the ad's position (the ad's own position, 0–30 s).
+Untested on any service.
+
+0.17.3 logs what the playing app reports, to find out: a `session` line
+whenever its state, length, title, metadata keys, the standard ad flag
+(`android.media.metadata.ADVERTISEMENT`), custom actions or playback
+extras change, and whenever its position jumps. To read it, join a room,
+start a title with ads (Prime Video, Tubi) from Browse, and while it plays
+through an ad break:
+
+```
+adb logcat -s WatchPartyTV
+```
 
 ## Releasing (Google Play)
 
