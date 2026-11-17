@@ -251,11 +251,19 @@ class SyncCore(
 
         // 2. The user did something here: tell the room, and let the room's
         //    answer drive everyone (including us) next tick.
+        //    A seek counts from the moment the app has played STARTED_MS (we're
+        //    past the start-up check above), even in the open grace and right
+        //    after our own command: a jump that lands away from the room isn't
+        //    our seek landing (that lands at the room). Skipping ahead in Tubi
+        //    4 s after a catch-up seek, and 11 s after it opened, was taken for
+        //    drift and seeked back, again and again (Sony TV, 2026-11-17).
+        //    Play / pause changes still wait out our own commands' echo.
         val prev = last
-        if (prev != null && prev.pkg == local.pkg && !suppressed && !inGrace) {
+        if (prev != null && prev.pkg == local.pkg) {
             val wasPlaying = prev.play == LocalPlay.PLAYING
             val nowPlaying = local.play == LocalPlay.PLAYING
-            if (prev.play != LocalPlay.BUFFERING && local.play != LocalPlay.BUFFERING &&
+            if (!suppressed && !inGrace &&
+                prev.play != LocalPlay.BUFFERING && local.play != LocalPlay.BUFFERING &&
                 wasPlaying != nowPlaying && nowPlaying != !room.paused
             ) {
                 actions += Action.Send(if (nowPlaying) "play" else "pause", maxOf(0.0, localSec))
@@ -273,6 +281,8 @@ class SyncCore(
                 ) {
                     actions += Action.Send("seek", localSec)
                     suppressUntilMs = nowMs + SUPPRESS_MS
+                    // not a correction the app refused: the room is coming here
+                    correctionGapSec = -1.0
                     remember(local, nowMs)
                     return actions
                 }

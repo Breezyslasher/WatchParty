@@ -95,6 +95,29 @@ class SyncCoreTest {
         assertTrue(echo.none { it is Action.Send })
     }
 
+    @Test fun aUserSeekRightAfterOurCorrectionIsSent() {
+        // Tubi: skipping ahead 4 s after a catch-up seek was seeked back
+        val (core, t) = opened()
+        assertEquals(listOf<Action>(Action.SeekTo(110_000)), core.tick(room(), local(125.0), t, 1010.0))
+        assertTrue(core.tick(room(), local(111.0), t + 1_000, 1011.0).none { it is Action.Send })
+        assertEquals(emptyList<Action>(), core.tick(room(), local(112.0), t + 2_000, 1012.0))
+        assertEquals(listOf<Action>(Action.Send("seek", 1343.0)), core.tick(room(), local(1343.0), t + 3_000, 1013.0))
+    }
+
+    @Test fun aUserSeekSoonAfterOpeningIsSentOnceTheAppHasStarted() {
+        val core = SyncCore()
+        assertEquals(listOf<Action>(Action.Open(link, disney)), core.tick(room(), local(0.0, LocalPlay.OTHER, null), 0L, 1000.0))
+        // the app comes up at its own resume point: not the user, and too early to touch
+        assertEquals(emptyList<Action>(), core.tick(room(), local(1811.0), 1_000L, 1001.0))
+        assertEquals(emptyList<Action>(), core.tick(room(), local(1812.0), 2_000L, 1002.0))
+        // played 3 s: caught up with the room (a correction, not sent to the room)
+        assertEquals(listOf<Action>(Action.SeekTo(105_000)), core.tick(room(), local(1815.0), 5_000L, 1005.0))
+        assertTrue(core.tick(room(), local(106.0), 6_000L, 1006.0).none { it is Action.Send })
+        assertEquals(emptyList<Action>(), core.tick(room(), local(107.0), 7_000L, 1007.0))
+        // 8 s after opening (still in the grace) the user skips ahead: the room follows
+        assertEquals(listOf<Action>(Action.Send("seek", 2182.0)), core.tick(room(), local(2182.0), 8_000L, 1008.0))
+    }
+
     @Test fun someoneElsesPauseIsFollowedNotEchoed() {
         val (core, t) = opened()
         core.tick(room(), local(110.0), t, 1010.0)

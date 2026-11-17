@@ -125,3 +125,25 @@ test('starting up is not buffering for the room', () => {
   other.tick(room(), local(0, OTHER, null), 0, 1000);
   assert.equal(other.isStarting(OPEN_GRACE_MS + 1), false);
 });
+
+test('a user seek right after our correction is sent to the room', () => {
+  // on a TV, skipping ahead 4 s after a catch-up seek was seeked back
+  const [core, t] = opened();
+  assert.deepEqual(core.tick(room(), local(125), t, 1010), [{ type: 'seek', ms: 110000 }]);
+  assert.ok(core.tick(room(), local(111), t + 1000, 1011).every(a => a.type !== 'send'));
+  assert.deepEqual(core.tick(room(), local(112), t + 2000, 1012), []);
+  assert.deepEqual(core.tick(room(), local(1343), t + 3000, 1013), [{ type: 'send', cmd: 'seek', positionSec: 1343 }]);
+});
+
+test('a user seek soon after opening is sent once the title has started', () => {
+  const core = new SyncCore();
+  assert.deepEqual(core.tick(room(), local(0, OTHER, null), 0, 1000), [{ type: 'open', link }]);
+  // the site resumes where this browser left off: not the user, too early to touch
+  assert.deepEqual(core.tick(room(), local(1811), 1000, 1001), []);
+  assert.deepEqual(core.tick(room(), local(1812), 2000, 1002), []);
+  const caughtUp = core.tick(room(), local(1815), 5000, 1005);
+  assert.ok(caughtUp.some(a => a.type === 'seek') && caughtUp.every(a => a.type !== 'send'));
+  assert.ok(core.tick(room(), local(106), 6000, 1006).every(a => a.type !== 'send'));
+  assert.deepEqual(core.tick(room(), local(107), 7000, 1007), []);
+  assert.deepEqual(core.tick(room(), local(2182), 8000, 1008), [{ type: 'send', cmd: 'seek', positionSec: 2182 }]);
+});

@@ -126,10 +126,16 @@ export class SyncCore {
 
     // 2. The user did something here: tell the room; its answer drives everyone.
     const prev = this.last;
-    if (prev && prev.service === local.service && !suppressed && !inGrace) {
+    // A seek counts from the moment the title has played STARTED_MS (past
+    // the start-up check above), even in the open grace and right after our
+    // own command: a jump that lands away from the room isn't our seek
+    // landing (that lands at the room). On a TV, skipping ahead 4 s after a
+    // catch-up seek was taken for drift and seeked back, again and again.
+    // Play / pause changes still wait out our own commands' echo.
+    if (prev && prev.service === local.service) {
       const wasPlaying = prev.play === PLAYING;
       const nowPlaying = local.play === PLAYING;
-      if (prev.play !== BUFFERING && local.play !== BUFFERING &&
+      if (!suppressed && !inGrace && prev.play !== BUFFERING && local.play !== BUFFERING &&
           wasPlaying !== nowPlaying && nowPlaying !== !room.paused) {
         actions.push({ type: 'send', cmd: nowPlaying ? 'play' : 'pause', positionSec: Math.max(0, localSec) });
         this.suppressUntilMs = nowMs + SUPPRESS_MS;
