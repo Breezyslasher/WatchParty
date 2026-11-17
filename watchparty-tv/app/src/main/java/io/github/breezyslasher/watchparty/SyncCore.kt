@@ -23,7 +23,9 @@ package io.github.breezyslasher.watchparty
  *    the room's play / pause followed; once the title is back (STARTED_MS
  *    to settle) it catches up. An ad shows as the app's length dropping to
  *    an ad's (Tubi on a Sony TV, 2026-11-17: 2 h, then 15 s and 30 s, the
- *    position counting from 0 — no ad flag), see isAd;
+ *    position counting from 0 — no ad flag), see isAd; or as the app
+ *    playing with its position frozen while it keeps reporting (Prime
+ *    Video: no length or title at all), LocalState.stalled;
  *  - a just-launched app is left alone (no play, pause or seek) until it has
  *    played for STARTED_MS, or OPEN_GRACE_MS passes: seeking HBO Max's player
  *    while it started (5 s in, the room ahead) closed it on a phone. Its
@@ -111,6 +113,9 @@ data class LocalState(
     val play: LocalPlay,
     val title: String?,
     val durationMs: Long = -1,   // from the session's metadata, if it says
+    /** Playing, but its position hasn't moved for a while though it keeps
+     *  reporting (Prime Video during an ad): see SyncService.stalled. */
+    val stalled: Boolean = false,
 )
 
 sealed class Action {
@@ -270,10 +275,11 @@ class SyncCore(
         // An ad: leave it alone (seeking it does nothing, or seeks inside the
         // ad; its position isn't the title's, so a "jump" isn't the user),
         // only follow the room's pause and play.
-        if (isAd(local, room.expectedSec(serverNowSec))) {
+        if (local.stalled || isAd(local, room.expectedSec(serverNowSec))) {
             if (!inAd) {
                 inAd = true
-                actions += Action.Note("An ad is playing here — catching up when it ends")
+                actions += Action.Note(if (local.stalled) "Playback here isn't moving (an ad?) — catching up when it does"
+                    else "An ad is playing here — catching up when it ends")
             }
             if (!suppressed && local.play != LocalPlay.BUFFERING) {
                 if (room.paused && local.play == LocalPlay.PLAYING) {

@@ -308,4 +308,19 @@ class SyncCoreTest {
         assertEquals(listOf<Action>(Action.SeekTo(110_000)), core.tick(room(), clip, t, 1010.0))
         assertFalse(core.inAd)
     }
+
+    @Test fun aStalledAppIsLeftAloneAndCatchesUpAfter() {
+        // Prime Video during an ad: "playing", no length, the position frozen near 0
+        val (core, t) = opened()
+        val prime = { sec: Double, stalled: Boolean -> LocalState(disney, (sec * 1000).toLong(), LocalPlay.PLAYING, null, -1, stalled) }
+        val seen = mutableListOf<Action>()
+        for (i in 0..19) seen += core.tick(room(), prime(0.6, true), t + i * 1_000L, 1010.0 + i)
+        assertTrue(seen.toString(), seen.none { it is Action.SeekTo || it is Action.Send })
+        assertEquals(1, seen.count { it is Action.Note })
+        // the ad is over: the title plays from its start; settle, then catch up
+        assertEquals(emptyList<Action>(), core.tick(room(), prime(1.0, false), t + 20_000, 1030.0))
+        assertEquals(emptyList<Action>(), core.tick(room(), prime(2.0, false), t + 21_000, 1031.0))
+        assertEquals(emptyList<Action>(), core.tick(room(), prime(3.0, false), t + 22_000, 1032.0))
+        assertEquals(listOf<Action>(Action.SeekTo(133_000)), core.tick(room(), prime(4.0, false), t + 23_000, 1033.0))
+    }
 }

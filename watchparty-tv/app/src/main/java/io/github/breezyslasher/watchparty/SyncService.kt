@@ -32,6 +32,7 @@ class SyncService : Service() {
 
     companion object {
         private const val TAG = "WatchPartyTV"
+        private const val STALL_MS = 6_000L
         /** androidx MediaMetadataCompat.METADATA_KEY_ADVERTISEMENT (1 = an ad). */
         private const val METADATA_KEY_ADVERTISEMENT = "android.media.metadata.ADVERTISEMENT"
         private const val CHANNEL = "sync"
@@ -522,10 +523,14 @@ class SyncService : Service() {
             PlaybackState.STATE_BUFFERING, PlaybackState.STATE_CONNECTING -> LocalPlay.BUFFERING
             else -> LocalPlay.OTHER
         }
+        val stalled = stalled(c.packageName, s)
         return LocalState(
             pkg = c.packageName,
-            positionMs = if (s != null) positionOf(s) else -1,
+            // stalled: the app's own position, not advanced by the time since
+            // it reported it (that made a sawtooth: 0 → 3 s, back to 0 at its next report)
+            positionMs = if (s == null) -1 else if (stalled) s.position else positionOf(s),
             play = play,
+            stalled = stalled,
             title = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
             durationMs = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0 } ?: -1,
         )
@@ -558,6 +563,8 @@ class SyncService : Service() {
         val jumped = pos >= 0 && predicted >= 0 && Math.abs(pos - predicted) > 2_000
         if (key != traceKey || jumped) {
             Log.i(TAG, "session ${c.packageName}: state ${s?.state} (${stateName(s?.state)}) at ${"%.1f".format(pos / 1000.0)}s" +
+                (if (s != null) " (reported ${"%.1f".format(s.position / 1000.0)}s, " +
+                    "${"%.1f".format((SystemClock.elapsedRealtime() - s.lastPositionUpdateTime) / 1000.0)}s ago)" else "") +
                 (if (jumped) " (jumped from ${"%.1f".format(predicted / 1000.0)}s)" else "") +
                 ", length ${md?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.let { "%.1f".format(it / 1000.0) + "s" }}" +
                 ", title ${md?.getString(MediaMetadata.METADATA_KEY_TITLE)}" +
@@ -586,6 +593,37 @@ class SyncService : Service() {
         PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
         PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> "skipping"
         else -> "?"
+    }
+
+    // Playing, but the position doesn't move: Prime Video during an ad
+    // (Sony TV, 2026-11-17) reports nothing else — no length, no title, no
+    // ad flag — just "playing" with the title's position frozen near 0,
+    // sending a fresh report every ~3 s. Stalled = the app keeps reporting
+    // (its update time moves) while its position has stayed within 1 s for
+    // STALL_MS.
+    private var stallPkg: String? = null
+    private var stallPositionMs = 0L
+    private var stallSinceMs = 0L
+    private var stallLastUpdate = 0L
+    private var stallReports = 0
+
+    private fun stalled(pkg: String, s: PlaybackState?): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (s == null || s.state != PlaybackState.STATE_PLAYING || s.position < 0 ||
+            pkg != stallPkg || Math.abs(s.position - stallPositionMs) > 1_000
+        ) {
+            stallPkg = pkg
+            stallPositionMs = s?.position ?: 0L
+            stallSinceMs = now
+            stallLastUpdate = s?.lastPositionUpdateTime ?: 0L
+            stallReports = 0
+            return false
+        }
+        if (s.lastPositionUpdateTime != stallLastUpdate) {
+            stallLastUpdate = s.lastPositionUpdateTime
+            stallReports++
+        }
+        return stallReports >= 1 && now - stallSinceMs >= STALL_MS
     }
 
     /** Last reported position, advanced by elapsed time while playing. */
