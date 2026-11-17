@@ -607,8 +607,20 @@ class SyncService : Service() {
     private var stallLastUpdate = 0L
     private var stallReports = 0
 
+    private var stallActive = false
+
     private fun stalled(pkg: String, s: PlaybackState?): Boolean {
+        stallActive = stalledNow(pkg, s)
+        return stallActive
+    }
+
+    private fun stalledNow(pkg: String, s: PlaybackState?): Boolean {
         val now = SystemClock.elapsedRealtime()
+        // paused where it stalled: still stalled (the user pausing an app that
+        // reports no position is a pause to send, not the app coming back)
+        if (stallActive && s != null && s.state == PlaybackState.STATE_PAUSED && pkg == stallPkg &&
+            Math.abs(s.position - stallPositionMs) <= 1_000
+        ) return true
         if (s == null || s.state != PlaybackState.STATE_PLAYING || s.position < 0 ||
             pkg != stallPkg || Math.abs(s.position - stallPositionMs) > 1_000
         ) {

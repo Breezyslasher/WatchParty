@@ -323,4 +323,25 @@ class SyncCoreTest {
         assertEquals(emptyList<Action>(), core.tick(room(), prime(3.0, false), t + 22_000, 1032.0))
         assertEquals(listOf<Action>(Action.SeekTo(133_000)), core.tick(room(), prime(4.0, false), t + 23_000, 1033.0))
     }
+
+    @Test fun pausingAnAppThatReportsNoPositionPausesTheRoomWhereItIs() {
+        // Prime Video: its position stays near 0 through the show too
+        val (core, t) = opened()
+        val prime = { sec: Double, play: LocalPlay -> LocalState(disney, (sec * 1000).toLong(), play, null, -1, true) }
+        core.tick(room(), prime(0.5, LocalPlay.PLAYING), t, 1010.0)
+        core.tick(room(), prime(0.5, LocalPlay.PLAYING), t + 1_000, 1011.0)
+        // the user pauses: the room pauses at its own position, not at 0
+        assertEquals(listOf<Action>(Action.Send("pause", 112.0)), core.tick(room(), prime(0.5, LocalPlay.PAUSED), t + 2_000, 1012.0))
+        // the room is paused now; later the user plays
+        val paused = room(112.0, paused = true, setAt = 1012.0)
+        assertEquals(emptyList<Action>(), core.tick(paused, prime(0.5, LocalPlay.PAUSED), t + 7_000, 1017.0))
+        assertEquals(listOf<Action>(Action.Send("play", 112.0)), core.tick(paused, prime(0.5, LocalPlay.PLAYING), t + 8_000, 1018.0))
+    }
+
+    @Test fun anAppWithNoPositionSendsTheRoomsPosition() {
+        val (core, t) = opened()
+        core.tick(room(), LocalState(disney, -1, LocalPlay.PLAYING, null), t, 1010.0)
+        assertEquals(listOf<Action>(Action.Send("pause", 111.0)),
+            core.tick(room(), LocalState(disney, -1, LocalPlay.PAUSED, null), t + 1_000, 1011.0))
+    }
 }

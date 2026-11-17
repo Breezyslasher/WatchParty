@@ -278,8 +278,23 @@ class SyncCore(
         if (local.stalled || isAd(local, room.expectedSec(serverNowSec))) {
             if (!inAd) {
                 inAd = true
-                actions += Action.Note(if (local.stalled) "Playback here isn't moving (an ad?) — catching up when it does"
+                actions += Action.Note(if (local.stalled) "This app isn't reporting where it is (an ad, or it never does) — play and pause still sync"
                     else "An ad is playing here — catching up when it ends")
+            }
+            // the user pausing or playing here still goes to the room — at the
+            // room's position: this one isn't the title's (Prime Video's stays
+            // near 0 all through, ads and show alike)
+            val prev = last
+            if (!suppressed && prev != null && prev.pkg == local.pkg &&
+                prev.play != LocalPlay.BUFFERING && local.play != LocalPlay.BUFFERING
+            ) {
+                val nowPlaying = local.play == LocalPlay.PLAYING
+                if ((prev.play == LocalPlay.PLAYING) != nowPlaying && nowPlaying != !room.paused) {
+                    actions += Action.Send(if (nowPlaying) "play" else "pause", room.expectedSec(serverNowSec))
+                    suppressUntilMs = nowMs + SUPPRESS_MS
+                    remember(local, nowMs)
+                    return actions
+                }
             }
             if (!suppressed && local.play != LocalPlay.BUFFERING) {
                 if (room.paused && local.play == LocalPlay.PLAYING) {
@@ -323,7 +338,9 @@ class SyncCore(
                 prev.play != LocalPlay.BUFFERING && local.play != LocalPlay.BUFFERING &&
                 wasPlaying != nowPlaying && nowPlaying != !room.paused
             ) {
-                actions += Action.Send(if (nowPlaying) "play" else "pause", maxOf(0.0, localSec))
+                // an app that reports no position: the room's, not 0 (that sent everyone to the start)
+                actions += Action.Send(if (nowPlaying) "play" else "pause",
+                    if (localSec >= 0) localSec else room.expectedSec(serverNowSec))
                 suppressUntilMs = nowMs + SUPPRESS_MS
                 remember(local, nowMs)
                 return actions

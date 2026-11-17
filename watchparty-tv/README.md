@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17.9** (an app playing with its position frozen — Prime Video during an ad — is left alone too; an ad is left alone and the title catches up after it — Tubi, by its length; your own skip right after opening a title or after a catch-up seek goes to the room instead of being seeked back; Room shows the saved Watch here / Remote only after the app restarts; a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.10** (Prime Video reports no position: play and pause sync, at the room's position; an app playing with its position frozen — Prime Video during an ad — is left alone too; an ad is left alone and the title catches up after it — Tubi, by its length; your own skip right after opening a title or after a catch-up seek goes to the room instead of being seeked back; Room shows the saved Watch here / Remote only after the app restarts; a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -489,6 +489,16 @@ while its position stays within 1 s for 6 s is stalled: left alone like
 an ad, its own position used as is, caught up once it moves again. The
 log's session lines now also show the app's own position and how long
 ago it reported it.
+
+It isn't only ads: the show was playing at the end of a log where Prime's
+position had stayed near 0 for over a minute and a half, so Prime's app
+doesn't report where it is at all. With Prime, then, Watch Party starts
+the title for everyone and syncs play and pause both ways, but can't keep
+it in step, follow a seek, or see one made in Prime. Since 0.17.10 the
+user pausing or playing such an app (stalled, or with no position at
+all) is sent to the room at the room's position, not at the app's
+(that would have sent everyone to the start); a stalled app paused where
+it stalled stays stalled, so its pause is sent instead of undone.
 
 0.17.3 logs what the playing app reports, to find out: a `session` line
 whenever its state, length, title, metadata keys, the standard ad flag
