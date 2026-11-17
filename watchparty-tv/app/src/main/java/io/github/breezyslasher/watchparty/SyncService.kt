@@ -75,9 +75,9 @@ class SyncService : Service() {
             instance?.let { s -> s.worker?.post { s.core.reset() } }
         }
 
-        /** The saved Watch here / Remote only. Not while the service runs: its
-         *  flag is the one in use, and a choice made just now may not be
-         *  written yet (apply() is asynchronous). */
+        /** The saved Watch here / Remote only (the screen opening reads it,
+         *  and the service when it joins). Not into a running service from
+         *  the screen: the service's flag is already the one in use. */
         fun loadRemoteOnly(context: Context) {
             if (instance != null && context !is SyncService) return
             remoteOnly = context.getSharedPreferences("watchparty", Context.MODE_PRIVATE).getBoolean(PREF_REMOTE_ONLY, false)
