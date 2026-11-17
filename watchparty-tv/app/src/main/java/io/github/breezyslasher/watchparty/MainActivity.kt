@@ -81,6 +81,11 @@ class MainActivity : Activity(), Host {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Watch here / Remote only as saved: after the app was closed the
+        // in-memory flag is back to Watch here until the service starts and
+        // reads it, so Room showed Watch here while the service (reading the
+        // saved Remote only) played nothing
+        SyncService.loadRemoteOnly(this)
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         window.decorView.setBackgroundColor(Ui.BG)
         root = FrameLayout(this).apply {
