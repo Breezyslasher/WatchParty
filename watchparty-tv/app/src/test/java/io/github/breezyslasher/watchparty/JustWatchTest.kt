@@ -172,6 +172,24 @@ class JustWatchTest {
         assertEquals(emptySet<String>(), JustWatch.sharedLinks(e1, emptyList()))
     }
 
+    @Test fun discoveryPlusEpisodesCarryTheirShowAndNumbers() {
+        // Gold Rush S1E1 and S2E1 (JustWatch, 2026-11-17): the web link has the show, the TV link doesn't
+        val s1 = JustWatch.parseOffers(node(
+            web = listOf(offer("FLATRATE", "discoveryplusus", "Discovery +",
+                "https://www.discoveryplus.com/show/eb26e00e-9582-4790-a61c-48d785926f58/s1/e1-no-guts-no-glory/bcc95d96-d955-4bcf-ba3c-2b2c4c883991",
+                "https://www.discoveryplus.com/show/eb26e00e-9582-4790-a61c-48d785926f58/s1/e1-no-guts-no-glory/bcc95d96-d955-4bcf-ba3c-2b2c4c883991")),
+            atv = listOf(offer("FLATRATE", "discoveryplusus", "Discovery +",
+                "intent://play.discoveryplus.com/video/watch/bcc95d96-d955-4bcf-ba3c-2b2c4c883991#Intent;launchFlags=0x00800000;scheme=https;end")),
+        )).single()
+        assertEquals("https://play.discoveryplus.com/video/watch/bcc95d96-d955-4bcf-ba3c-2b2c4c883991", s1.link)
+        assertEquals("eb26e00e-9582-4790-a61c-48d785926f58/s1/e1", s1.wbd)
+        assertEquals("eb26e00e-9582-4790-a61c-48d785926f58/s2/e1", JustWatch.wbdEpisode(
+            "https://www.discoveryplus.com/shows/gold-rush/s2/eb26e00e-9582-4790-a61c-48d785926f58/e1-off-season/2d0360f9-7ab7-4b96-82dd-c9883484ad27"))
+        // HBO Max's links never name the show
+        assertNull(JustWatch.wbdEpisode("https://play.hbomax.com/video/watch/dae9e532-3714-4f2e-b758-fb9a13def902?utm_source=universal_search"))
+        assertNull(JustWatch.wbdEpisode("https://www.discoveryplus.com/movie/fa6e0381-45a4-4a92-8c29-7560b2933d9e"))
+    }
+
     @Test fun discoveryPlusMoviesGetHboMaxsVideoId() {
         // Ghosts of Flight 401 (JustWatch, 2026-11-15); the result played on a phone
         val hbo = JustWatch.Offer("max", "HBO Max", "https://play.hbomax.com/video/watch/2d776436-900b-451d-b78d-2a4767729dd7")

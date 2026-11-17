@@ -3,7 +3,7 @@
 // GitHub Actions, US, 2026-11-15) must give the same links in both.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTitles, parsePage, parseSeasons, parseEpisodes, parseOffers, webLinkOf, sharedLinks,
+import { parseTitles, parsePage, parseSeasons, parseEpisodes, parseOffers, wbdEpisode, webLinkOf, sharedLinks,
   discoveryPlayLinks, runtimeText, posterUrl } from '../extension/justwatch.js';
 import { regularEpisode, aslSeriesId, regularSeriesId, episodeId } from '../extension/hbomax.js';
 
@@ -72,6 +72,22 @@ test('rent and buy are left out; the web page when there is no deeplink', () => 
     web: [offer('FLATRATE', 'tnt', 'TNT', null, 'https://www.tntdrama.com/movies/dune-theatrical')],
     atv: [offer('FLATRATE', 'tnt', 'TNT', null)],
   }).map(o => o.link), ['https://www.tntdrama.com/movies/dune-theatrical']);
+});
+
+test('Discovery+ episodes carry their show and numbers, as on Android', () => {
+  // Gold Rush S1E1 and S2E1 (JustWatch, 2026-11-17)
+  const web = 'https://www.discoveryplus.com/show/eb26e00e-9582-4790-a61c-48d785926f58/s1/e1-no-guts-no-glory/bcc95d96-d955-4bcf-ba3c-2b2c4c883991';
+  const [o] = parseOffers({
+    web: [offer('FLATRATE', 'discoveryplusus', 'Discovery +', web, web)],
+    atv: [offer('FLATRATE', 'discoveryplusus', 'Discovery +',
+      'intent://play.discoveryplus.com/video/watch/bcc95d96-d955-4bcf-ba3c-2b2c4c883991#Intent;launchFlags=0x00800000;scheme=https;end')],
+  });
+  assert.equal(o.link, 'https://play.discoveryplus.com/video/watch/bcc95d96-d955-4bcf-ba3c-2b2c4c883991');
+  assert.equal(o.wbd, 'eb26e00e-9582-4790-a61c-48d785926f58/s1/e1');
+  assert.equal(wbdEpisode('https://www.discoveryplus.com/shows/gold-rush/s2/eb26e00e-9582-4790-a61c-48d785926f58/e1-off-season/2d0360f9-7ab7-4b96-82dd-c9883484ad27'),
+    'eb26e00e-9582-4790-a61c-48d785926f58/s2/e1');
+  assert.equal(wbdEpisode('https://play.hbomax.com/video/watch/dae9e532-3714-4f2e-b758-fb9a13def902?utm_source=universal_search'), null);
+  assert.equal(wbdEpisode('https://www.discoveryplus.com/movie/fa6e0381-45a4-4a92-8c29-7560b2933d9e'), null);
 });
 
 test('custom schemes are not playable links', () => {

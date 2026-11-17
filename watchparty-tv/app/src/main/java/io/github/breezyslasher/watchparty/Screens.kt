@@ -976,7 +976,8 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
     private fun identity(): Identity? {
         if (show) {
             val (season, episode) = picked ?: return null
-            return Identity.episode(item.title, season, episode)
+            val id = Identity.episode(item.title, season, episode)
+            return wbd?.let { id.copy(ids = mapOf("wbd" to it)) } ?: id
         }
         return Identity.movie(item.title, Ui.year(detailDate ?: item.date)?.toIntOrNull(), tmdb)
     }
@@ -1215,6 +1216,7 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
                      showLevel: Set<String> = emptySet()) {
         // a Discovery+ movie page becomes its play link when HBO Max has the title
         @Suppress("NAME_SHADOWING") val offers = JustWatch.discoveryPlayLinks(offers)
+        wbd = offers.firstNotNullOfOrNull { it.wbd }
         if (offers.isEmpty()) {
             d.setServices(emptyList())
             d.hint("No streaming service has this in ${host.country}.")
@@ -1246,6 +1248,9 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             start(d, title, sub, sole)
         }
     }
+
+    /** The episode's show and numbers on HBO Max / Discovery+ (JustWatch.wbdEpisode), for Kodi. */
+    private var wbd: String? = null
 
     private fun installedPackage(o: JustWatch.Offer): String? {
         val pkg = Apps.packageFor(c, o.link, o.technicalName, o.clearName) ?: return null

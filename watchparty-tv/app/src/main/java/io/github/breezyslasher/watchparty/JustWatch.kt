@@ -47,7 +47,30 @@ object JustWatch {
     data class Episode(val id: String, val number: Int, val title: String, val offers: List<Offer>)
 
     /** A service that streams the title, with the link that starts it and its logo (a URL). */
-    data class Offer(val technicalName: String, val clearName: String, val link: String, val icon: String? = null)
+    data class Offer(val technicalName: String, val clearName: String, val link: String, val icon: String? = null,
+                     val wbd: String? = null)
+
+    private val WBD_EPISODE = listOf(
+        Regex("""(?:discoveryplus|hbomax|max)\.com/show/([0-9a-f-]{36})/s(\d+)/e(\d+)-"""),
+        Regex("""(?:discoveryplus|hbomax|max)\.com/shows/[^/]+/s(\d+)/([0-9a-f-]{36})/e(\d+)-"""),
+    )
+
+    /**
+     * Discovery+'s web link for an episode names its show and its own season
+     * and episode (JustWatch, 2026-11-17: Gold Rush's
+     * www.discoveryplus.com/show/<show>/s1/e1-<name>/<video> and
+     * /shows/gold-rush/s2/<show>/e1-<name>/<video>), which the play link
+     * (play.discoveryplus.com/video/watch/<video>) doesn't. "<show>/s<N>/e<N>",
+     * shared in the item's ids as "wbd": Kodi's SlyGuy addon opens that season
+     * by the show's id instead of searching for the show (HBO Max and
+     * Discovery+ share one catalog). HBO Max's own links never have it.
+     */
+    fun wbdEpisode(webLink: String?): String? {
+        if (webLink == null) return null
+        WBD_EPISODE[0].find(webLink)?.let { return "${it.groupValues[1]}/s${it.groupValues[2].toInt()}/e${it.groupValues[3].toInt()}" }
+        WBD_EPISODE[1].find(webLink)?.let { return "${it.groupValues[2]}/s${it.groupValues[1].toInt()}/e${it.groupValues[3].toInt()}" }
+        return null
+    }
 
     /** JustWatch's icons are paths on this host (as in Yamtrack's providers/justwatch.py). */
     private const val IMAGES = "https://images.justwatch.com"
@@ -315,7 +338,8 @@ object JustWatch {
             ) ?: continue
             // "Netflix" and "Netflix Standard with Ads" are the same app and link
             val icon = (w ?: a)?.optJSONObject("package")?.let { text(it, "icon") }?.let { if (it.startsWith("/")) IMAGES + it else it }
-            if (out.values.none { it.link == link }) out[technical] = Offer(technical, clear, link, icon)
+            val wbd = wbdEpisode(w?.let { text(it, "deeplinkURL") }) ?: wbdEpisode(w?.let { text(it, "standardWebURL") })
+            if (out.values.none { it.link == link }) out[technical] = Offer(technical, clear, link, icon, wbd)
         }
         return out.values.toList()
     }
