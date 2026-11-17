@@ -68,10 +68,11 @@ jobs:
         run: ./gradlew --no-daemon bundleRelease assembleRelease
       - name: Check the signature
         run: |
-          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/bin/apksigner "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          echo "apksigner: $apksigner"
           for apk in app/build/outputs/apk/release/*.apk; do
             echo "== $apk"
-            "$apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "not signed"
+            "$apksigner" verify --verbose --print-certs "$apk" 2>&1 | grep -E 'Verifies|Verified using|Signer #1 certificate (DN|SHA-256)|ERROR|DOES NOT' || echo "(no signature information)"
           done
           for aab in app/build/outputs/bundle/release/*.aab; do
             echo "== $aab"
