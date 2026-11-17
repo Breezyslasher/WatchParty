@@ -59,3 +59,16 @@ test('polls send the playing file only when it changes', async () => {
   assert.deepEqual(polls.map(b => b.file), ['https://www.netflix.com/watch/1', undefined, 'https://www.netflix.com/watch/2', '', '']);
   assert.equal(polls[0].position, 1.235);
 });
+
+test('a Kodi stream on the Kodi box is not a link', async () => {
+  const { isPublicWebLink } = await import('../extension/relay.js');
+  for (const bad of ['http://127.0.0.1:8095/https://cf.dplus.us.prd.media.max.com/x/dash.mpd', 'http://localhost:8080/x',
+    'http://192.168.1.20:32400/library/parts/1/file.mkv', 'http://10.0.0.5/x', 'http://172.20.1.1/x', 'http://nas.local/x',
+    'http://[::1]:8080/x', 'smb://nas/movies/a.mkv', 'plugin://slyguy.max/?_=play', '', 'http://plex:32400/x'])
+    assert.equal(isPublicWebLink(bad), false, bad);
+  for (const good of ['https://www.netflix.com/watch/81700392', 'https://play.hbomax.com/video/watch/abc', 'http://8.8.8.8/x'])
+    assert.equal(isPublicWebLink(good), true, good);
+  const c = new RelayClient('http://relay.test', 'ROOM', async () => ({}));
+  const s = c.parseState({ item: { file: 'http://127.0.0.1:8095/https://cf.dplus.us.prd.media.max.com/x/dash.mpd', label: 'Dune' } });
+  assert.equal(s.item.link, null);
+});
