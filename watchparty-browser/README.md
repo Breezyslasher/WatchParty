@@ -5,7 +5,7 @@ that joins a [Watch Party](../README.md) room — the same relay and room codes
 as the Android TV / phone app and the Kodi addon — and keeps a streaming site
 playing in the browser in sync with everyone else.
 
-**Status: 0.6.0, not yet tried on a real streaming site or with a real Kodi.** It looks and works
+**Status: 0.6.1, not yet tried on a real streaming site or with a real Kodi.** It looks and works
 like the Android app: the same rail and screens. Tested end to end
 in Chromium with stand-in pages (`test/e2e.mjs`, below); Firefox only passed
 `web-ext lint`.

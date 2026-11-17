@@ -69,22 +69,28 @@ everyone joins with the `https://` address.
 Measured on a local relay (2026-11-17), every member polling once a second
 as the apps do:
 
-- **Data:** each poll sends ~340 bytes and gets the room's state back:
-  ~500 bytes plus ~250 per member as JSON (the member list, with each
-  member's position and drift, is most of it), gzipped to ~0.45–0.55 KB
-  for clients that accept it — the Android app and browsers do by
-  themselves, the Kodi addon asks. With headers that's ~580–650 bytes
-  down a poll whatever the room's size: about 3.3–3.5 MB an hour per
-  member in rooms of 3 to 7 (uncompressed it was 5.6–10 MB), plus
-  10–15% for TCP/TLS. Kodi and browsers keep their connection open, so
-  HTTPS adds little after the first handshake (the Android app closes
-  its connection after each request, which may or may not end the
-  socket — not measured on a device). The video itself never goes
-  through the relay.
+- **Data:** a poll sends ~300 bytes (the member's position and state; the
+  file it's playing only when that changes) and gets back the room's
+  state: the title, playback, and each member's name, paused / loading /
+  on the title and drift — what the apps show. The dashboard's extra
+  fields (each member's file, position, last poll, corrections; locks and
+  counters) stay in `/status.json`. That's ~0.85–1.3 KB of JSON for 3 to 7
+  members, gzipped to ~0.2–0.25 KB for clients that accept it (the
+  Android app and browsers do by themselves, the Kodi addon asks): with
+  headers ~390–400 bytes down a poll. About 2.5 MB an hour per member in
+  rooms of 3 to 7 (it was 5.6–10 MB before gzip and the slimmer replies),
+  plus 10–15% for TCP/TLS, plus whatever a proxy adds: through a
+  Cloudflare Tunnel every reply also carries ~430 bytes of Cloudflare's
+  own headers over HTTP/1.1 (Kodi), ~320 of them `report-to` and `nel`.
+  Kodi and browsers keep their connection open, so HTTPS adds little
+  after the first handshake (the Android app closes its connection after
+  each request, which may or may not end the socket — not measured on a
+  device). The video itself never goes through the relay.
 - **1000 members** in rooms of 3 to 7: every poll answered, no errors,
   1–3 ms per reply, about a third of one CPU core with gzip (a quarter
-  without); roughly 8–9 Mbit/s and 3.5 GB an hour. The relay is one Python process, so it uses one core: the most it
-  answered here was ~4,200 polls a second.
+  without); roughly 5.5 Mbit/s and 2.5 GB an hour. The relay is one
+  Python process, so it uses one core: the most it answered here was
+  ~4,200 polls a second.
 - **One big room doesn't scale:** the member list goes to every member
   every second, so a room's traffic grows with the square of its size (gzip
   shrinks a repetitive list a lot, but not that).

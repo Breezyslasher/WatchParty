@@ -20,6 +20,9 @@ class RelayClient(baseUrl: String, private val room: String) {
         private set
     private var clockOffsetSec = 0.0
     private var offsetSamples = 0
+    /** The file last told to the relay: polls send it only when it changes
+     *  (the relay keeps the last one). null = not yet told (after joining). */
+    @Volatile private var sentFile: String? = null
 
     /** The relay's clock, in seconds. */
     fun serverNowSec(): Double = System.currentTimeMillis() / 1000.0 + clockOffsetSec
@@ -27,6 +30,7 @@ class RelayClient(baseUrl: String, private val room: String) {
     fun join(name: String): RoomState {
         val data = post("/join", JSONObject().put("name", name))
         memberId = data.getString("member_id")
+        sentFile = null
         return parseState(data.getJSONObject("state"))
     }
 
@@ -44,13 +48,15 @@ class RelayClient(baseUrl: String, private val room: String) {
              onItem: Boolean, corrections: Int): RoomState {
         val body = JSONObject()
             .put("member_id", memberId)
-            .put("position", positionSec)
+            .put("position", Math.round(positionSec * 1000.0) / 1000.0)
             .put("paused", paused)
-            .put("file", file)
             .put("caching", caching)
             .put("on_item", onItem)
             .put("corrections", corrections)
-        return parseState(post("/poll", body).getJSONObject("state"))
+        if (file != sentFile) body.put("file", file)
+        val state = parseState(post("/poll", body).getJSONObject("state"))
+        sentFile = file
+        return state
     }
 
     fun command(cmd: String, positionSec: Double, item: JSONObject? = null): RoomState {

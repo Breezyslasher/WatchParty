@@ -35,3 +35,27 @@ test('open, follow and pause through the relay', { skip: !RELAY && 'set WATCHPAR
   await host.leave();
   await guest.leave();
 });
+
+test('polls send the playing file only when it changes', async () => {
+  const sent = [];
+  const fakeFetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    sent.push({ path: new URL(url).pathname, body });
+    const reply = { ok: true, server_time: Date.now() / 1000, member_id: 'm1',
+      state: { seq: 1, item: null, position: 0, paused: true, speed: 1, set_at: 0, set_by: null, members: [] } };
+    return { ok: true, status: 200, json: async () => reply, text: async () => JSON.stringify(reply) };
+  };
+  const c = new RelayClient('http://relay.test', 'ROOM', fakeFetch);
+  await c.join('Browser');
+  const poll = (file, positionSec = 1.23456) =>
+    c.poll({ positionSec, paused: false, file, caching: false, onItem: true, corrections: 0 });
+  await poll('https://www.netflix.com/watch/1');
+  await poll('https://www.netflix.com/watch/1');
+  await poll('https://www.netflix.com/watch/2');
+  await poll('');
+  await c.join('Browser');            // a rejoin: the relay forgot it
+  await poll('');
+  const polls = sent.filter(s => s.path === '/poll').map(s => s.body);
+  assert.deepEqual(polls.map(b => b.file), ['https://www.netflix.com/watch/1', undefined, 'https://www.netflix.com/watch/2', '', '']);
+  assert.equal(polls[0].position, 1.235);
+});

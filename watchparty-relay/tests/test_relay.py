@@ -387,15 +387,15 @@ class EmbeddedRelayTest(unittest.TestCase):
 
     def test_lock_lifecycle(self):
         self.host.command('open', position=0.0, item=ITEM, lock=True)
-        state = self.guest.poll(0, False, '')
-        self.assertEqual(state['locked_by'], self.host.member_id)
+        # members don't get the lock (no app reads it); the relay has it
+        self.assertNotIn('locked_by', self.guest.poll(0, False, ''))
+        self.assertEqual(self.server.room.locked_by, self.host.member_id)
         with self.assertRaises(RelayError) as ctx:
             self.guest.command('pause', position=5.0)
         self.assertIn('locked', str(ctx.exception))
         self.host.command('pause', position=5.0)  # controller still can
         self.host.command('stop')                 # stop releases the lock
-        state = self.guest.poll(0, False, '')
-        self.assertIsNone(state['locked_by'])
+        self.assertIsNone(self.server.room.locked_by)
         self.guest.command('open', position=0.0, item=ITEM)  # free again
 
 
@@ -555,6 +555,56 @@ class CompressionTest(unittest.TestCase):
             self.assertEqual(resp.getheader('Content-Encoding'), 'gzip', path)
         resp, _ = self.raw('GET', '/remote/fonts/Figtree-Regular.ttf', accept='gzip')
         self.assertIsNone(resp.getheader('Content-Encoding'))
+
+
+class SlimRepliesTest(unittest.TestCase):
+    """Members get back only what the apps read; the dashboard keeps all."""
+
+    def setUp(self):
+        self.server = RelayServer(port=0, room_code='TEST')
+        self.port = self.server._httpd.server_address[1]
+        self.server.start()
+        self.addCleanup(self.server.stop)
+
+    def test_members_get_what_the_apps_read(self):
+        a = RelayClient('127.0.0.1', self.port, 'TEST')
+        a.join('Living room')
+        a.command('open', position=12.3456789, item=ITEM)
+        state = a.poll(12.3456789, False, ITEM['file'], on_item=True)
+        self.assertEqual(sorted(state), ['item', 'members', 'paused', 'position', 'seq',
+                                         'set_at', 'set_by', 'speed'])
+        self.assertEqual(sorted(state['members'][0]), ['caching', 'drift', 'name', 'on_item', 'paused'])
+        self.assertEqual(state['set_by'], a.member_id)
+        self.assertEqual(state['item']['label'], ITEM['label'])
+        for value in (state['position'], state['set_at']):
+            self.assertEqual(value, round(value, 3))
+
+    def test_the_dashboard_keeps_the_full_member_list(self):
+        a = RelayClient('127.0.0.1', self.port, 'TEST')
+        a.join('Living room')
+        a.command('open', position=1.0, item=ITEM)
+        a.poll(1.0, False, ITEM['file'], on_item=True)
+        with urllib.request.urlopen(f'http://127.0.0.1:{self.port}/status.json') as resp:
+            member = json.load(resp)['rooms'][0]['members'][0]
+        for key in ('position', 'file', 'age', 'is_owner', 'drift'):
+            self.assertIn(key, member)
+        self.assertTrue(member['file'])
+
+    def test_a_poll_without_file_keeps_the_last_one(self):
+        # clients send their file only when it changes
+        a = RelayClient('127.0.0.1', self.port, 'TEST')
+        a.join('Living room')
+        a._post('/poll', {'member_id': a.member_id, 'position': 1.0, 'paused': False,
+                          'file': 'https://www.netflix.com/watch/1'})
+        a._post('/poll', {'member_id': a.member_id, 'position': 2.0, 'paused': False})
+        self.assertEqual(next(iter(self.server.room.members.values()))['file'],
+                         'https://www.netflix.com/watch/1')
+
+    def test_short_server_header_and_rounded_server_time(self):
+        with urllib.request.urlopen(f'http://127.0.0.1:{self.port}/ping') as resp:
+            self.assertEqual(resp.headers['Server'], 'WatchParty')
+            t = json.load(resp)['server_time']
+        self.assertEqual(t, round(t, 3))
 
 
 class CapacityTest(unittest.TestCase):
