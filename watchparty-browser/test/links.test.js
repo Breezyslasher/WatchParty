@@ -63,4 +63,12 @@ test("TVs' Starz links open as the website's play links", () => {
   assert.equal(browserLink('https://www.starz.com/movies/71196'), 'https://www.starz.com/us/en/play/71196');
   assert.equal(browserLink('https://www.starz.com/series/55555/episodes/66666'), 'https://www.starz.com/us/en/play/66666');
   assert.equal(browserLink('https://www.netflix.com/watch/1'), 'https://www.netflix.com/watch/1');
+  // a Paramount+ movie's page plays it with #open (Gladiator; the address while playing, 2026-11-17)
+  for (const link of ['https://www.paramountplus.com/movies/gladiator/UAhaBnkT1Lm68ZAFQx1CgMeXalb4vxwz?searchReferral=publisher&source=search-feeds',
+    'https://www.paramountplus.com/movies/video/UAhaBnkT1Lm68ZAFQx1CgMeXalb4vxwz/']) {
+    assert.equal(browserLink(link), 'https://www.paramountplus.com/movies/video/UAhaBnkT1Lm68ZAFQx1CgMeXalb4vxwz/#open');
+  }
+  // its episodes already play
+  const episode = 'https://www.paramountplus.com/shows/video/x2Jq9J0o8y_HPNmXBpRAjYmvzGNyKpfE/';
+  assert.equal(browserLink(episode), episode);
 });
