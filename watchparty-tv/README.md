@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17.3** (logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.4** (a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -453,7 +453,14 @@ whatever the app reports. Depending on that, a member's ad may pause the
 room (reported as loading), get seeked every 4 s and leave them an ad's
 length behind (position frozen), or — the bad case — look like a seek and
 send everyone back to the ad's position (the ad's own position, 0–30 s).
-Untested on any service.
+Prime Video (Sony TV, 2026-11-17): during an ad it fell behind the room
+and Watch Party seeked it forward every 4 s; Prime refused each one with
+an error on screen ("can't skip ahead during an ad"). Since 0.17.4 a
+catch-up seek that doesn't land waits 10 s, then 20 s, then 30 s before
+the next try, and the status says the app isn't taking seeks; the app's
+length changing (an ad's, then the title's again) or a seek that lands
+puts it back to every 4 s. Whether an ad can also send the room a seek
+isn't known yet.
 
 0.17.3 logs what the playing app reports, to find out: a `session` line
 whenever its state, length, title, metadata keys, the standard ad flag

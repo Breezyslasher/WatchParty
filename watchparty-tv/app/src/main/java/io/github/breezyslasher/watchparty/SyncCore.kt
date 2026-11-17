@@ -10,7 +10,11 @@ package io.github.breezyslasher.watchparty
  *  - everyone computes the expected position from the room's anchor
  *    (position + elapsed server time × speed while playing);
  *  - drift past DRIFT_THRESHOLD is corrected by seeking, at most once per
- *    CORRECTION_COOLDOWN;
+ *    CORRECTION_COOLDOWN; a seek that doesn't land (the app refused it:
+ *    Prime Video won't skip ahead during an ad, and said so on screen at
+ *    every try, every 4 s) waits longer before the next, up to
+ *    RETRY_BACKOFF_MS's last step, until the app's length changes (an ad
+ *    starting or ending) or a seek lands;
  *  - our own commands are suppressed for SUPPRESS_MS so their echo isn't
  *    mistaken for the user acting;
  *  - a change the user makes locally (pause, play, seek with the remote) is
@@ -132,6 +136,9 @@ class SyncCore(
         const val OPEN_GRACE_MS = 20_000L       // let a launched app start up
         const val STARTED_MS = 3_000L           // playing this long = it has started
         const val USER_SEEK_JUMP_SEC = 4.0      // local jump that counts as a seek
+        const val SEEK_LANDS_MS = 2_500L        // a correction is judged this long after
+        /** Waits after 1, 2, 3+ corrections in a row that didn't land. */
+        val RETRY_BACKOFF_MS = longArrayOf(10_000L, 20_000L, 30_000L)
     }
 
     private var openedFile: String? = null
@@ -140,6 +147,12 @@ class SyncCore(
     private var playingSinceMs = -1L
     private var suppressUntilMs = 0L
     private var lastCorrectionMs = 0L
+    /** Distance from the room when the last correction was sent; -1: none to judge. */
+    private var correctionGapSec = -1.0
+    /** Corrections in a row that didn't land (the app refused the seek). */
+    var refusedSeeks = 0
+        private set
+    private var lastDurationMs = -1L
     private var notPlayableFile: String? = null
     private var last: LocalState? = null
     private var lastAtMs = 0L
@@ -189,6 +202,9 @@ class SyncCore(
         if (item.file != openedFile) {
             openedFile = item.file
             last = null
+            refusedSeeks = 0
+            correctionGapSec = -1.0
+            lastDurationMs = -1L
             val pkg = item.androidPackage
             val link = item.link
             if (pkg != null && link != null) {
@@ -273,13 +289,36 @@ class SyncCore(
                 suppressUntilMs = nowMs + SUPPRESS_MS
             }
         }
+        // The app's length changing (an ad's length, then the title's again)
+        // is the cue to try catching up again without waiting.
+        if (local.durationMs > 0 && lastDurationMs > 0 &&
+            Math.abs(local.durationMs - lastDurationMs) > 5_000L
+        ) {
+            refusedSeeks = 0
+            correctionGapSec = -1.0
+        }
+        if (local.durationMs > 0) lastDurationMs = local.durationMs
         if (localSec >= 0 && local.play != LocalPlay.BUFFERING) {
             val expected = room.expectedSec(serverNowSec)
-            if (Math.abs(localSec - expected) > driftThresholdSec &&
-                nowMs - lastCorrectionMs > CORRECTION_COOLDOWN_MS
-            ) {
+            val gap = Math.abs(localSec - expected)
+            // did the last correction land? (closer than half the distance it had)
+            if (correctionGapSec >= 0 && nowMs - lastCorrectionMs >= SEEK_LANDS_MS) {
+                if (gap <= driftThresholdSec || gap < correctionGapSec / 2) {
+                    refusedSeeks = 0
+                } else {
+                    refusedSeeks++
+                    if (refusedSeeks == 2) {
+                        actions += Action.Note("The app isn't taking seeks right now (an ad?) — catching up when it does")
+                    }
+                }
+                correctionGapSec = -1.0
+            }
+            val wait = if (refusedSeeks == 0) CORRECTION_COOLDOWN_MS
+                else RETRY_BACKOFF_MS[minOf(refusedSeeks, RETRY_BACKOFF_MS.size) - 1]
+            if (gap > driftThresholdSec && nowMs - lastCorrectionMs > wait) {
                 actions += Action.SeekTo((expected * 1000).toLong(), pauseAfter = room.paused)
                 lastCorrectionMs = nowMs
+                correctionGapSec = gap
                 suppressUntilMs = nowMs + SUPPRESS_MS
                 corrections++
             }

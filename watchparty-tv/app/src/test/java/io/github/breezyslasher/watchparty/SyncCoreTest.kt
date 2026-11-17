@@ -189,4 +189,55 @@ class SyncCoreTest {
         core.reset()
         assertTrue(core.tick(r, local(0.0, LocalPlay.OTHER, null), 2_000L, 1002.0).any { it is Action.Open })
     }
+
+    // ── a seek the app refuses (Prime Video during an ad) ────────────────
+
+    /** Runs the core once a second from [from] to [to] ms (room playing from
+     *  100 s at server 1000, so expected = 100 + elapsed); the app reports
+     *  [localAt] and its length [durationAt]. Returns the times of seeks
+     *  and notes. */
+    private fun run(core: SyncCore, from: Long, to: Long, localAt: (Long) -> Double,
+                    durationAt: (Long) -> Long = { 7_200_000L }): Pair<List<Long>, List<Long>> {
+        val seeks = mutableListOf<Long>()
+        val notes = mutableListOf<Long>()
+        var t = from
+        while (t <= to) {
+            val server = 1000.0 + (t - from) / 1000.0 + 10.0
+            val l = LocalState(disney, (localAt(t) * 1000).toLong(), LocalPlay.PLAYING, "Thunderbolts*", durationAt(t))
+            val actions = core.tick(room(), l, t, server)
+            if (actions.any { it is Action.SeekTo }) seeks += t - from
+            if (actions.any { it is Action.Note }) notes += t - from
+            t += 1_000
+        }
+        return seeks to notes
+    }
+
+    @Test fun refusedSeeksBackOff() {
+        val (core, t) = opened()
+        // stuck 60 s behind for two minutes, every seek refused
+        val (seeks, notes) = run(core, t, t + 120_000, { now -> 50.0 + (now - t) / 1000.0 })
+        // first at once, then 10 s, 20 s, then every 30 s (plus the 1 s ticks)
+        assertEquals(listOf(0L, 11_000L, 32_000L, 63_000L, 94_000L), seeks)
+        assertEquals(listOf(14_000L), notes)   // said once, at the second refusal
+        assertTrue(core.refusedSeeks >= 3)
+    }
+
+    @Test fun aSeekThatLandsKeepsTheNormalCooldown() {
+        val (core, t) = opened()
+        // behind until the first seek lands, then in step
+        val (seeks, _) = run(core, t, t + 30_000, { now -> if (now - t < 2_000) 50.0 else 110.0 + (now - t) / 1000.0 })
+        assertEquals(listOf(0L), seeks)
+        assertEquals(0, core.refusedSeeks)
+    }
+
+    @Test fun theLengthChangingRetriesSooner() {
+        val (core, t) = opened()
+        // an ad (length 30 s) refuses seeks for 40 s; then the title (2 h)
+        // is back, still behind: the next seek follows the normal cooldown
+        val (seeks, _) = run(core, t, t + 60_000,
+            localAt = { now -> if (now - t < 40_000) 50.0 else 50.0 + (now - t - 40_000) / 1000.0 },
+            durationAt = { now -> if (now - t < 40_000) 30_000L else 7_200_000L })
+        // 0, 11 s, 32 s refused; at 40 s the length changes: the next is due 4 s after 32 s
+        assertEquals(listOf(0L, 11_000L, 32_000L, 40_000L), seeks.take(4))
+    }
 }
