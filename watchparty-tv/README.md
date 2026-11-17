@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17.10** (Prime Video reports no position: play and pause sync, at the room's position; an app playing with its position frozen — Prime Video during an ad — is left alone too; an ad is left alone and the title catches up after it — Tubi, by its length; your own skip right after opening a title or after a catch-up seek goes to the room instead of being seeked back; Room shows the saved Watch here / Remote only after the app restarts; a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.11** (a Privacy policy link and, on the setup screen, what the access reads and where it goes — for Google Play; Prime Video reports no position: play and pause sync, at the room's position; an app playing with its position frozen — Prime Video during an ad — is left alone too; an ad is left alone and the title catches up after it — Tubi, by its length; your own skip right after opening a title or after a catch-up seek goes to the room instead of being seeked back; Room shows the saved Watch here / Remote only after the app restarts; a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -517,7 +517,13 @@ Play's privacy policy URL:
 <https://github.com/Breezyslasher/WatchParty/blob/main/PRIVACY.md> (the
 repository's `PRIVACY.md`, which also covers the extension, the Kodi addon
 and the relay). Its "what goes to the relay" and "services" sections are
-what the Data safety form asks about.
+what the Data safety form asks about. The app links to it too (Play
+wants it in the app as well): **Privacy policy** under the setup screen's
+notice and at the bottom of the rail (on a phone, in the Join a room
+section). The setup screen says, before access is granted, what it reads
+(other apps' title, position, playing or paused; it controls their play,
+pause and seek) and where it goes (the relay you join, nowhere else) —
+Play's prominent-disclosure rule for access like this.
 
 The app targets Android 16 (API 36), as Play requires of new apps and
 updates since 2026-08-31. Its sync service is a `specialUse` foreground

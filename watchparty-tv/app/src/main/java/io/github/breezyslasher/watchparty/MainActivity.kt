@@ -30,6 +30,7 @@ import java.util.Locale
 class MainActivity : Activity(), Host {
 
     companion object {
+        const val PRIVACY_URL = "https://github.com/Breezyslasher/WatchParty/blob/main/PRIVACY.md"
         const val MAX_PAGES = 12
         const val SWITCH_TIP =
             "Turn on Watch Party in the settings screen (it's at the top), then come back. If the remote " +
@@ -311,6 +312,7 @@ class MainActivity : Activity(), Host {
                     addView(foldRow, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
                     addView(body, lp(MATCH).apply { topMargin = Ui.px(c, 20) })
                     body.addView(status, lp(MATCH).apply { topMargin = Ui.px(c, 16) })
+                    body.addView(Ui.nav(c, "Privacy policy") { openPrivacy() }, lp(WRAP, Ui.tap(c, 60)).apply { topMargin = Ui.px(c, 12) })
                     // open only when there's nothing to join yet
                     body.visibility = if (SyncService.running || saved()) View.GONE else View.VISIBLE
                 }
@@ -324,6 +326,7 @@ class MainActivity : Activity(), Host {
                     addView(body, lp(MATCH).apply { topMargin = Ui.px(c, 28) })
                     addView(View(c), lp(MATCH, 0, 1f))      // pins the status line to the bottom
                     addView(status, lp(MATCH).apply { topMargin = Ui.px(c, 28) })
+                    addView(Ui.nav(c, "Privacy policy") { openPrivacy() }, lp(WRAP, Ui.px(c, 60)).apply { topMargin = Ui.px(c, 16) })
                 }
             }
         }
@@ -423,9 +426,19 @@ class MainActivity : Activity(), Host {
         left.addView(Ui.brand(c, 20, 28, 16))
         left.addView(Ui.text(c, "One-time setup", if (phone) 72 else 96, 800, spacingEm = -0.035f),
             lp().apply { topMargin = Ui.px(c, 40) })
-        left.addView(Ui.text(c, "Watch Party needs access to what's playing on this TV, so it can keep everyone's " +
+        left.addView(Ui.text(c, "Watch Party needs access to what's playing on this ${if (phone) "phone" else "TV"}, so it can keep everyone's " +
             "pause, play and seek in step.", 34, 400, Ui.TEXT_2, lineHeight = 1.4f).apply { maxWidth = Ui.px(c, 900) },
             lp().apply { topMargin = Ui.px(c, 40) })
+        // Play's prominent disclosure: what the access reads, and where it goes
+        left.addView(Ui.text(c, "With it, Watch Party reads what other apps are playing (the title, where it is, playing " +
+            "or paused) and controls their play, pause and seek. In a room it sends what the room is watching and " +
+            "your playback to the relay you join, and nowhere else. It doesn't read your notifications.",
+            26, 400, Ui.MUTED, lineHeight = 1.45f).apply { maxWidth = Ui.px(c, 900) },
+            lp().apply { topMargin = Ui.px(c, 24) })
+        left.addView(Ui.nav(c, "Privacy policy") { openPrivacy() }.apply {
+            label.layoutParams = lp()
+            gravity = Gravity.CENTER
+        }, lp(WRAP, Ui.tap(c, 60)).apply { topMargin = Ui.px(c, 16) })
         val buttons = Ui.row(c)
         setupButton = Ui.primary(c, "Set up access", 96, 56, 32, 16, Ui.BG, 6, 1.05f) { startSetup() }
         buttons.addView(setupButton, lp(WRAP, Ui.tap(c, 96)))
@@ -541,6 +554,15 @@ class MainActivity : Activity(), Host {
                 }
             }
         }.start()
+    }
+
+    /** The privacy policy in a browser; a TV without one gets the address instead. */
+    private fun openPrivacy() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: android.content.ActivityNotFoundException) {
+            toast("Privacy policy: github.com/Breezyslasher/WatchParty/blob/main/PRIVACY.md")
+        }
     }
 
     /** Developer options if they're on, else the About screen (press Build 7 times). */
