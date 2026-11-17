@@ -513,6 +513,12 @@ adb logcat -s WatchPartyTV
 
 ## Releasing (Google Play)
 
+Play's privacy policy URL:
+<https://github.com/Breezyslasher/WatchParty/blob/main/PRIVACY.md> (the
+repository's `PRIVACY.md`, which also covers the extension, the Kodi addon
+and the relay). Its "what goes to the relay" and "services" sections are
+what the Data safety form asks about.
+
 The app targets Android 16 (API 36), as Play requires of new apps and
 updates since 2026-08-31. Its sync service is a `specialUse` foreground
 service (it keeps the device in the room and follows it; it plays nothing
