@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17.4** (a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.5** (a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -264,8 +264,14 @@ JustWatch's fields were checked against the live API with
 3. The services open in a dialog in the middle of the screen, with their
    logos (Yamtrack's, else JustWatch's icon): pick one. Services whose app
    isn't on this TV are dimmed; other TVs in the room may still have it.
-   Back closes the dialog. When there's only one service and its app is on
-   this TV (and you're in a room), it starts right away. A service that has
+   Back closes the dialog. When only one of the services has its app on
+   this TV (and you're in a room), it starts right away, however many are
+   listed (0.17.5; before, only when JustWatch listed one). Add-on
+   channels sold inside another app ("Crunchyroll Amazon Channel" in Prime
+   Video, "… Apple TV channel") don't count — having Prime Video doesn't
+   mean subscribing to them — so with only a channel's app here the dialog
+   asks. A Kodi title found here (the bridge) also picks a channel only
+   when nothing else is on this TV. A service that has
    only the show's page, not the episode (the next episode gets the same
    link — Pluto TV for some shows), says "Opens the show's page: pick the
    episode" and isn't started automatically.

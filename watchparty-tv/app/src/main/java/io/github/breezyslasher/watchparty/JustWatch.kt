@@ -78,6 +78,23 @@ object JustWatch {
     /** The only service, when there's exactly one (the same link twice counts once). */
     fun soleOffer(offers: List<Offer>): Offer? = offers.distinctBy { it.link }.singleOrNull()
 
+    /**
+     * The one to start without asking: the only service this device has an
+     * app for ([installed]), however many JustWatch lists. Add-on channels
+     * sold inside another app ("Crunchyroll Amazon Channel" in Prime Video,
+     * "… Apple TV channel") don't count: having Prime Video doesn't mean
+     * subscribing to them, so with one installed besides them that one
+     * starts, and with only a channel the picker asks.
+     */
+    fun onlyInstalled(offers: List<Offer>, installed: (Offer) -> Boolean): Offer? =
+        offers.distinctBy { it.link }
+            .filter { installed(it) && !isChannel(it) }
+            .singleOrNull()
+
+    /** A channel sold inside another service's app. */
+    fun isChannel(o: Offer): Boolean =
+        o.clearName.endsWith("Channel", ignoreCase = true) && !o.clearName.equals("The Roku Channel", ignoreCase = true)
+
     // ── queries (the shapes run by tools/justwatch/jw.py) ─────────────────
 
     private val SEARCH = """query S(${'$'}f: TitleFilter!, ${'$'}c: Country!, ${'$'}l: Language!, ${'$'}first: Int!) {

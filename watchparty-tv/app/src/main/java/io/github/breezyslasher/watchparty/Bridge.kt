@@ -38,9 +38,10 @@ object Bridge {
         return episode.offers.filter { it.link !in showLevel }
     }
 
-    /** The first service (JustWatch's order) whose app [installedPackage] finds here, with that package. */
+    /** The first service (JustWatch's order) whose app [installedPackage] finds here, with that package;
+     *  an add-on channel (in Prime Video, Apple TV) only when nothing else is here. */
     fun choose(offers: List<JustWatch.Offer>, installedPackage: (JustWatch.Offer) -> String?): Pair<JustWatch.Offer, String>? {
-        for (o in offers) installedPackage(o)?.let { return o to it }
+        for (o in offers.sortedBy { JustWatch.isChannel(it) }) installedPackage(o)?.let { return o to it }
         return null
     }
 

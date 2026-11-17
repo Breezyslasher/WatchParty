@@ -1238,10 +1238,11 @@ class PickerScreen(host: Host, private val item: YamtrackClient.Item) : ContentS
             }
             Ui.serviceCard(c, serviceName(o), note, o.icon, dimmed = pkg == null) { start(d, title, sub, o) }
         })
-        // one service, and its app is here: nothing to choose, start it
-        val sole = JustWatch.soleOffer(offers)
-        if (autoStart && sole != null && sole.link !in showLevel && installedPackage(sole) != null && SyncService.running) {
-            d.hint("Starting on ${serviceName(sole)}…")
+        // only one of them has its app here: nothing to choose, start it
+        val sole = JustWatch.onlyInstalled(offers) { installedPackage(it) != null }
+        if (autoStart && sole != null && sole.link !in showLevel && SyncService.running) {
+            d.hint(if (JustWatch.soleOffer(offers) != null) "Starting on ${serviceName(sole)}…"
+                   else "Starting on ${serviceName(sole)}, the one on this ${if (phone) "phone" else "TV"}…")
             start(d, title, sub, sole)
         }
     }

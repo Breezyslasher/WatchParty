@@ -3,6 +3,7 @@ package io.github.breezyslasher.watchparty
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -260,5 +261,30 @@ class JustWatchTest {
         assertEquals("tm1", JustWatch.pickTitle(titles, "Dune", null, null, null)?.id)
         // a TMDB id alone that matches nothing: no guessing by name
         assertNull(JustWatch.pickTitle(titles, "Dune", "1", null, 2021))
+    }
+
+    @Test fun theOnlyInstalledServiceStartsWithoutAsking() {
+        val netflix = JustWatch.Offer("netflix", "Netflix", "https://www.netflix.com/watch/81700392")
+        val netflixAds = JustWatch.Offer("netflixbasicwithads", "Netflix Standard with Ads", "https://www.netflix.com/watch/81700392")
+        val crunchyroll = JustWatch.Offer("crunchyroll", "Crunchyroll", "https://www.crunchyroll.com/watch/GZ7UV2MZK")
+        val channel = JustWatch.Offer("amazoncrunchyroll", "Crunchyroll Amazon Channel", "https://watch.amazon.com/watch?gti=x")
+        val prime = JustWatch.Offer("amazonprime", "Amazon Prime Video", "https://watch.amazon.com/watch?gti=y")
+        val offers = listOf(netflix, netflixAds, crunchyroll, channel)
+        fun on(vararg names: String): (JustWatch.Offer) -> Boolean = { it.technicalName in names }
+        // three services listed, only Crunchyroll's app here
+        assertEquals(crunchyroll, JustWatch.onlyInstalled(offers, on("crunchyroll")))
+        // Netflix twice (with ads: the same link) counts once
+        assertEquals(netflix, JustWatch.onlyInstalled(offers, on("netflix", "netflixbasicwithads")))
+        // two to choose from: ask
+        assertEquals(null, JustWatch.onlyInstalled(offers, on("netflix", "crunchyroll")))
+        // none here: ask (the picker says so)
+        assertEquals(null, JustWatch.onlyInstalled(offers, on()))
+        // Prime Video installed doesn't mean the Crunchyroll channel: ask
+        assertEquals(null, JustWatch.onlyInstalled(offers, on("amazoncrunchyroll")))
+        // Prime Video itself besides its channel: Prime Video
+        assertEquals(prime, JustWatch.onlyInstalled(listOf(prime, channel, netflix), on("amazonprime", "amazoncrunchyroll")))
+        assertTrue(JustWatch.isChannel(channel))
+        assertTrue(JustWatch.isChannel(JustWatch.Offer("appletvhistoryvault", "HISTORY Vault Apple TV channel", "https://tv.apple.com/us")))
+        assertFalse(JustWatch.isChannel(JustWatch.Offer("rokuchannel", "The Roku Channel", "https://therokuchannel.roku.com/details/x")))
     }
 }
