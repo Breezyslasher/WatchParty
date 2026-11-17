@@ -11,6 +11,7 @@ name: Android release
 #   ANDROID_KEYSTORE_PASSWORD  its password
 #   ANDROID_KEY_ALIAS          the key's alias (e.g. upload)
 #   ANDROID_KEY_PASSWORD       the key's password
+# (or the same with SIGNING_ in place of ANDROID_: SIGNING_KEYSTORE_BASE64, …)
 # Raise versionCode in watchparty-tv/app/build.gradle.kts for each upload.
 on:
   push:
@@ -41,21 +42,39 @@ jobs:
         run: ./gradlew --no-daemon testReleaseUnitTest
       - name: Upload key
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.SIGNING_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.SIGNING_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.SIGNING_KEY_PASSWORD }}
         run: |
+          # which are set (never their values), to see a misnamed one
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -n "${!v}" ]; then echo "$v: set"; else echo "$v: not set"; fi
+          done
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
             echo "WATCHPARTY_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
             echo "Signing with the upload key"
           else
-            echo "::notice::No ANDROID_KEYSTORE_BASE64 secret: the bundle and APK are unsigned (fine for checking the build; Play needs them signed)"
+            echo "::notice::No ANDROID_KEYSTORE_BASE64 (or SIGNING_KEYSTORE_BASE64) secret: the bundle and APK are unsigned (fine for checking the build; Play needs them signed)"
           fi
       - name: Bundle and APK
         env:
-          WATCHPARTY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          WATCHPARTY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          WATCHPARTY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          WATCHPARTY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.SIGNING_KEYSTORE_PASSWORD }}
+          WATCHPARTY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.SIGNING_KEY_ALIAS }}
+          WATCHPARTY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew --no-daemon bundleRelease assembleRelease
+      - name: Check the signature
+        run: |
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in app/build/outputs/apk/release/*.apk; do
+            echo "== $apk"
+            "$apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "not signed"
+          done
+          for aab in app/build/outputs/bundle/release/*.aab; do
+            echo "== $aab"
+            keytool -printcert -jarfile "$aab" | grep -E 'Owner:|SHA256:' || echo "not signed"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: watchparty-android
