@@ -399,6 +399,38 @@ class EmbeddedRelayTest(unittest.TestCase):
         self.guest.command('open', position=0.0, item=ITEM)  # free again
 
 
+class StopTest(unittest.TestCase):
+    def test_stopping_ends_kept_alive_connections(self):
+        # the app, the extension and Kodi keep their connection open; a
+        # Kodi host that stops hosting must stop answering them too
+        import http.client
+        server = RelayServer(port=0, room_code='TEST')
+        server.start()
+        conn = http.client.HTTPConnection('127.0.0.1', server._httpd.server_address[1], timeout=5)
+        conn.request('POST', '/join', json.dumps({'room': 'TEST', 'name': 'app'}),
+                     {'Content-Type': 'application/json'})
+        self.assertTrue(json.loads(conn.getresponse().read())['ok'])
+        server.stop()
+        with self.assertRaises((OSError, http.client.HTTPException)):
+            conn.request('POST', '/poll', json.dumps({'room': 'TEST'}),
+                         {'Content-Type': 'application/json'})
+            conn.getresponse().read()
+        conn.close()
+
+    def test_the_kodi_client_keeps_one_connection(self):
+        server = RelayServer(port=0, room_code='TEST')
+        server.start()
+        try:
+            c = RelayClient('127.0.0.1', server._httpd.server_address[1], 'TEST')
+            c.join('kodi')
+            conn = c._local.conn
+            for t in range(5):
+                c.poll(float(t), False, '')
+            self.assertIs(c._local.conn, conn)
+        finally:
+            server.stop()
+
+
 class StandaloneRelayTest(unittest.TestCase):
     PORT = 28765
 
