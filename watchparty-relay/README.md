@@ -44,7 +44,9 @@ Put it behind a reverse proxy or a tunnel (cloudflared, ngrok) for TLS, then
 everyone joins with the `https://` address.
 
 - **Open mode** (default): any room code creates a room on first join —
-  SyncLounge-style. Rooms empty for 5 minutes are pruned.
+  SyncLounge-style. Rooms empty for 5 minutes are pruned. At most 1000
+  rooms at a time (`--max-rooms N` or `WATCHPARTY_MAX_ROOMS`); past that
+  new rooms get "relay is full".
 - **Fixed mode** (`--room CODE`, repeatable, or `WATCHPARTY_ROOMS=A,B`):
   only the listed rooms exist; everything else is rejected.
 - **Persistence**: with `--state-file PATH` (or `WATCHPARTY_STATE`), room
@@ -61,6 +63,25 @@ everyone joins with the `https://` address.
   addon") when it joins a relay that doesn't speak its protocol version,
   so a stale container is a visible message instead of silently missing
   features.
+
+## How much it takes
+
+Measured on a local relay (2026-11-17), every member polling once a second
+as the apps do:
+
+- **Data:** each poll sends ~340 bytes and gets the room's state back,
+  ~500 bytes plus ~230 per member (the member list). About 6 MB an hour
+  per member in a room of 3, 8 MB in a room of 5, 10 MB in a room of 7,
+  plus 10–15% for TCP/TLS. Every client keeps its connection open, so
+  HTTPS adds little after the first handshake. The video itself never
+  goes through the relay.
+- **1000 members** in rooms of 3 to 7: every poll answered, no errors,
+  1–2 ms per reply, about a quarter of one CPU core; roughly 14–22 Mbit/s
+  and 6.5–10 GB an hour. The relay is one Python process, so it uses one
+  core: the most it answered here was ~4,200 polls a second.
+- **One big room doesn't scale:** the member list goes to every member
+  every second, so a room's traffic grows with the square of its size.
+  It's meant for watching together, not broadcasting.
 
 ## Dashboard
 

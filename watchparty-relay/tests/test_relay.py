@@ -494,6 +494,59 @@ class StandaloneRelayTest(unittest.TestCase):
         self.assertIn('Watch Party relay', html)
 
 
+class CapacityTest(unittest.TestCase):
+    PORT = 28769
+
+    def _start(self, *args, env=None):
+        proc = subprocess.Popen([sys.executable, STANDALONE, '--port', str(self.PORT), *args],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                env=dict(os.environ, **(env or {})))
+        self.addCleanup(lambda: (proc.terminate(), proc.wait(timeout=5)))
+        for _ in range(50):
+            try:
+                RelayClient('127.0.0.1', self.PORT, 'PING').ping()
+                return proc
+            except Exception:
+                time.sleep(0.2)
+        raise RuntimeError('standalone relay did not start')
+
+    def test_max_rooms_is_a_setting(self):
+        self._start('--max-rooms', '2')
+        RelayClient('127.0.0.1', self.PORT, 'ONE').join('a')
+        RelayClient('127.0.0.1', self.PORT, 'TWO').join('b')
+        with self.assertRaisesRegex(RelayError, 'too many rooms'):
+            RelayClient('127.0.0.1', self.PORT, 'THREE').join('c')
+
+    def test_max_rooms_from_the_environment(self):
+        self._start(env={'WATCHPARTY_MAX_ROOMS': '1'})
+        RelayClient('127.0.0.1', self.PORT, 'ONE').join('a')
+        with self.assertRaisesRegex(RelayError, 'too many rooms'):
+            RelayClient('127.0.0.1', self.PORT, 'TWO').join('b')
+
+    def test_many_members_joining_at_once(self):
+        # everyone reconnecting after a restart: with socketserver's queue
+        # of 5, most of these were reset
+        import threading
+        self._start()
+        errors, barrier = [], threading.Barrier(200)
+
+        def join(i):
+            c = RelayClient('127.0.0.1', self.PORT, f'ROOM{i // 5}', timeout=20)
+            barrier.wait()
+            try:
+                c.join(f'm{i}')
+            except RelayError as e:
+                errors.append(str(e))
+            finally:
+                c.close()
+        threads = [threading.Thread(target=join, args=(i,)) for i in range(200)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+
+
 class PersistenceTest(unittest.TestCase):
     PORT = 28767
 

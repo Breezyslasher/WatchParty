@@ -18,6 +18,7 @@ services:
     # environment:
     #   WATCHPARTY_ROOMS: "MOVIE,SHOWS"   # omit for open mode
     #   WATCHPARTY_SHOW_CODES: "1"        # show full room codes on /status
+    #   WATCHPARTY_MAX_ROOMS: "1000"      # open mode's room limit (default 1000)
     restart: unless-stopped
 
 volumes:

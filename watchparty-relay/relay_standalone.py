@@ -35,12 +35,15 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # relay.py
-from relay import RoomState, _Handler  # noqa: E402
-from http.server import ThreadingHTTPServer  # noqa: E402
+from relay import RoomState, _ClosingServer, _Handler  # noqa: E402
 
 
 ROOM_CODE_RE = re.compile(r'^[A-Z0-9]{3,12}$')
-MAX_ROOMS = 200
+# Open mode creates rooms on demand, so it has a ceiling. A room costs a few
+# KB of memory; the relay's CPU is the real limit (a load test answered
+# 1000 members in rooms of 3 and of 7, polling once a second, with about a
+# quarter of one core). --max-rooms / WATCHPARTY_MAX_ROOMS changes it.
+DEFAULT_MAX_ROOMS = 1000
 EMPTY_ROOM_TTL = 300.0   # seconds an empty room lingers before pruning
 PRUNE_INTERVAL = 60.0
 
@@ -53,8 +56,10 @@ class RoomRegistry:
     their engines auto-rejoin within seconds of the relay coming back.
     """
 
-    def __init__(self, fixed_codes=None, state_path=None):
+    def __init__(self, fixed_codes=None, state_path=None,
+                 max_rooms=DEFAULT_MAX_ROOMS):
         self._lock = threading.Lock()
+        self.max_rooms = max_rooms
         self._rooms = {}
         self._empty_since = {}
         self._saved_fingerprint = None
@@ -120,7 +125,7 @@ class RoomRegistry:
                 return 'unknown room (this relay uses fixed room codes)'
             if not ROOM_CODE_RE.match(code):
                 return 'room code must be 3-12 letters or digits'
-            if len(self._rooms) >= MAX_ROOMS:
+            if len(self._rooms) >= self.max_rooms:
                 return 'relay is full (too many rooms)'
             room = RoomState(code)
             self._rooms[code] = room
@@ -165,6 +170,12 @@ def main():
                         help='restrict to fixed room code(s); '
                              'repeatable. Default: open mode. '
                              'Also via WATCHPARTY_ROOMS=A,B')
+    parser.add_argument('--max-rooms', type=int, metavar='N',
+                        default=int(os.environ.get('WATCHPARTY_MAX_ROOMS')
+                                    or DEFAULT_MAX_ROOMS),
+                        help='open mode: refuse new rooms beyond N '
+                             f'(default {DEFAULT_MAX_ROOMS}). Also via '
+                             'WATCHPARTY_MAX_ROOMS')
     parser.add_argument('--state-file', metavar='PATH',
                         default=os.environ.get('WATCHPARTY_STATE') or None,
                         help='persist room playback state here so parties '
@@ -182,7 +193,10 @@ def main():
             parser.error(f"room code '{code}' must be 3-12 letters/digits")
         fixed.append(code)
 
-    registry = RoomRegistry(fixed_codes=fixed, state_path=args.state_file)
+    if args.max_rooms < 1:
+        parser.error('--max-rooms must be at least 1')
+    registry = RoomRegistry(fixed_codes=fixed, state_path=args.state_file,
+                            max_rooms=args.max_rooms)
     show_codes = os.environ.get('WATCHPARTY_SHOW_CODES', '').lower() \
         in ('1', 'true', 'yes')
 
@@ -191,8 +205,7 @@ def main():
         'iter_rooms': lambda self: registry.rooms(),
         'show_codes': show_codes,
     })
-    httpd = ThreadingHTTPServer((args.bind, args.port), handler)
-    httpd.daemon_threads = True
+    httpd = _ClosingServer((args.bind, args.port), handler)
 
     mode = f"fixed rooms: {', '.join(fixed)}" if fixed else 'open mode'
     persistence = f", state in {args.state_file}" if args.state_file else ''
