@@ -11,7 +11,9 @@ name: Android release
 #   ANDROID_KEYSTORE_PASSWORD  its password
 #   ANDROID_KEY_ALIAS          the key's alias (e.g. upload)
 #   ANDROID_KEY_PASSWORD       the key's password
-# (or the same with SIGNING_ in place of ANDROID_: SIGNING_KEYSTORE_BASE64, …)
+# (or the same with SIGNING_ in place of ANDROID_: SIGNING_KEYSTORE_BASE64, …;
+# the keystore password also as SIGNING_STORE_PASSWORD, and when none is set
+# the key's password is used: keytool's PKCS12 keystores have just one)
 # Raise versionCode in watchparty-tv/app/build.gradle.kts for each upload.
 on:
   push:
@@ -43,7 +45,7 @@ jobs:
       - name: Upload key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.SIGNING_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.SIGNING_KEYSTORE_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.SIGNING_KEYSTORE_PASSWORD || secrets.SIGNING_STORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD || secrets.SIGNING_KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.SIGNING_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.SIGNING_KEY_PASSWORD }}
         run: |
@@ -60,7 +62,7 @@ jobs:
           fi
       - name: Bundle and APK
         env:
-          WATCHPARTY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.SIGNING_KEYSTORE_PASSWORD }}
+          WATCHPARTY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.SIGNING_KEYSTORE_PASSWORD || secrets.SIGNING_STORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD || secrets.SIGNING_KEY_PASSWORD }}
           WATCHPARTY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.SIGNING_KEY_ALIAS }}
           WATCHPARTY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew --no-daemon bundleRelease assembleRelease
