@@ -494,6 +494,69 @@ class StandaloneRelayTest(unittest.TestCase):
         self.assertIn('Watch Party relay', html)
 
 
+class CompressionTest(unittest.TestCase):
+    def setUp(self):
+        self.server = RelayServer(port=0, room_code='TEST')
+        self.port = self.server._httpd.server_address[1]
+        self.server.start()
+        self.addCleanup(self.server.stop)
+
+    def raw(self, method, path, body=None, accept=None):
+        import http.client
+        conn = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)
+        headers = {'Content-Type': 'application/json'}
+        if accept is not None:
+            headers['Accept-Encoding'] = accept
+        conn.request(method, path, json.dumps(body) if body is not None else None, headers)
+        resp = conn.getresponse()
+        data = resp.read()
+        conn.close()
+        return resp, data
+
+    def _room_of_five(self):
+        clients = [RelayClient('127.0.0.1', self.port, 'TEST') for _ in range(5)]
+        for i, c in enumerate(clients):
+            c.join(f'Living room TV {i}')
+        clients[0].command('open', position=1.0, item=ITEM)
+        return clients
+
+    def test_polls_are_gzipped_for_clients_that_ask(self):
+        import gzip
+        member = self._room_of_five()[1].member_id
+        poll = {'room': 'TEST', 'member_id': member, 'position': 1.0, 'paused': False,
+                'file': ITEM['file'], 'on_item': True}
+        plain, plain_body = self.raw('POST', '/poll', poll)
+        self.assertIsNone(plain.getheader('Content-Encoding'))
+        zipped, zipped_body = self.raw('POST', '/poll', poll, accept='gzip, deflate')
+        self.assertEqual(zipped.getheader('Content-Encoding'), 'gzip')
+        self.assertEqual(zipped.getheader('Vary'), 'Accept-Encoding')
+        state = json.loads(gzip.decompress(zipped_body))['state']
+        self.assertEqual(len(state['members']), 5)
+        self.assertLess(len(zipped_body), len(plain_body) * 0.5)
+        # refused explicitly, or only another coding: plain
+        for accept in ('gzip;q=0', 'br', 'identity'):
+            resp, _ = self.raw('POST', '/poll', poll, accept=accept)
+            self.assertIsNone(resp.getheader('Content-Encoding'), accept)
+
+    def test_small_replies_stay_plain(self):
+        resp, _ = self.raw('GET', '/ping', accept='gzip')
+        self.assertIsNone(resp.getheader('Content-Encoding'))
+
+    def test_the_kodi_client_asks_and_decodes(self):
+        clients = self._room_of_five()
+        state = clients[2].poll(1.0, False, ITEM['file'], on_item=True)
+        self.assertEqual(state['item']['label'], ITEM['label'])
+        self.assertEqual(len(state['members']), 5)
+
+    def test_the_dashboard_and_remote_files_are_gzipped(self):
+        for path in ('/status', '/remote', '/remote/remote.js', '/remote/room.css'):
+            resp, _ = self.raw('GET', path, accept='gzip')
+            self.assertEqual(resp.status, 200, path)
+            self.assertEqual(resp.getheader('Content-Encoding'), 'gzip', path)
+        resp, _ = self.raw('GET', '/remote/fonts/Figtree-Regular.ttf', accept='gzip')
+        self.assertIsNone(resp.getheader('Content-Encoding'))
+
+
 class CapacityTest(unittest.TestCase):
     PORT = 28769
 

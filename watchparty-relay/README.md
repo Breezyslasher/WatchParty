@@ -69,18 +69,25 @@ everyone joins with the `https://` address.
 Measured on a local relay (2026-11-17), every member polling once a second
 as the apps do:
 
-- **Data:** each poll sends ~340 bytes and gets the room's state back,
-  ~500 bytes plus ~230 per member (the member list). About 6 MB an hour
-  per member in a room of 3, 8 MB in a room of 5, 10 MB in a room of 7,
-  plus 10–15% for TCP/TLS. Every client keeps its connection open, so
-  HTTPS adds little after the first handshake. The video itself never
-  goes through the relay.
+- **Data:** each poll sends ~340 bytes and gets the room's state back:
+  ~500 bytes plus ~250 per member as JSON (the member list, with each
+  member's position and drift, is most of it), gzipped to ~0.45–0.55 KB
+  for clients that accept it — the Android app and browsers do by
+  themselves, the Kodi addon asks. With headers that's ~580–650 bytes
+  down a poll whatever the room's size: about 3.3–3.5 MB an hour per
+  member in rooms of 3 to 7 (uncompressed it was 5.6–10 MB), plus
+  10–15% for TCP/TLS. Kodi and browsers keep their connection open, so
+  HTTPS adds little after the first handshake (the Android app closes
+  its connection after each request, which may or may not end the
+  socket — not measured on a device). The video itself never goes
+  through the relay.
 - **1000 members** in rooms of 3 to 7: every poll answered, no errors,
-  1–2 ms per reply, about a quarter of one CPU core; roughly 14–22 Mbit/s
-  and 6.5–10 GB an hour. The relay is one Python process, so it uses one
-  core: the most it answered here was ~4,200 polls a second.
+  1–3 ms per reply, about a third of one CPU core with gzip (a quarter
+  without); roughly 8–9 Mbit/s and 3.5 GB an hour. The relay is one Python process, so it uses one core: the most it
+  answered here was ~4,200 polls a second.
 - **One big room doesn't scale:** the member list goes to every member
-  every second, so a room's traffic grows with the square of its size.
+  every second, so a room's traffic grows with the square of its size (gzip
+  shrinks a repetitive list a lot, but not that).
   It's meant for watching together, not broadcasting.
 
 ## Dashboard

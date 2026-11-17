@@ -12,6 +12,7 @@ party members can agree on "server time" positions.
 
 Pure standard library — no Kodi imports.
 """
+import gzip
 import http.client
 import json
 import ssl
@@ -41,6 +42,13 @@ _STALE = (http.client.RemoteDisconnected, BrokenPipeError,
           ConnectionResetError, ConnectionAbortedError)
 
 
+def _decoded(headers, data):
+    """The body as sent, before any gzip."""
+    if (headers.get('Content-Encoding') or '').strip().lower() == 'gzip':
+        return gzip.decompress(data)
+    return data
+
+
 class RelayClient:
     def __init__(self, host, port, room_code, timeout=5.0):
         # `host` may be a plain hostname/IP (paired with `port`) or a full
@@ -61,13 +69,16 @@ class RelayClient:
         # one for every request: over HTTPS each new connection repeats the
         # TLS handshake (~4-6 KB), which once a second was most of what
         # Kodi sent and received. With an HTTP(S) proxy set in the
-        # environment, requests go through urllib as before (it honours
-        # the proxy; http.client doesn't).
+        # environment for this host (not excluded by no_proxy), requests
+        # go through urllib as before: it honours the proxy, http.client
+        # doesn't.
         url = urllib.parse.urlsplit(self.base)
         self._scheme = url.scheme
         self._netloc = url.netloc
         self._prefix = url.path.rstrip('/')
-        self._use_urllib = bool(urllib.request.getproxies().get(url.scheme))
+        self._use_urllib = bool(
+            urllib.request.getproxies().get(url.scheme)
+            and not urllib.request.proxy_bypass(url.hostname or ''))
         self._local = threading.local()
 
     # -- transport ---------------------------------------------------------
@@ -98,14 +109,17 @@ class RelayClient:
         connection. Network errors raise OSError / HTTPException."""
         headers = dict(headers or {})
         headers.setdefault('User-Agent', USER_AGENT)
+        # the relay gzips its replies for clients that ask: a poll's room
+        # state is ~1.2-2.3 KB of JSON and ~0.5 KB gzipped
+        headers.setdefault('Accept-Encoding', 'gzip')
         if self._use_urllib:
             req = urllib.request.Request(self.base + path, data=body,
                                          headers=headers, method=method)
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                    return r.status, r.read()
+                    return r.status, _decoded(r.headers, r.read())
             except urllib.error.HTTPError as e:
-                return e.code, e.read()
+                return e.code, _decoded(e.headers, e.read())
         while True:
             conn = self._connection()
             reused = self._local.used
@@ -125,7 +139,7 @@ class RelayClient:
             self._local.used = True
             if resp.will_close:
                 self.close()
-            return resp.status, data
+            return resp.status, _decoded(resp.headers, data)
 
     def _post(self, path, payload):
         payload = dict(payload)
