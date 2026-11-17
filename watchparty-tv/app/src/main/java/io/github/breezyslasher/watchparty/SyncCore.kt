@@ -19,6 +19,11 @@ package io.github.breezyslasher.watchparty
  *    mistaken for the user acting;
  *  - a change the user makes locally (pause, play, seek with the remote) is
  *    sent to the room so everyone follows;
+ *  - an ad is left alone: no corrections, nothing sent to the room, only
+ *    the room's play / pause followed; once the title is back (STARTED_MS
+ *    to settle) it catches up. An ad shows as the app's length dropping to
+ *    an ad's (Tubi on a Sony TV, 2026-11-17: 2 h, then 15 s and 30 s, the
+ *    position counting from 0 — no ad flag), see isAd;
  *  - a just-launched app is left alone (no play, pause or seek) until it has
  *    played for STARTED_MS, or OPEN_GRACE_MS passes: seeking HBO Max's player
  *    while it started (5 s in, the room ahead) closed it on a phone. Its
@@ -139,6 +144,8 @@ class SyncCore(
         const val SEEK_LANDS_MS = 2_500L        // a correction is judged this long after
         /** Waits after 1, 2, 3+ corrections in a row that didn't land. */
         val RETRY_BACKOFF_MS = longArrayOf(10_000L, 20_000L, 30_000L)
+        const val AD_MAX_MS = 180_000L          // an ad is at most this long…
+        const val TITLE_MIN_MS = 600_000L       // …in a title at least this long
     }
 
     private var openedFile: String? = null
@@ -153,6 +160,12 @@ class SyncCore(
     var refusedSeeks = 0
         private set
     private var lastDurationMs = -1L
+    /** The longest length the app has reported for the current item. */
+    private var titleDurationMs = -1L
+    /** An ad is playing here. */
+    var inAd = false
+        private set
+    private var adSettleUntilMs = 0L
     private var notPlayableFile: String? = null
     private var last: LocalState? = null
     private var lastAtMs = 0L
@@ -205,6 +218,9 @@ class SyncCore(
             refusedSeeks = 0
             correctionGapSec = -1.0
             lastDurationMs = -1L
+            titleDurationMs = -1L
+            inAd = false
+            adSettleUntilMs = 0L
             val pkg = item.androidPackage
             val link = item.link
             if (pkg != null && link != null) {
@@ -234,6 +250,8 @@ class SyncCore(
             remember(local, nowMs)
             return actions
         }
+        // the title's own length (an app can report it while it starts, before a pre-roll ad)
+        if (local.durationMs > AD_MAX_MS) titleDurationMs = maxOf(titleDurationMs, local.durationMs)
 
         val inGrace = nowMs - openedAtMs < OPEN_GRACE_MS
         // still starting up: leave the app alone until it has played a few seconds
@@ -248,6 +266,39 @@ class SyncCore(
         }
         val suppressed = nowMs < suppressUntilMs
         val localSec = if (local.positionMs >= 0) local.positionMs / 1000.0 else -1.0
+
+        // An ad: leave it alone (seeking it does nothing, or seeks inside the
+        // ad; its position isn't the title's, so a "jump" isn't the user),
+        // only follow the room's pause and play.
+        if (isAd(local, room.expectedSec(serverNowSec))) {
+            if (!inAd) {
+                inAd = true
+                actions += Action.Note("An ad is playing here — catching up when it ends")
+            }
+            if (!suppressed && local.play != LocalPlay.BUFFERING) {
+                if (room.paused && local.play == LocalPlay.PLAYING) {
+                    actions += Action.Pause
+                    suppressUntilMs = nowMs + SUPPRESS_MS
+                } else if (!room.paused && local.play == LocalPlay.PAUSED) {
+                    actions += Action.Play
+                    suppressUntilMs = nowMs + SUPPRESS_MS
+                }
+            }
+            remember(local, nowMs)
+            return actions
+        }
+        if (inAd) {
+            // the title is back: let it settle, then catch up with the room
+            inAd = false
+            adSettleUntilMs = nowMs + STARTED_MS
+            refusedSeeks = 0
+            correctionGapSec = -1.0
+            lastCorrectionMs = 0L
+        }
+        if (nowMs < adSettleUntilMs) {
+            remember(local, nowMs)
+            return actions
+        }
 
         // 2. The user did something here: tell the room, and let the room's
         //    answer drive everyone (including us) next tick.
@@ -335,6 +386,14 @@ class SyncCore(
         }
         remember(local, nowMs)
         return actions
+    }
+
+    /** The app's length is an ad's: short, in a title known to be long, or
+     *  shorter than where the room already is. */
+    private fun isAd(local: LocalState, expectedSec: Double): Boolean {
+        val d = local.durationMs
+        if (d <= 0 || d > AD_MAX_MS) return false
+        return titleDurationMs >= TITLE_MIN_MS || expectedSec > d / 1000.0 + 10.0
     }
 
     private fun remember(local: LocalState, nowMs: Long) {

@@ -4,7 +4,7 @@ Joins a [Watch Party](https://github.com/Breezyslasher/kodi-addons) room —
 the same relay and rooms as the Kodi addon — and keeps the movie playing in
 another app (Disney+, Netflix, …) in sync with everyone else.
 
-**Status: 0.17.7** (your own skip right after opening a title or after a catch-up seek goes to the room instead of being seeked back; Room shows the saved Watch here / Remote only after the app restarts; a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
+**Status: 0.17.8** (an ad is left alone and the title catches up after it — Tubi, by its length; your own skip right after opening a title or after a catch-up seek goes to the room instead of being seeked back; Room shows the saved Watch here / Remote only after the app restarts; a title starts by itself when only one of its services has its app here; a catch-up seek the app refuses — Prime Video during an ad — waits longer before the next; logs what the playing app reports, for finding out how apps show ads; polls send the playing file only when it changes; Crunchyroll on a TV starts the episode; targets Android 16; Back via OnBackInvokedCallback; the sync service is a specialUse foreground service; app ID now `io.github.breezyslasher.watchparty`: it installs as a new app beside the old `dev.watchparty.tv` — grant notification access again, re-enter the relay and Yamtrack, then `adb uninstall dev.watchparty.tv`; Browse: the library's status and order are dropdowns, Recently updated first; Remote only and the room's controls on Room, redrawn as a card with round buttons; the Kodi bridge, with Kodi's streaming addons, and search without Yamtrack: not yet tried on a device; links go in Browse's search box, and a seek in a paused room pauses again — for a phone's Netflix). Tested on a Sony Android TV 9 and a Samsung phone
 (2026-11-15): joining a room, **Browse** against a live Yamtrack
 server, and starting titles from it in each service's app on both devices
 (the table below). 0.7.2's **Set up access** was tested on the Sony
@@ -467,6 +467,18 @@ the next try, and the status says the app isn't taking seeks; the app's
 length changing (an ad's, then the title's again) or a seek that lands
 puts it back to every 4 s. Whether an ad can also send the room a seek
 isn't known yet.
+
+Tubi (Sony TV, 2026-11-17, 0.17.3's log): no ad flag; during an ad the
+app's length is the ad's (15 s, then 30 s, where the movie was 2 h) and
+its position counts from 0, so Watch Party seeked inside the ad. Since
+0.17.8 an ad is recognised by the length: at most 3 minutes, in a title
+known (from earlier reports, even while it opened) to be at least 10
+minutes, or shorter than where the room already is. During an ad nothing
+is corrected or sent to the room (its position isn't the title's), only
+the room's pause and play are followed; the status says an ad is
+playing. When the title's length is back, it gets 3 s to settle and then
+catches up with the room — the others keep watching meanwhile, so you
+miss what they saw during your ad.
 
 0.17.3 logs what the playing app reports, to find out: a `session` line
 whenever its state, length, title, metadata keys, the standard ad flag
