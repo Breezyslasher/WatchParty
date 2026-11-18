@@ -46,6 +46,11 @@ class SyncService : Service() {
         private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE, "com.discovery.discoveryplus.mobile")
         private const val RESEND_AFTER_MS = 8_000L
         private const val KEY_FALLBACK_MS = 1_500L
+        private const val KEY_STEP_MS = 900L
+        private const val KEY_SEEK_MAX_MOVES = 40
+        /** Apps that ignore other apps' play / pause / seek but obey media keys:
+         *  Apple TV's phone app (logs and adb, 2026-11-18). */
+        private val KEYS_FIRST = setOf(MediaLink.APPLE_TV_PACKAGE)
         /** How long after a seek in a paused room to pause again (see Action.SeekTo). */
         private const val PAUSE_AFTER_SEEK_MS = 1_000L
 
@@ -342,21 +347,26 @@ class SyncService : Service() {
         when (a) {
             is Action.Open -> if (MediaLink.isBareApple(a.link)) expandThenOpen(a.link, a.pkg) else openLink(a.link, a.pkg)
             is Action.Resolve -> resolve(a)
-            is Action.Play -> {
+            is Action.Play -> if (keysFirst(controller)) mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY) else {
                 controller?.transportControls?.play()
                 keyIfIgnored(controller, play = true)
             }
-            is Action.Pause -> {
+            is Action.Pause -> if (keysFirst(controller)) mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE) else {
                 controller?.transportControls?.pause()
                 keyIfIgnored(controller, play = false)
             }
-            is Action.SeekTo -> {
-                controller?.transportControls?.seekTo(maxOf(0L, a.ms))
-                if (a.pauseAfter && controller != null) {
-                    worker?.postDelayed({
-                        controller.transportControls.pause()
-                        keyIfIgnored(controller, play = false)
-                    }, PAUSE_AFTER_SEEK_MS)
+            is Action.SeekTo -> if (controller != null) {
+                val target = maxOf(0L, a.ms)
+                if (keysFirst(controller)) {
+                    seekByKeys(controller, target, roomPlaying = !a.pauseAfter)
+                } else {
+                    controller.transportControls.seekTo(target)
+                    if (a.pauseAfter) {
+                        worker?.postDelayed({
+                            controller.transportControls.pause()
+                            keyIfIgnored(controller, play = false)
+                        }, PAUSE_AFTER_SEEK_MS)
+                    }
                 }
             }
             is Action.Send -> try {
@@ -387,6 +397,70 @@ class SyncService : Service() {
             Log.i(TAG, "${c.packageName} ignored ${if (play) "play" else "pause"} (state $state): sending the media key")
             mediaKey(if (play) KeyEvent.KEYCODE_MEDIA_PLAY else KeyEvent.KEYCODE_MEDIA_PAUSE)
         }, KEY_FALLBACK_MS)
+    }
+
+    /** Apps that take media keys and no MediaController commands: keys straight away. */
+    private fun keysFirst(c: MediaController?): Boolean = c?.packageName in KEYS_FIRST
+
+    /** Until when (elapsedRealtime) a media-key seek is moving the app (LocalState.stepping). */
+    @Volatile private var steppingUntil = 0L
+
+    /**
+     * Seek [c] (an app in KEYS_FIRST) to [targetMs] with media keys, one
+     * KeySeek move at a time. [roomPlaying]: the target moves on meanwhile.
+     */
+    private fun seekByKeys(c: MediaController, targetMs: Long, roomPlaying: Boolean) {
+        if (SystemClock.elapsedRealtime() < steppingUntil) return   // one already under way
+        val issued = SystemClock.elapsedRealtime()
+        val target = { targetMs + if (roomPlaying) SystemClock.elapsedRealtime() - issued else 0L }
+        val s = c.playbackState ?: return
+        val gap = target() - positionOf(s)
+        if (Math.abs(gap) <= KeySeek.CLOSE_MS) return
+        if (Math.abs(gap) > KeySeek.MAX_GAP_MS) {
+            note = "${appName(c.packageName)} can't be seeked from here: skip to the room's spot by hand"
+            return
+        }
+        Log.i(TAG, "${c.packageName}: seeking ${"%.1f".format(gap / 1000.0)}s with media keys")
+        step(c, target, roomPlaying, KEY_SEEK_MAX_MOVES, null)
+    }
+
+    private fun step(c: MediaController, target: () -> Long, roomPlaying: Boolean, left: Int, gapBeforeKey: Long?) {
+        steppingUntil = SystemClock.elapsedRealtime() + KEY_STEP_MS + 3_000L
+        val s = c.playbackState
+        if (s == null || left <= 0) return finishStepping(c, roomPlaying)
+        val gap = target() - positionOf(s)
+        // a skip that didn't move it: the app doesn't skip on this key either
+        if (gapBeforeKey != null && Math.abs(gap - gapBeforeKey) < 3_000L) {
+            Log.i(TAG, "${c.packageName}: a skip key didn't move it (gap ${gap / 1000}s)")
+            return finishStepping(c, roomPlaying)
+        }
+        val playing = s.state == PlaybackState.STATE_PLAYING
+        when (val move = KeySeek.next(gap, roomPlaying)) {
+            KeySeek.Move.Done -> finishStepping(c, roomPlaying)
+            KeySeek.Move.Forward, KeySeek.Move.Back -> {
+                mediaKey(if (move == KeySeek.Move.Forward) KeyEvent.KEYCODE_MEDIA_FAST_FORWARD else KeyEvent.KEYCODE_MEDIA_REWIND)
+                worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gap) }, KEY_STEP_MS)
+            }
+            is KeySeek.Move.Hold -> {
+                steppingUntil = SystemClock.elapsedRealtime() + move.ms + 3_000L
+                if (playing) mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
+                worker?.postDelayed({ finishStepping(c, roomPlaying) }, move.ms)
+            }
+            is KeySeek.Move.Run -> {
+                steppingUntil = SystemClock.elapsedRealtime() + move.ms + 3_000L
+                if (!playing) mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                worker?.postDelayed({ finishStepping(c, roomPlaying) }, move.ms)
+            }
+        }
+    }
+
+    /** Leave the app playing or paused as the room is, and let sync judge it again shortly. */
+    private fun finishStepping(c: MediaController, roomPlaying: Boolean) {
+        val playing = c.playbackState?.state == PlaybackState.STATE_PLAYING
+        if (roomPlaying && !playing) mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+        if (!roomPlaying && playing) mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
+        steppingUntil = SystemClock.elapsedRealtime() + 1_500L
+        Log.i(TAG, "${c.packageName}: media-key seek done")
     }
 
     private fun mediaKey(code: Int) {
@@ -574,6 +648,7 @@ class SyncService : Service() {
             positionMs = if (s == null) -1 else if (stalled) s.position else positionOf(s),
             play = play,
             stalled = stalled,
+            stepping = SystemClock.elapsedRealtime() < steppingUntil,
             title = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
             durationMs = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0 } ?: -1,
         )

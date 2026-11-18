@@ -118,6 +118,9 @@ data class LocalState(
     /** Playing, but its position hasn't moved for a while though it keeps
      *  reporting (Prime Video during an ad): see SyncService.stalled. */
     val stalled: Boolean = false,
+    /** Watch Party is skipping the app toward the room with media keys
+     *  (SyncService, KeySeek): its jumps are ours, not the user's. */
+    val stepping: Boolean = false,
 )
 
 sealed class Action {
@@ -254,6 +257,11 @@ class SyncCore(
         }
 
         if (!onItem(room, local)) {
+            remember(local, nowMs)
+            return actions
+        }
+        // our own media-key seek is under way: its skips and pauses aren't the user's
+        if (local.stepping) {
             remember(local, nowMs)
             return actions
         }

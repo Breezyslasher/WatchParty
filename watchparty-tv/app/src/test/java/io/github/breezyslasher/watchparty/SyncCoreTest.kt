@@ -96,6 +96,21 @@ class SyncCoreTest {
         assertTrue(echo.none { it is Action.Send })
     }
 
+    @Test fun ourMediaKeySkipsAreNotTakenForUserSeeks() {
+        // Apple TV on a phone: Watch Party skips it 10 s at a time toward the room
+        val (core, t) = opened()
+        assertEquals(listOf<Action>(Action.SeekTo(110_000)), core.tick(room(), local(70.0), t, 1010.0))
+        val stepping = { sec: Double, play: LocalPlay -> local(sec, play).copy(stepping = true) }
+        for ((i, sec) in listOf(81.0, 92.0, 103.0, 114.0).withIndex()) {
+            assertEquals(emptyList<Action>(), core.tick(room(), stepping(sec, LocalPlay.PLAYING), t + 1_000L * (i + 1), 1011.0 + i))
+        }
+        // holding (paused) while the room catches up: no pause sent to the room, no play
+        assertEquals(emptyList<Action>(), core.tick(room(), stepping(114.0, LocalPlay.PAUSED), t + 5_000, 1015.0))
+        // done, on the room: the correction landed, nothing more
+        assertEquals(emptyList<Action>(), core.tick(room(), local(117.0), t + 7_000, 1017.0))
+        assertEquals(emptyList<Action>(), core.tick(room(), local(118.0), t + 8_000, 1018.0))
+    }
+
     @Test fun aUserSeekRightAfterOurCorrectionIsSent() {
         // Tubi: skipping ahead 4 s after a catch-up seek was seeked back
         val (core, t) = opened()
