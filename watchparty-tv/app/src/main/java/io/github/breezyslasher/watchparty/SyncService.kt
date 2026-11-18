@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.util.Log
 import java.io.IOException
 import java.util.Locale
@@ -44,6 +45,7 @@ class SyncService : Service() {
          *  confirmed; Discovery+ showed the same failure. */
         private val RESEND_IF_OPEN = setOf(MediaLink.HBO_PACKAGE, "com.discovery.discoveryplus.mobile")
         private const val RESEND_AFTER_MS = 8_000L
+        private const val KEY_FALLBACK_MS = 1_500L
         /** How long after a seek in a paused room to pause again (see Action.SeekTo). */
         private const val PAUSE_AFTER_SEEK_MS = 1_000L
 
@@ -340,12 +342,21 @@ class SyncService : Service() {
         when (a) {
             is Action.Open -> if (MediaLink.isBareApple(a.link)) expandThenOpen(a.link, a.pkg) else openLink(a.link, a.pkg)
             is Action.Resolve -> resolve(a)
-            is Action.Play -> controller?.transportControls?.play()
-            is Action.Pause -> controller?.transportControls?.pause()
+            is Action.Play -> {
+                controller?.transportControls?.play()
+                keyIfIgnored(controller, play = true)
+            }
+            is Action.Pause -> {
+                controller?.transportControls?.pause()
+                keyIfIgnored(controller, play = false)
+            }
             is Action.SeekTo -> {
                 controller?.transportControls?.seekTo(maxOf(0L, a.ms))
                 if (a.pauseAfter && controller != null) {
-                    worker?.postDelayed({ controller.transportControls.pause() }, PAUSE_AFTER_SEEK_MS)
+                    worker?.postDelayed({
+                        controller.transportControls.pause()
+                        keyIfIgnored(controller, play = false)
+                    }, PAUSE_AFTER_SEEK_MS)
                 }
             }
             is Action.Send -> try {
@@ -354,6 +365,38 @@ class SyncService : Service() {
                 note = if (e.status == 403) "Controls are locked by the host" else e.message
             }
             is Action.Note -> note = a.text
+        }
+    }
+
+    /**
+     * Apple TV's phone app takes no play / pause / seek from another app's
+     * MediaController, though its session lists them (logs, 2026-11-18), but
+     * obeys media keys (adb: input keyevent KEYCODE_MEDIA_PLAY / PAUSE, cmd
+     * media_session dispatch): those reach it from the system, like a
+     * headset's button. So when an app hasn't followed a play or pause after
+     * [KEY_FALLBACK_MS], the same goes as a media key through the system
+     * (AudioManager.dispatchMediaKeyEvent, to the app now playing media).
+     */
+    private fun keyIfIgnored(c: MediaController?, play: Boolean) {
+        c ?: return
+        worker?.postDelayed({
+            val state = c.playbackState?.state
+            val done = if (play) state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
+                       else state == PlaybackState.STATE_PAUSED || state == PlaybackState.STATE_STOPPED
+            if (done) return@postDelayed
+            Log.i(TAG, "${c.packageName} ignored ${if (play) "play" else "pause"} (state $state): sending the media key")
+            mediaKey(if (play) KeyEvent.KEYCODE_MEDIA_PLAY else KeyEvent.KEYCODE_MEDIA_PAUSE)
+        }, KEY_FALLBACK_MS)
+    }
+
+    private fun mediaKey(code: Int) {
+        val audio = getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager ?: return
+        val now = SystemClock.uptimeMillis()
+        try {
+            audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
+            audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
+        } catch (e: Exception) {
+            Log.w(TAG, "media key $code failed", e)
         }
     }
 
