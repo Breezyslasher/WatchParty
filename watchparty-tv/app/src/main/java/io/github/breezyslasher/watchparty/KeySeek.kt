@@ -16,14 +16,15 @@ package io.github.breezyslasher.watchparty
  * right way: skip past it, then hold or run back. So it lands within
  * [CLOSE_MS], not just within one skip.
  *
- * Keys sent back to back each count (three fast-forwards: +30 s, twice,
- * 2026-11-18), so a far seek skips up to [MAX_KEYS] at a time.
+ * Keys sent back to back each count (three fast-forwards: +30 s, twice; 120
+ * in 3 s: 14:02 → 34:02; adb, 2026-11-18), so a seek sends the whole jump at
+ * once, up to [MAX_KEYS], landing on the side a hold or run can close: one
+ * burst, then one pause or play.
  */
 object KeySeek {
     const val STEP_MS = 10_000L      // what one fast-forward / rewind key skips
     const val CLOSE_MS = 1_500L      // near enough: done
-    const val MAX_GAP_MS = 300_000L  // farther than this, by hand (30 skips)
-    const val MAX_KEYS = 3           // skips sent together (tested: 3)
+    const val MAX_KEYS = 120         // skips sent together (tested: 120, 20 min)
 
     sealed class Move {
         object Done : Move() { override fun toString() = "Done" }
@@ -42,8 +43,8 @@ object KeySeek {
         if (Math.abs(gapMs) <= CLOSE_MS) return Move.Done
         return if (roomPlaying) {
             when {
-                // behind: skip to within a skip short of it, then once more past it
-                gapMs > 0 -> Move.Forward(keys(maxOf(1L, gapMs / STEP_MS)))
+                // behind: skip just past it, then hold
+                gapMs > 0 -> Move.Forward(keys(ceil(gapMs)))
                 // ahead: back to less than a skip ahead, then hold
                 -gapMs > STEP_MS -> Move.Back(keys(-gapMs / STEP_MS))
                 else -> Move.Hold(-gapMs)
@@ -51,7 +52,7 @@ object KeySeek {
         } else {
             when {
                 // ahead: back past it (a whole skip more than the difference), then run
-                gapMs < 0 -> Move.Back(keys((-gapMs + STEP_MS - 1) / STEP_MS))
+                gapMs < 0 -> Move.Back(keys(ceil(-gapMs)))
                 gapMs > STEP_MS -> Move.Forward(keys(gapMs / STEP_MS))
                 else -> Move.Run(gapMs)
             }
@@ -59,4 +60,7 @@ object KeySeek {
     }
 
     private fun keys(n: Long): Int = n.coerceIn(1L, MAX_KEYS.toLong()).toInt()
+
+    /** Skips that cover [ms]. */
+    private fun ceil(ms: Long): Long = (ms + STEP_MS - 1) / STEP_MS
 }

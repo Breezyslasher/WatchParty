@@ -27,19 +27,21 @@ class KeySeekTest {
         // ahead of a paused room: rewind past it, then play the difference
         assertEquals(Move.Back(1), KeySeek.next(-3_000, roomPlaying = false))
         assertEquals(Move.Run(7_000), KeySeek.next(7_000, roomPlaying = false))
-        assertEquals(Move.Forward(3), KeySeek.next(38_000, roomPlaying = false))
+        assertEquals(Move.Forward(3), KeySeek.next(38_000, roomPlaying = false))   // then run 8 s
     }
 
-    @Test fun farSeeksSkipThreeAtATime() {
-        // three fast-forwards back to back: +30 s (adb, 2026-11-18)
-        assertEquals(Move.Forward(3), KeySeek.next(240_000, roomPlaying = true))
-        assertEquals(Move.Back(3), KeySeek.next(-240_000, roomPlaying = true))
-        assertEquals(Move.Forward(2), KeySeek.next(25_000, roomPlaying = true))
+    @Test fun aWholeJumpGoesAtOnce() {
+        // 120 fast-forwards in 3 s: +20 min exactly (adb, 2026-11-18)
+        assertEquals(Move.Forward(24), KeySeek.next(240_000, roomPlaying = true))   // to 6 s past, then hold
+        assertEquals(Move.Back(24), KeySeek.next(-240_000, roomPlaying = true))     // to 0 s, done
+        assertEquals(Move.Forward(3), KeySeek.next(25_000, roomPlaying = true))
+        assertEquals(Move.Hold(5_000), KeySeek.next(25_000 - 30_000, roomPlaying = true))
+        assertEquals(Move.Forward(120), KeySeek.next(3_600_000, roomPlaying = false))   // an hour: 20 min a burst
     }
 
     @Test fun everyStartLandsCloseInAFewMoves() {
         for (playing in listOf(true, false)) {
-            for (start in listOf(-250_000L, -38_000L, -4_000L, 2_500L, 6_600L, 9_999L, 10_001L, 37_000L, 250_000L)) {
+            for (start in listOf(-3_600_000L, -250_000L, -38_000L, -4_000L, 2_500L, 6_600L, 9_999L, 10_001L, 37_000L, 250_000L, 1_200_000L, 5_000_000L)) {
                 var gap = start
                 var moves = 0
                 while (true) {
@@ -56,8 +58,8 @@ class KeySeekTest {
                     if (m is Move.Hold || m is Move.Run) break   // the last move
                 }
                 assert(Math.abs(gap) <= KeySeek.CLOSE_MS) { "start $start playing $playing ended $gap" }
-                // three skips a move: a 4 min seek in about 9 moves, not 25
-                assert(moves <= Math.abs(start) / (KeySeek.STEP_MS * KeySeek.MAX_KEYS) + 3) { "start $start took $moves moves" }
+                // one burst and one hold or run (more only past 20 min)
+                assert(moves <= 2 + Math.abs(start) / (KeySeek.STEP_MS * KeySeek.MAX_KEYS)) { "start $start took $moves moves" }
             }
         }
     }

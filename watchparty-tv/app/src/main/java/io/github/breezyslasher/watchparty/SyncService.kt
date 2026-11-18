@@ -47,7 +47,7 @@ class SyncService : Service() {
         private const val RESEND_AFTER_MS = 8_000L
         private const val KEY_FALLBACK_MS = 1_500L
         private const val KEY_STEP_MS = 900L
-        private const val KEY_GAP_MS = 150L   // between keys sent together
+        private const val KEY_GAP_MS = 25L    // between keys sent together (adb: 120 in 3 s)
         private const val KEY_SEEK_MAX_MOVES = 40
         /** Apps that ignore other apps' play / pause / seek but obey media keys:
          *  Apple TV's phone app (logs and adb, 2026-11-18). */
@@ -417,10 +417,6 @@ class SyncService : Service() {
         val s = c.playbackState ?: return
         val gap = target() - positionOf(s)
         if (Math.abs(gap) <= KeySeek.CLOSE_MS) return
-        if (Math.abs(gap) > KeySeek.MAX_GAP_MS) {
-            note = "${appName(c.packageName)} can't be seeked from here: skip to the room's spot by hand"
-            return
-        }
         Log.i(TAG, "${c.packageName}: seeking ${"%.1f".format(gap / 1000.0)}s with media keys")
         step(c, target, roomPlaying, KEY_SEEK_MAX_MOVES, null)
     }
@@ -429,6 +425,11 @@ class SyncService : Service() {
         steppingUntil = SystemClock.elapsedRealtime() + KEY_STEP_MS + 3_000L
         val s = c.playbackState
         if (s == null || left <= 0) return finishStepping(c, roomPlaying)
+        // after a jump the app buffers: judge it once it's playing or paused again
+        if (s.state == PlaybackState.STATE_BUFFERING || s.state == PlaybackState.STATE_CONNECTING) {
+            worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gapBeforeKey) }, KEY_STEP_MS)
+            return
+        }
         val gap = target() - positionOf(s)
         // skips that didn't move it: the app doesn't skip on this key either
         if (gapBeforeKey != null && Math.abs(gap - gapBeforeKey) < 3_000L) {
