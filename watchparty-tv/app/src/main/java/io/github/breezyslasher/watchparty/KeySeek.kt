@@ -22,7 +22,7 @@ package io.github.breezyslasher.watchparty
  * burst, then one pause or play.
  */
 object KeySeek {
-    const val STEP_MS = 10_000L      // what one fast-forward / rewind key skips
+    const val STEP_MS = 10_000L      // what one fast-forward / rewind key skips Apple TV
     const val CLOSE_MS = 1_500L      // near enough: done
     const val MAX_KEYS = 120         // skips sent together (tested: 120, 20 min)
 
@@ -38,29 +38,41 @@ object KeySeek {
         data class Run(val ms: Long) : Move()
     }
 
-    /** [gapMs]: where the room is minus where we are (positive = we're behind). */
-    fun next(gapMs: Long, roomPlaying: Boolean): Move {
+    /** [gapMs]: where the room is minus where we are (positive = we're behind);
+     *  [stepMs]: how far one key skips this app. */
+    fun next(gapMs: Long, roomPlaying: Boolean, stepMs: Long = STEP_MS): Move {
         if (Math.abs(gapMs) <= CLOSE_MS) return Move.Done
         return if (roomPlaying) {
             when {
                 // behind: skip just past it, then hold
-                gapMs > 0 -> Move.Forward(keys(ceil(gapMs)))
+                gapMs > 0 -> Move.Forward(keys(ceil(gapMs, stepMs)))
                 // ahead: back to less than a skip ahead, then hold
-                -gapMs > STEP_MS -> Move.Back(keys(-gapMs / STEP_MS))
+                -gapMs > stepMs -> Move.Back(keys(-gapMs / stepMs))
                 else -> Move.Hold(-gapMs)
             }
         } else {
             when {
                 // ahead: back past it (a whole skip more than the difference), then run
-                gapMs < 0 -> Move.Back(keys(ceil(-gapMs)))
-                gapMs > STEP_MS -> Move.Forward(keys(gapMs / STEP_MS))
+                gapMs < 0 -> Move.Back(keys(ceil(-gapMs, stepMs)))
+                gapMs > stepMs -> Move.Forward(keys(gapMs / stepMs))
                 else -> Move.Run(gapMs)
             }
         }
     }
 
+    /**
+     * An app's skip from how far one key moved it ([movedMs], its own playing
+     * time taken out), to the nearest 5 s (10, 15, 30 s are usual); null if it
+     * barely moved: the key doesn't skip it.
+     */
+    fun stepFrom(movedMs: Long): Long? {
+        val moved = Math.abs(movedMs)
+        if (moved < 3_000L) return null
+        return maxOf(5_000L, (moved + 2_500L) / 5_000L * 5_000L)
+    }
+
     private fun keys(n: Long): Int = n.coerceIn(1L, MAX_KEYS.toLong()).toInt()
 
     /** Skips that cover [ms]. */
-    private fun ceil(ms: Long): Long = (ms + STEP_MS - 1) / STEP_MS
+    private fun ceil(ms: Long, stepMs: Long): Long = (ms + stepMs - 1) / stepMs
 }

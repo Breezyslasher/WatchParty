@@ -47,10 +47,11 @@ class SyncService : Service() {
         private const val RESEND_AFTER_MS = 8_000L
         private const val KEY_FALLBACK_MS = 1_500L
         private const val KEY_STEP_MS = 900L
+        private const val SEEK_CHECK_MS = 4_000L   // an app's own seek has landed by now
         private const val KEY_GAP_MS = 25L    // between keys sent together (adb: 120 in 3 s)
         private const val KEY_SEEK_MAX_MOVES = 40
-        /** Apps that ignore other apps' play / pause / seek but obey media keys:
-         *  Apple TV's phone app (logs and adb, 2026-11-18). */
+        /** Apps that ignore other apps' play / pause but obey media keys:
+         *  Apple TV's phone app (logs and adb, 2026-11-18). Seeking: keySeekers. */
         private val KEYS_FIRST = setOf(MediaLink.APPLE_TV_PACKAGE)
         /** How long after a seek in a paused room to pause again (see Action.SeekTo). */
         private const val PAUSE_AFTER_SEEK_MS = 1_000L
@@ -358,8 +359,9 @@ class SyncService : Service() {
             }
             is Action.SeekTo -> if (controller != null) {
                 val target = maxOf(0L, a.ms)
-                if (keysFirst(controller)) {
-                    seekByKeys(controller, target, roomPlaying = !a.pauseAfter)
+                val keyStep = keySeekers[controller.packageName]
+                if (keyStep != null) {
+                    seekByKeys(controller, target, roomPlaying = !a.pauseAfter, stepMs = keyStep)
                 } else {
                     controller.transportControls.seekTo(target)
                     if (a.pauseAfter) {
@@ -368,6 +370,7 @@ class SyncService : Service() {
                             keyIfIgnored(controller, play = false)
                         }, PAUSE_AFTER_SEEK_MS)
                     }
+                    checkSeek(controller, target, roomPlaying = !a.pauseAfter)
                 }
             }
             is Action.Send -> try {
@@ -407,27 +410,95 @@ class SyncService : Service() {
     @Volatile private var steppingUntil = 0L
 
     /**
-     * Seek [c] (an app in KEYS_FIRST) to [targetMs] with media keys, one
-     * KeySeek move at a time. [roomPlaying]: the target moves on meanwhile.
+     * Apps seeked with media keys, and how far one key skips each: Apple TV's
+     * phone app (10 s; it ignores other apps' seeks, adb 2026-11-18), and apps
+     * [checkSeek] finds ignoring a seek, with their skip measured.
      */
-    private fun seekByKeys(c: MediaController, targetMs: Long, roomPlaying: Boolean) {
+    private val keySeekers = java.util.concurrent.ConcurrentHashMap<String, Long>(
+        mapOf(MediaLink.APPLE_TV_PACKAGE to KeySeek.STEP_MS))
+    /** Apps that ignored a seek and a skip key too: left alone. */
+    private val noKeySkip = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+
+    /**
+     * After an app's own seek: if [SEEK_CHECK_MS] later its position just
+     * went on as if nothing had happened (no jump, not buffering), it ignored
+     * it — measure what one skip key does ([measureSkip]) and seek with keys.
+     */
+    private fun checkSeek(c: MediaController, targetMs: Long, roomPlaying: Boolean) {
+        if (c.packageName in noKeySkip) return
+        val s0 = c.playbackState ?: return
+        val p0 = positionOf(s0)
+        if (p0 < 0 || Math.abs(targetMs - p0) <= 3_000L) return
+        val issued = SystemClock.elapsedRealtime()
+        val playing0 = s0.state == PlaybackState.STATE_PLAYING
+        worker?.postDelayed({
+            if (SystemClock.elapsedRealtime() < steppingUntil) return@postDelayed
+            val s = c.playbackState ?: return@postDelayed
+            if (s.state == PlaybackState.STATE_BUFFERING || s.state == PlaybackState.STATE_CONNECTING) return@postDelayed
+            val p = positionOf(s)
+            val ran = if (playing0) SystemClock.elapsedRealtime() - issued else 0L
+            // anywhere but where it would have played on to: it moved (the seek, or the user)
+            if (p < p0 - 3_000L || p > p0 + ran + 3_000L) return@postDelayed
+            Log.i(TAG, "${c.packageName} ignored a seek (at ${p / 1000}s, not ${targetMs / 1000}s): measuring its skip key")
+            measureSkip(c, targetMs, roomPlaying, issued)
+        }, SEEK_CHECK_MS)
+    }
+
+    /** Send one skip key toward the target, see how far it moved, and seek with keys of that size. */
+    private fun measureSkip(c: MediaController, targetMs: Long, roomPlaying: Boolean, issued: Long) {
+        val target = { targetMs + if (roomPlaying) SystemClock.elapsedRealtime() - issued else 0L }
+        val s = c.playbackState ?: return
+        val p0 = positionOf(s)
+        val gap = target() - p0
+        if (Math.abs(gap) <= KeySeek.CLOSE_MS) return
+        val playing = s.state == PlaybackState.STATE_PLAYING
+        val t0 = SystemClock.elapsedRealtime()
+        steppingUntil = t0 + KEY_STEP_MS * 4 + 3_000L
+        mediaKey(if (gap > 0) KeyEvent.KEYCODE_MEDIA_FAST_FORWARD else KeyEvent.KEYCODE_MEDIA_REWIND)
+        fun judge(triesLeft: Int) {
+            val s1 = c.playbackState ?: return finishStepping(c, roomPlaying)
+            if ((s1.state == PlaybackState.STATE_BUFFERING || s1.state == PlaybackState.STATE_CONNECTING) && triesLeft > 0) {
+                worker?.postDelayed({ judge(triesLeft - 1) }, KEY_STEP_MS)
+                return
+            }
+            val ran = if (playing && s1.state == PlaybackState.STATE_PLAYING) SystemClock.elapsedRealtime() - t0 else 0L
+            val stepMs = KeySeek.stepFrom(positionOf(s1) - p0 - ran)
+            if (stepMs == null) {
+                noKeySkip += c.packageName
+                Log.i(TAG, "${c.packageName}: a skip key didn't move it either: not seeking it")
+                note = "${appName(c.packageName)} doesn't take seeks from here: skip to the room's spot by hand"
+                return finishStepping(c, roomPlaying)
+            }
+            keySeekers[c.packageName] = stepMs
+            Log.i(TAG, "${c.packageName}: one skip key moves it ${stepMs / 1000}s: seeking it with media keys")
+            step(c, target, roomPlaying, KEY_SEEK_MAX_MOVES, null, stepMs)
+        }
+        worker?.postDelayed({ judge(3) }, KEY_STEP_MS)
+    }
+
+    /**
+     * Seek [c] (in [keySeekers]) to [targetMs] with media keys of [stepMs],
+     * one KeySeek move at a time. [roomPlaying]: the target moves on meanwhile.
+     */
+    private fun seekByKeys(c: MediaController, targetMs: Long, roomPlaying: Boolean, stepMs: Long) {
         if (SystemClock.elapsedRealtime() < steppingUntil) return   // one already under way
         val issued = SystemClock.elapsedRealtime()
         val target = { targetMs + if (roomPlaying) SystemClock.elapsedRealtime() - issued else 0L }
         val s = c.playbackState ?: return
         val gap = target() - positionOf(s)
         if (Math.abs(gap) <= KeySeek.CLOSE_MS) return
-        Log.i(TAG, "${c.packageName}: seeking ${"%.1f".format(gap / 1000.0)}s with media keys")
-        step(c, target, roomPlaying, KEY_SEEK_MAX_MOVES, null)
+        Log.i(TAG, "${c.packageName}: seeking ${"%.1f".format(gap / 1000.0)}s with media keys (${stepMs / 1000}s a key)")
+        step(c, target, roomPlaying, KEY_SEEK_MAX_MOVES, null, stepMs)
     }
 
-    private fun step(c: MediaController, target: () -> Long, roomPlaying: Boolean, left: Int, gapBeforeKey: Long?) {
+    private fun step(c: MediaController, target: () -> Long, roomPlaying: Boolean, left: Int, gapBeforeKey: Long?,
+                     stepMs: Long) {
         steppingUntil = SystemClock.elapsedRealtime() + KEY_STEP_MS + 3_000L
         val s = c.playbackState
         if (s == null || left <= 0) return finishStepping(c, roomPlaying)
         // after a jump the app buffers: judge it once it's playing or paused again
         if (s.state == PlaybackState.STATE_BUFFERING || s.state == PlaybackState.STATE_CONNECTING) {
-            worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gapBeforeKey) }, KEY_STEP_MS)
+            worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gapBeforeKey, stepMs) }, KEY_STEP_MS)
             return
         }
         val gap = target() - positionOf(s)
@@ -437,7 +508,7 @@ class SyncService : Service() {
             return finishStepping(c, roomPlaying)
         }
         val playing = s.state == PlaybackState.STATE_PLAYING
-        when (val move = KeySeek.next(gap, roomPlaying)) {
+        when (val move = KeySeek.next(gap, roomPlaying, stepMs)) {
             KeySeek.Move.Done -> finishStepping(c, roomPlaying)
             is KeySeek.Move.Forward, is KeySeek.Move.Back -> {
                 val forward = move is KeySeek.Move.Forward
@@ -445,7 +516,7 @@ class SyncService : Service() {
                 val code = if (forward) KeyEvent.KEYCODE_MEDIA_FAST_FORWARD else KeyEvent.KEYCODE_MEDIA_REWIND
                 for (k in 0 until keys) worker?.postDelayed({ mediaKey(code) }, k * KEY_GAP_MS)
                 steppingUntil = SystemClock.elapsedRealtime() + keys * KEY_GAP_MS + KEY_STEP_MS + 3_000L
-                worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gap) }, (keys - 1) * KEY_GAP_MS + KEY_STEP_MS)
+                worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gap, stepMs) }, (keys - 1) * KEY_GAP_MS + KEY_STEP_MS)
             }
             is KeySeek.Move.Hold -> {
                 steppingUntil = SystemClock.elapsedRealtime() + move.ms + 3_000L

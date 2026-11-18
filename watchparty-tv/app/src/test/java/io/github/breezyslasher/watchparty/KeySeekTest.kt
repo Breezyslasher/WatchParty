@@ -39,6 +39,24 @@ class KeySeekTest {
         assertEquals(Move.Forward(120), KeySeek.next(3_600_000, roomPlaying = false))   // an hour: 20 min a burst
     }
 
+    @Test fun anAppsSkipIsMeasuredToTheNearest5s() {
+        assertEquals(10_000L, KeySeek.stepFrom(10_000))     // Apple TV: 11:53 -> 12:03
+        assertEquals(10_000L, KeySeek.stepFrom(-9_400))     // a rewind, a little late
+        assertEquals(30_000L, KeySeek.stepFrom(29_100))
+        assertEquals(15_000L, KeySeek.stepFrom(15_800))
+        assertEquals(5_000L, KeySeek.stepFrom(4_000))
+        assertEquals(null, KeySeek.stepFrom(800))           // the key didn't skip it
+    }
+
+    @Test fun otherSkipSizesPlanTheSameWay() {
+        // an app that skips 30 s a key, 100 s behind a playing room: 4 keys, then hold 20 s
+        assertEquals(Move.Forward(4), KeySeek.next(100_000, roomPlaying = true, stepMs = 30_000))
+        assertEquals(Move.Hold(20_000), KeySeek.next(100_000 - 120_000, roomPlaying = true, stepMs = 30_000))
+        // 15 s a key, 40 s ahead of a paused room: 3 back, then play 5 s
+        assertEquals(Move.Back(3), KeySeek.next(-40_000, roomPlaying = false, stepMs = 15_000))
+        assertEquals(Move.Run(5_000), KeySeek.next(-40_000 + 45_000, roomPlaying = false, stepMs = 15_000))
+    }
+
     @Test fun everyStartLandsCloseInAFewMoves() {
         for (playing in listOf(true, false)) {
             for (start in listOf(-3_600_000L, -250_000L, -38_000L, -4_000L, 2_500L, 6_600L, 9_999L, 10_001L, 37_000L, 250_000L, 1_200_000L, 5_000_000L)) {
