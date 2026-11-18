@@ -113,6 +113,14 @@ adb shell am broadcast -n dev.watchparty.sessionprobe/.ControlReceiver --es cmd 
 | `pause` / `play` | — | pause / resume |
 | `meta` | — | dumps everything the app publishes about what's playing (metadata, ids, extras, queue) |
 
+An app can ignore these even though its session lists them. **Apple TV on a
+phone** (`com.apple.atve.androidtv.appletv`, 2026-11-18) ignored `seek` and
+`pause` (`seek 11:48 -> 10:00`, then still playing at 11:51, 11:53), but
+obeys the system's media keys: `adb shell input keyevent KEYCODE_MEDIA_PAUSE`
+and `adb shell cmd media_session dispatch play|pause|fast-forward`. Watch
+Party drives it with media keys (its KeySeek: 10 s skips, then a short pause
+or play for the rest).
+
 It acts on whatever is playing; add `--es pkg com.disney.disneyplus` to pick
 an app. The reply is printed on the `Broadcast completed: … data="…"` line and
 logged under `adb logcat -s SessionProbe`. The receiver is guarded by
