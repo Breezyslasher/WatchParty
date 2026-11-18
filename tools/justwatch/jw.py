@@ -98,7 +98,7 @@ SEASON_EPISODES = """query E($id: ID!, $c: Country!, $l: Language!, $filter: Off
       id
       content(country: $c, language: $l) { episodeNumber title }
       web: offers(country: $c, platform: WEB, filter: $filter) {
-        monetizationType presentationType standardWebURL deeplinkURL(platform: WEB)
+        monetizationType presentationType standardWebURL deeplinkURL(platform: WEB) %LANGS%
         retailPrice(language: $l)
         package { packageId clearName technicalName icon(profile: S100, format: PNG) }
       }
@@ -119,6 +119,11 @@ def _errors(data, what):
     return False
 
 
+# --all-offers: every offer (not only JustWatch's best per service), with
+# its audio and subtitle languages (Crunchyroll gives each dub its own link)
+ALL_OFFERS = False
+
+
 def episodes(node_id, country, max_seasons, max_episodes):
     data = post(SEASONS, {"id": node_id, "c": country, "l": "en"})
     if _errors(data, "seasons"):
@@ -127,8 +132,9 @@ def episodes(node_id, country, max_seasons, max_episodes):
     for season in (show.get("seasons") or [])[:max_seasons]:
         sc = season.get("content") or {}
         print(f"   -- season {sc.get('seasonNumber')} ({season.get('id')})")
-        eps = post(SEASON_EPISODES, {"id": season["id"], "c": country, "l": "en",
-                                     "filter": {"bestOnly": True}})
+        query = SEASON_EPISODES.replace("%LANGS%", "audioLanguages subtitleLanguages" if ALL_OFFERS else "")
+        eps = post(query, {"id": season["id"], "c": country, "l": "en",
+                           "filter": {"bestOnly": not ALL_OFFERS}})
         if _errors(eps, "episodes"):
             continue
         for ep in (((eps.get("data") or {}).get("node") or {}).get("episodes") or [])[:max_episodes]:
@@ -140,12 +146,14 @@ def episodes(node_id, country, max_seasons, max_episodes):
                     if o["monetizationType"] not in STREAMING:
                         continue
                     link = o.get("deeplinkURL")
-                    key = (kind, o["package"]["technicalName"], link)
+                    key = (kind, o["package"]["technicalName"], link, o.get("presentationType"))
                     if key in seen:
                         continue
                     seen.add(key)
                     extra = (f" web={o.get('standardWebURL')} pkg={o['package'].get('packageId')}"
                              f" {o.get('presentationType')} price={o.get('retailPrice')}" if kind == "web" else "")
+                    if ALL_OFFERS and kind == "web":
+                        extra += f" audio={o.get('audioLanguages')} subs={o.get('subtitleLanguages')}"
                     print(f"        {kind.upper():<3} {o['package']['clearName']:<22} deeplink={link}{extra}")
 
 
@@ -217,9 +225,13 @@ def main():
     ap.add_argument("--origin", default="",
                     help='send this Origin (and no Referer), e.g. "chrome-extension://<id>", as a browser extension would')
     ap.add_argument("--detail", action="store_true", help="print title page fields (description, genres, ...)")
+    ap.add_argument("--all-offers", action="store_true",
+                    help="episodes: every offer, with its audio and subtitle languages")
     ap.add_argument("--platforms", default="",
                     help='comma list, or "all" to try every Platform value the API reports')
     args = ap.parse_args()
+    global ALL_OFFERS
+    ALL_OFFERS = args.all_offers
     if args.origin:
         HEADERS["Origin"] = args.origin
         HEADERS.pop("Referer", None)

@@ -35,6 +35,11 @@ on:
         type: boolean
         required: false
         default: false
+      all_offers:
+        description: 'Episodes: every offer (not only the best per service), with audio and subtitle languages'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -53,7 +58,8 @@ jobs:
           PLATFORMS: ${{ inputs.platforms }}
           EPISODES: ${{ inputs.episodes }}
           DETAIL: ${{ inputs.detail && '--detail' || '' }}
+          ALL_OFFERS: ${{ inputs.all_offers && '--all-offers' || '' }}
           ORIGIN: ${{ inputs.origin }}
         run: |
           IFS='|' read -ra list <<< "$TITLES"
-          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" --episodes "$EPISODES" --origin "$ORIGIN" $DETAIL "${list[@]}"
+          python3 tools/justwatch/jw.py --country "$COUNTRY" --kind "$KIND" --platforms "$PLATFORMS" --episodes "$EPISODES" --origin "$ORIGIN" $DETAIL $ALL_OFFERS "${list[@]}"
