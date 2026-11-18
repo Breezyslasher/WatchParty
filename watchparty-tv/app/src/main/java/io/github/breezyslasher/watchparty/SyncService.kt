@@ -547,6 +547,15 @@ class SyncService : Service() {
     private var traceAtMs = 0L
     private var tracePlaying = false
 
+    /** The transport controls a session says it takes (PlaybackState.actions), for the log. */
+    private fun actionNames(actions: Long): String = listOf(
+        PlaybackState.ACTION_PLAY to "play", PlaybackState.ACTION_PAUSE to "pause",
+        PlaybackState.ACTION_PLAY_PAUSE to "play_pause", PlaybackState.ACTION_SEEK_TO to "seek",
+        PlaybackState.ACTION_FAST_FORWARD to "fast_forward", PlaybackState.ACTION_REWIND to "rewind",
+        PlaybackState.ACTION_SKIP_TO_NEXT to "next", PlaybackState.ACTION_SKIP_TO_PREVIOUS to "previous",
+        PlaybackState.ACTION_STOP to "stop",
+    ).filter { actions and it.first != 0L }.joinToString(",") { it.second } + " (0x${java.lang.Long.toHexString(actions)})"
+
     private fun trace(c: MediaController, s: PlaybackState?) {
         val md = c.metadata
         val keys = md?.keySet()?.sorted()?.joinToString(",") ?: "-"
@@ -555,7 +564,7 @@ class SyncService : Service() {
             c.packageName, s?.state, md?.getLong(MediaMetadata.METADATA_KEY_DURATION),
             md?.getString(MediaMetadata.METADATA_KEY_TITLE), md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE),
             keys, ad, s?.customActions?.joinToString(",") { it.action + "/" + it.name },
-            s?.extras?.keySet()?.sorted()?.joinToString(","),
+            s?.extras?.keySet()?.sorted()?.joinToString(","), s?.actions,
         ).joinToString(" | ")
         val now = System.currentTimeMillis()
         val pos = if (s != null) positionOf(s) else -1
@@ -572,7 +581,8 @@ class SyncService : Service() {
                 ", ad flag ${ad ?: "absent"}" +
                 ", metadata keys [$keys]" +
                 ", custom actions [${s?.customActions?.joinToString(", ") { it.name.toString() } ?: ""}]" +
-                ", extras [${s?.extras?.keySet()?.sorted()?.joinToString(",") ?: ""}]")
+                ", extras [${s?.extras?.keySet()?.sorted()?.joinToString(",") ?: ""}]" +
+                ", controls [${s?.let { actionNames(it.actions) } ?: ""}]")
             traceKey = key
         }
         tracePosMs = pos
