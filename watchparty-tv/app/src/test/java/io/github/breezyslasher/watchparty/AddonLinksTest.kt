@@ -22,6 +22,7 @@ class AddonLinksTest {
                 "https://watch.amazon.com/watch?asin=B0CH88VRKB",
             "plugin://plugin.video.amazon-test/?asin=amzn1.dv.gti.1234&mode=PlayVideo&name=&adult=0" to
                 "https://watch.amazon.com/watch?gti=amzn1.dv.gti.1234",
+            "plugin://plugin.video.starz/?action=play&content_id=71196" to "https://www.starz.com/us/en/play/71196",
             "plugin://plugin.video.tubitv/?mode=GV&url=100012345" to "https://tubitv.com/movies/100012345",
             "plugin://plugin.video.tubitv/?mode=GV&url=200012345%7C300012345%7C1" to "https://tubitv.com/tv-shows/200012345",
             "plugin://plugin.video.crunchyroll/video/GY5P48XEY/GRDQPM1ZY/abc123" to "https://www.crunchyroll.com/watch/GRDQPM1ZY",
@@ -54,6 +55,7 @@ class AddonLinksTest {
             "plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Show",
             "plugin://slyguy.paramount.plus/?_=play_trailer&video_id=abc",
             "plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C100012345",
+            "plugin://plugin.video.starz/?action=series&series_id=18124",
             "plugin://plugin.video.netflix/directory/home/",
             "plugin://plugin.video.skyott/?action=play&service_key=NBCU",   // a live channel
             "plugin://slyguy.disney.plus/?_=play_trailer&deeplink_id=x",

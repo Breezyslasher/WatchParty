@@ -20,6 +20,9 @@ import java.net.URLDecoder
  *  - plugin.video.tubitv: ?mode=GV&url=<id> → tubitv.com/movies/<id>;
  *    url=<episode>|<series>|<season> → tubitv.com/tv-shows/<episode>
  *  - plugin.video.crunchyroll: /video/[<series>/]<episode>/<stream> → crunchyroll.com/watch/<episode>
+ *  - plugin.video.starz (Breezyslasher's, Kodi-Addons branch starz): ?action=play&content_id=<id> →
+ *    starz.com/us/en/play/<id>, which starts playing in the app and on the website
+ *    (tools/session-probe). Its content ids are Starz's own, as in its links.
  *  - plugin.video.skyott (Paco8; Peacock): ?action=play&slug=<slug> →
  *    peacocktv.com/watch/asset<slug>. The slug is the web link's path: the
  *    peacock probe (tools/probe/peacock_slug.py, 2026-11-16) looked up
@@ -80,6 +83,8 @@ object AddonLinks {
                 val key = if (asin.startsWith("amzn1.dv.gti")) "gti" else "asin"
                 "https://watch.amazon.com/watch?$key=$asin"
             }
+            "plugin.video.starz" -> args["content_id"]?.takeIf { args["action"] == "play" && it.isNotEmpty() && it.all(Char::isDigit) }
+                ?.let { "https://www.starz.com/us/en/play/$it" }
             "plugin.video.tubitv" -> {
                 val parts = args["url"]?.takeIf { args["mode"] == "GV" }?.split('|') ?: return null
                 when {

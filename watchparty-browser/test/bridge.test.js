@@ -103,6 +103,7 @@ test("Kodi addons' paths become web links", () => {
       'https://www.hulu.com/watch/3e8b8c5f-1a2b-4c3d-9e8f-0a1b2c3d4e5f'],
     ['plugin://plugin.video.amazon-test/?asin=B0CH88VRKB&mode=PlayVideo&name=Iron+Man&adult=0', 'https://watch.amazon.com/watch?asin=B0CH88VRKB'],
     ['plugin://plugin.video.amazon-test/?asin=amzn1.dv.gti.1234&mode=PlayVideo&name=&adult=0', 'https://watch.amazon.com/watch?gti=amzn1.dv.gti.1234'],
+    ['plugin://plugin.video.starz/?action=play&content_id=71196', 'https://www.starz.com/us/en/play/71196'],
     ['plugin://plugin.video.tubitv/?mode=GV&url=100012345', 'https://tubitv.com/movies/100012345'],
     ['plugin://plugin.video.tubitv/?mode=GV&url=200012345%7C300012345%7C1', 'https://tubitv.com/tv-shows/200012345'],
     ['plugin://plugin.video.crunchyroll/video/GY5P48XEY/GRDQPM1ZY/abc123', 'https://www.crunchyroll.com/watch/GRDQPM1ZY'],
@@ -121,6 +122,7 @@ test("Kodi addons' paths become web links", () => {
     'https://tv.apple.com/episode/umc.cmc.s80mx');
   for (const plugin of ['plugin://slyguy.paramount.plus/?_=play_trailer&video_id=abc', 'plugin://slyguy.max/?_=play&edit_id=1',
     'plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.1&item_type=Show', 'plugin://plugin.video.tubitv/?mode=GV&url=trailer%7C1',
+    'plugin://plugin.video.starz/?action=series&series_id=18124',
     'plugin://plugin.video.netflix/directory/home/', 'plugin://plugin.video.skyott/?action=play&service_key=NBCU',
     'smb://nas/x.mkv', '', null]) assert.equal(pluginLink(plugin), null, String(plugin));
 });
