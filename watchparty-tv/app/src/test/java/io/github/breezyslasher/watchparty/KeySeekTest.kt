@@ -14,20 +14,27 @@ class KeySeekTest {
 
     @Test fun behindAPlayingRoomSkipsPastThenHolds() {
         // the Greyhound log: the app 6.6 s behind a playing room
-        assertEquals(Move.Forward, KeySeek.next(6_600, roomPlaying = true))
+        assertEquals(Move.Forward(1), KeySeek.next(6_600, roomPlaying = true))
         assertEquals(Move.Hold(3_400), KeySeek.next(6_600 - 10_000, roomPlaying = true))
     }
 
     @Test fun aheadOfAPlayingRoomHoldsOrRewinds() {
         assertEquals(Move.Hold(4_000), KeySeek.next(-4_000, roomPlaying = true))
-        assertEquals(Move.Back, KeySeek.next(-25_000, roomPlaying = true))
+        assertEquals(Move.Back(2), KeySeek.next(-25_000, roomPlaying = true))
     }
 
     @Test fun aPausedRoomIsReachedByPlayingTheRest() {
         // ahead of a paused room: rewind past it, then play the difference
-        assertEquals(Move.Back, KeySeek.next(-3_000, roomPlaying = false))
+        assertEquals(Move.Back(1), KeySeek.next(-3_000, roomPlaying = false))
         assertEquals(Move.Run(7_000), KeySeek.next(7_000, roomPlaying = false))
-        assertEquals(Move.Forward, KeySeek.next(38_000, roomPlaying = false))
+        assertEquals(Move.Forward(3), KeySeek.next(38_000, roomPlaying = false))
+    }
+
+    @Test fun farSeeksSkipThreeAtATime() {
+        // three fast-forwards back to back: +30 s (adb, 2026-11-18)
+        assertEquals(Move.Forward(3), KeySeek.next(240_000, roomPlaying = true))
+        assertEquals(Move.Back(3), KeySeek.next(-240_000, roomPlaying = true))
+        assertEquals(Move.Forward(2), KeySeek.next(25_000, roomPlaying = true))
     }
 
     @Test fun everyStartLandsCloseInAFewMoves() {
@@ -39,8 +46,8 @@ class KeySeekTest {
                     val m = KeySeek.next(gap, playing)
                     if (m == Move.Done) break
                     gap = when (m) {
-                        Move.Forward -> gap - KeySeek.STEP_MS
-                        Move.Back -> gap + KeySeek.STEP_MS
+                        is Move.Forward -> gap - m.keys * KeySeek.STEP_MS
+                        is Move.Back -> gap + m.keys * KeySeek.STEP_MS
                         is Move.Hold -> gap + m.ms
                         is Move.Run -> gap - m.ms
                         else -> gap
@@ -49,7 +56,8 @@ class KeySeekTest {
                     if (m is Move.Hold || m is Move.Run) break   // the last move
                 }
                 assert(Math.abs(gap) <= KeySeek.CLOSE_MS) { "start $start playing $playing ended $gap" }
-                assert(moves <= Math.abs(start) / KeySeek.STEP_MS + 2) { "start $start took $moves moves" }
+                // three skips a move: a 4 min seek in about 9 moves, not 25
+                assert(moves <= Math.abs(start) / (KeySeek.STEP_MS * KeySeek.MAX_KEYS) + 3) { "start $start took $moves moves" }
             }
         }
     }

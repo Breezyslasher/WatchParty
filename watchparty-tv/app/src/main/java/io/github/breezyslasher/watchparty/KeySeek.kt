@@ -15,16 +15,22 @@ package io.github.breezyslasher.watchparty
  * Behind a playing room, or ahead of a paused one, only a skip moves us the
  * right way: skip past it, then hold or run back. So it lands within
  * [CLOSE_MS], not just within one skip.
+ *
+ * Keys sent back to back each count (three fast-forwards: +30 s, twice,
+ * 2026-11-18), so a far seek skips up to [MAX_KEYS] at a time.
  */
 object KeySeek {
     const val STEP_MS = 10_000L      // what one fast-forward / rewind key skips
     const val CLOSE_MS = 1_500L      // near enough: done
     const val MAX_GAP_MS = 300_000L  // farther than this, by hand (30 skips)
+    const val MAX_KEYS = 3           // skips sent together (tested: 3)
 
     sealed class Move {
         object Done : Move() { override fun toString() = "Done" }
-        object Forward : Move() { override fun toString() = "Forward" }
-        object Back : Move() { override fun toString() = "Back" }
+        /** [keys] fast-forwards, sent together. */
+        data class Forward(val keys: Int) : Move()
+        /** [keys] rewinds, sent together. */
+        data class Back(val keys: Int) : Move()
         /** Pause this long, then play. */
         data class Hold(val ms: Long) : Move()
         /** Play this long, then pause. */
@@ -36,16 +42,21 @@ object KeySeek {
         if (Math.abs(gapMs) <= CLOSE_MS) return Move.Done
         return if (roomPlaying) {
             when {
-                gapMs > 0 -> Move.Forward
-                -gapMs > STEP_MS -> Move.Back
+                // behind: skip to within a skip short of it, then once more past it
+                gapMs > 0 -> Move.Forward(keys(maxOf(1L, gapMs / STEP_MS)))
+                // ahead: back to less than a skip ahead, then hold
+                -gapMs > STEP_MS -> Move.Back(keys(-gapMs / STEP_MS))
                 else -> Move.Hold(-gapMs)
             }
         } else {
             when {
-                gapMs < 0 -> Move.Back
-                gapMs > STEP_MS -> Move.Forward
+                // ahead: back past it (a whole skip more than the difference), then run
+                gapMs < 0 -> Move.Back(keys((-gapMs + STEP_MS - 1) / STEP_MS))
+                gapMs > STEP_MS -> Move.Forward(keys(gapMs / STEP_MS))
                 else -> Move.Run(gapMs)
             }
         }
     }
+
+    private fun keys(n: Long): Int = n.coerceIn(1L, MAX_KEYS.toLong()).toInt()
 }

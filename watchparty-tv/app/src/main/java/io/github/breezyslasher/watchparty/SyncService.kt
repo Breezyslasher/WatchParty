@@ -47,6 +47,7 @@ class SyncService : Service() {
         private const val RESEND_AFTER_MS = 8_000L
         private const val KEY_FALLBACK_MS = 1_500L
         private const val KEY_STEP_MS = 900L
+        private const val KEY_GAP_MS = 150L   // between keys sent together
         private const val KEY_SEEK_MAX_MOVES = 40
         /** Apps that ignore other apps' play / pause / seek but obey media keys:
          *  Apple TV's phone app (logs and adb, 2026-11-18). */
@@ -429,7 +430,7 @@ class SyncService : Service() {
         val s = c.playbackState
         if (s == null || left <= 0) return finishStepping(c, roomPlaying)
         val gap = target() - positionOf(s)
-        // a skip that didn't move it: the app doesn't skip on this key either
+        // skips that didn't move it: the app doesn't skip on this key either
         if (gapBeforeKey != null && Math.abs(gap - gapBeforeKey) < 3_000L) {
             Log.i(TAG, "${c.packageName}: a skip key didn't move it (gap ${gap / 1000}s)")
             return finishStepping(c, roomPlaying)
@@ -437,9 +438,13 @@ class SyncService : Service() {
         val playing = s.state == PlaybackState.STATE_PLAYING
         when (val move = KeySeek.next(gap, roomPlaying)) {
             KeySeek.Move.Done -> finishStepping(c, roomPlaying)
-            KeySeek.Move.Forward, KeySeek.Move.Back -> {
-                mediaKey(if (move == KeySeek.Move.Forward) KeyEvent.KEYCODE_MEDIA_FAST_FORWARD else KeyEvent.KEYCODE_MEDIA_REWIND)
-                worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gap) }, KEY_STEP_MS)
+            is KeySeek.Move.Forward, is KeySeek.Move.Back -> {
+                val forward = move is KeySeek.Move.Forward
+                val keys = if (move is KeySeek.Move.Forward) move.keys else (move as KeySeek.Move.Back).keys
+                val code = if (forward) KeyEvent.KEYCODE_MEDIA_FAST_FORWARD else KeyEvent.KEYCODE_MEDIA_REWIND
+                for (k in 0 until keys) worker?.postDelayed({ mediaKey(code) }, k * KEY_GAP_MS)
+                steppingUntil = SystemClock.elapsedRealtime() + keys * KEY_GAP_MS + KEY_STEP_MS + 3_000L
+                worker?.postDelayed({ step(c, target, roomPlaying, left - 1, gap) }, (keys - 1) * KEY_GAP_MS + KEY_STEP_MS)
             }
             is KeySeek.Move.Hold -> {
                 steppingUntil = SystemClock.elapsedRealtime() + move.ms + 3_000L
