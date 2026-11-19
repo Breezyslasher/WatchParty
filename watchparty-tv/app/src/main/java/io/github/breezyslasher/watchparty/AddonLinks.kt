@@ -67,6 +67,7 @@ object AddonLinks {
         "plugin.video.crunchyroll" to listOf("crunchyroll.com"),
         "plugin.video.starz" to listOf("starz.com"),
         "plugin.video.plutotv" to listOf("pluto.tv"),
+        "plugin.video.plexondemand" to listOf("watch.plex.tv"),
     )
 
     /** The addon in a plugin:// path ("plugin://slyguy.hulu/?…" → "slyguy.hulu"). */
@@ -76,7 +77,10 @@ object AddonLinks {
     /** Whether [link] is on the site Kodi's [addon] plays. */
     fun sameService(link: String, addon: String?): Boolean {
         val hosts = ADDON_HOSTS[addon] ?: return false
-        val host = try { java.net.URI(link.trim()).host?.lowercase() } catch (e: Exception) { null } ?: return false
+        val uri = try { java.net.URI(link.trim()) } catch (e: Exception) { return false }
+        val host = uri.host?.lowercase() ?: return false
+        // a live channel on the same site (Plex, Pluto) isn't the title
+        if (uri.path?.contains("/live-tv/") == true) return false
         return hosts.any { host == it || host.endsWith(".$it") }
     }
 

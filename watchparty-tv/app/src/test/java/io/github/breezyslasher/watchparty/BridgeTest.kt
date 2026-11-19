@@ -1,7 +1,9 @@
 package io.github.breezyslasher.watchparty
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Kodi → Android: a Kodi title found on JustWatch, opened on an app installed here. */
@@ -68,6 +70,9 @@ class BridgeTest {
         assertEquals(prime, Bridge.choose(listOf(prime, starz), "plugin.video.starz") { o -> if (o == prime) "x" else null }?.first)
         assertEquals("plugin.video.starz", AddonLinks.addonOf("plugin://plugin.video.starz/?action=play&content_id=45001"))
         assertNull(AddonLinks.addonOf("smb://nas/film.mkv"))
+        // Plex's free catalogue, not its live TV
+        assertTrue(AddonLinks.sameService("https://watch.plex.tv/show/forensic-files/season/1/episode/1?utm_content=5d9c0c4a02391c001f5addaa", "plugin.video.plexondemand"))
+        assertFalse(AddonLinks.sameService("https://watch.plex.tv/live-tv/channel/forensic-files", "plugin.video.plexondemand"))
     }
 
     @Test fun choosesTheFirstServiceInstalledHere() {

@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.breezyslasher.watchparty"
         minSdk = 21
         targetSdk = 36
-        versionCode = 82
-        versionName = "0.17.21"
+        versionCode = 83
+        versionName = "0.17.22"
     }
 
     // Release signing (Play's upload key) from the environment, as the

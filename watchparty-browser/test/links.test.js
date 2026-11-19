@@ -84,4 +84,7 @@ test("a Kodi addon's own service comes first in the fallback", () => {
   assert.equal(addonOf('smb://nas/film.mkv'), null);
   assert.equal(sameService('https://play.hbomax.com/video/watch/x', 'slyguy.max'), true);
   assert.equal(sameService('https://notstarz.com/x', 'plugin.video.starz'), false);
+  // Plex's free catalogue, not its live TV
+  assert.equal(sameService('https://watch.plex.tv/show/forensic-files/season/1/episode/1?utm_content=5d9c0c4a02391c001f5addaa', 'plugin.video.plexondemand'), true);
+  assert.equal(sameService('https://watch.plex.tv/live-tv/channel/forensic-files', 'plugin.video.plexondemand'), false);
 });
