@@ -41,9 +41,12 @@ object Bridge {
     }
 
     /** The first service (JustWatch's order) whose app [installedPackage] finds here, with that package;
-     *  an add-on channel (in Prime Video, Apple TV) only when nothing else is here. */
-    fun choose(offers: List<JustWatch.Offer>, installedPackage: (JustWatch.Offer) -> String?): Pair<JustWatch.Offer, String>? {
-        for (o in offers.sortedBy { JustWatch.isChannel(it) }) installedPackage(o)?.let { return o to it }
+     *  the service Kodi's [addon] plays first (AddonLinks.sameService); an add-on channel (in
+     *  Prime Video, Apple TV) only when nothing else is here. */
+    fun choose(offers: List<JustWatch.Offer>, addon: String? = null,
+               installedPackage: (JustWatch.Offer) -> String?): Pair<JustWatch.Offer, String>? {
+        val ordered = offers.sortedWith(compareBy({ !AddonLinks.sameService(it.link, addon) }, { JustWatch.isChannel(it) }))
+        for (o in ordered) installedPackage(o)?.let { return o to it }
         return null
     }
 

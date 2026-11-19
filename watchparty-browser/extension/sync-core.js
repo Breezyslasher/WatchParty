@@ -94,7 +94,9 @@ export class SyncCore {
       } else if (item.identity) {
         // a Kodi title: the page finds it on a streaming site (JustWatch);
         // its start-up gets the same grace as a link we open
-        actions.push({ type: 'resolve', file: item.file, label: item.label, identity: item.identity });
+        const resolve = { type: 'resolve', file: item.file, label: item.label, identity: item.identity };
+        if (item.addon) resolve.addon = item.addon;   // the Kodi addon playing it: its service first
+        actions.push(resolve);
         this.openedAtMs = nowMs;
         this.playingSinceMs = -1;
         this.suppressUntilMs = nowMs + SUPPRESS_MS;

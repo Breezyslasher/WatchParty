@@ -1,7 +1,7 @@
 // The Android app's MediaLink rules (MediaLinkTest's cases) and the browser's own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, serviceOf, cleanTitle, roomItem, androidPackage, browserLink } from '../extension/links.js';
+import { normalize, serviceOf, cleanTitle, roomItem, androidPackage, browserLink, addonOf, sameService, preferAddon } from '../extension/links.js';
 
 test('links become the forms the Android app shares', () => {
   const cases = [
@@ -71,4 +71,17 @@ test("TVs' Starz links open as the website's play links", () => {
   // its episodes already play
   const episode = 'https://www.paramountplus.com/shows/video/x2Jq9J0o8y_HPNmXBpRAjYmvzGNyKpfE/';
   assert.equal(browserLink(episode), episode);
+});
+
+test("a Kodi addon's own service comes first in the fallback", () => {
+  // Hot Fuzz from Kodi's Starz addon: JustWatch lists Prime and Starz's Amazon channel first
+  const prime = { clearName: 'Amazon Prime Video', link: 'https://watch.amazon.com/watch?asin=B00D5UNIXI' };
+  const channel = { clearName: 'Starz Amazon Channel', link: 'https://watch.amazon.com/watch?asin=B00D5UNIXI' };
+  const starz = { clearName: 'Starz', link: 'https://www.starz.com/us/en/movies/45001' };
+  assert.deepEqual(preferAddon([prime, channel, starz], 'plugin.video.starz'), [starz, prime, channel]);
+  assert.deepEqual(preferAddon([prime, starz], null), [prime, starz]);
+  assert.equal(addonOf('plugin://plugin.video.starz/?action=play&content_id=45001'), 'plugin.video.starz');
+  assert.equal(addonOf('smb://nas/film.mkv'), null);
+  assert.equal(sameService('https://play.hbomax.com/video/watch/x', 'slyguy.max'), true);
+  assert.equal(sameService('https://notstarz.com/x', 'plugin.video.starz'), false);
 });

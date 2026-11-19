@@ -319,7 +319,7 @@ class SyncService : Service() {
                     seasons = { JustWatch.seasons(it, country) },
                     episodes = { JustWatch.episodes(it, country) })
                 if (offers.isEmpty()) "No streaming service has \"$name\" in $country"
-                else Bridge.choose(offers) { o ->
+                else Bridge.choose(offers, a.addon) { o ->
                     Apps.packageFor(this, o.link, o.technicalName, o.clearName)?.takeIf { Apps.isInstalled(this, it) }
                 } ?: "\"$name\" isn't on an app here (${offers.joinToString { it.clearName }})"
             } catch (e: Exception) {

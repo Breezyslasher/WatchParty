@@ -126,6 +126,7 @@ class RelayClient(baseUrl: String, private val room: String) {
                 // (normalized as a shared link is: Peacock's /watch/asset/ page → its PLAY deeplink)
                 link = if (plugin != null) AddonLinks.webLink(plugin, it.optString("type", ""))?.let { l -> MediaLink.normalize(l)?.link ?: l }
                 else file.takeIf { f -> f.startsWith("https://") || f.startsWith("http://") },
+                addon = AddonLinks.addonOf(plugin),
             )
         }
         return RoomState(

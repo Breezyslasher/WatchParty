@@ -43,6 +43,8 @@ data class Item(
     /** The web link to open: [file] for Android and browser items; for a
      *  Kodi addon's title, its path converted (AddonLinks); else null. */
     val link: String? = file.takeIf { it.startsWith("https://") || it.startsWith("http://") },
+    /** The Kodi addon playing it ("plugin.video.starz"), if any. */
+    val addon: String? = null,
 )
 
 /**
@@ -127,7 +129,7 @@ sealed class Action {
     /** Start the item on this device: send its link to its app. */
     data class Open(val link: String, val pkg: String) : Action()
     /** A Kodi item: find the title on a streaming app here (JustWatch), then open it. */
-    data class Resolve(val file: String, val label: String, val identity: Identity) : Action()
+    data class Resolve(val file: String, val label: String, val identity: Identity, val addon: String? = null) : Action()
     object Play : Action() { override fun toString() = "Play" }
     object Pause : Action() { override fun toString() = "Pause" }
     /** [pauseAfter]: the room is paused, so pause again once the seek has
@@ -245,7 +247,7 @@ class SyncCore(
             } else if (item.identity?.usable == true) {
                 // a Kodi title: SyncService finds it on an app here, and its
                 // start-up gets the same grace as a link we open
-                actions += Action.Resolve(item.file, item.label, item.identity)
+                actions += Action.Resolve(item.file, item.label, item.identity, item.addon)
                 openedAtMs = nowMs
                 playingSinceMs = -1L
                 suppressUntilMs = nowMs + SUPPRESS_MS

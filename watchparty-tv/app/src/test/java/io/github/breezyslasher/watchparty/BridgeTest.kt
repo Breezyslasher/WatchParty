@@ -55,6 +55,21 @@ class BridgeTest {
             titleOffers = { emptyList() }, seasons = { listOf(JustWatch.Season("tss1", 1, "")) }, episodes = { emptyList() }))
     }
 
+    @Test fun aKodiAddonsOwnServiceComesFirst() {
+        // Hot Fuzz from Kodi's Starz addon: JustWatch lists Starz's Amazon channel and Prime first
+        val prime = JustWatch.Offer("amazonprime", "Amazon Prime Video", "https://watch.amazon.com/watch?asin=B00D5UNIXI")
+        val starzChannel = JustWatch.Offer("amazonstarz", "Starz Amazon Channel", "https://watch.amazon.com/watch?asin=B00D5UNIXI")
+        val starz = JustWatch.Offer("starz", "Starz", "https://starz.com/movies/45001")
+        val installed = { o: JustWatch.Offer -> if (o == starz) "com.bydeluxe.d3.android.program.starz" else "com.amazon.amazonvideo.livingroom" }
+        assertEquals(starz, Bridge.choose(listOf(prime, starzChannel, starz), "plugin.video.starz", installed)?.first)
+        // without the addon (a library file): JustWatch's order, as before
+        assertEquals(prime, Bridge.choose(listOf(prime, starzChannel, starz), null, installed)?.first)
+        // the addon's service not installed here: the next one
+        assertEquals(prime, Bridge.choose(listOf(prime, starz), "plugin.video.starz") { o -> if (o == prime) "x" else null }?.first)
+        assertEquals("plugin.video.starz", AddonLinks.addonOf("plugin://plugin.video.starz/?action=play&content_id=45001"))
+        assertNull(AddonLinks.addonOf("smb://nas/film.mkv"))
+    }
+
     @Test fun choosesTheFirstServiceInstalledHere() {
         assertEquals(netflix to "com.netflix.ninja",
             Bridge.choose(listOf(disney, netflix)) { if (it == netflix) "com.netflix.ninja" else null })

@@ -7,7 +7,7 @@
 
 import { SyncCore, PLAYING, BUFFERING, OTHER } from './sync-core.js';
 import { RelayClient, RelayError, normalizeBase } from './relay.js';
-import { serviceOf, roomItem, browserLink } from './links.js';
+import { serviceOf, roomItem, browserLink, preferAddon } from './links.js';
 import { JustWatch } from './justwatch.js';
 import { el, label, toast } from './ui.js';
 import { roomScreen, browseScreen, titleScreen, serviceName } from './screens.js';
@@ -337,7 +337,8 @@ async function resolve(a) {
   const name = a.label || (id.type === 'movie' ? id.title : `${id.show} S${id.season} E${id.episode}`);
   setNote(`Finding "${name}" on a streaming site…`);
   try {
-    const offers = await app.jw.offersFor(id);
+    // the service Kodi's addon plays first (a Starz addon title: Starz, not Prime Video)
+    const offers = preferAddon(await app.jw.offersFor(id), a.addon);
     const offer = offers.find(o => serviceOf(o.link));
     if (!offer) {
       setNote(offers.length ? `"${name}" isn't on a site this browser can sync (${offers.map(o => o.clearName).join(', ')})`

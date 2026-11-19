@@ -46,6 +46,41 @@ import java.net.URLDecoder
  */
 object AddonLinks {
 
+    /**
+     * The website each Kodi streaming addon plays, for a Kodi title whose
+     * path can't be turned into a link: of the title's JustWatch offers, the
+     * one on this site comes first (not JustWatch's first, e.g. Prime Video
+     * for a Starz title), and an add-on channel (on Amazon or Apple TV) isn't it.
+     */
+    private val ADDON_HOSTS = mapOf(
+        "plugin.video.netflix" to listOf("netflix.com"),
+        "plugin.video.youtube" to listOf("youtube.com", "youtu.be"),
+        "slyguy.disney.plus" to listOf("disneyplus.com"),
+        "slyguy.hulu" to listOf("hulu.com"),
+        "slyguy.paramount.plus" to listOf("paramountplus.com"),
+        "slyguy.max" to listOf("hbomax.com", "max.com"),
+        "slyguy.discovery.plus" to listOf("discoveryplus.com"),
+        "plugin.video.amazon-test" to listOf("amazon.com", "primevideo.com"),
+        "plugin.video.appletv" to listOf("tv.apple.com"),
+        "plugin.video.skyott" to listOf("peacocktv.com"),
+        "plugin.video.tubitv" to listOf("tubitv.com"),
+        "plugin.video.crunchyroll" to listOf("crunchyroll.com"),
+        "plugin.video.starz" to listOf("starz.com"),
+        "plugin.video.plutotv" to listOf("pluto.tv"),
+    )
+
+    /** The addon in a plugin:// path ("plugin://slyguy.hulu/?…" → "slyguy.hulu"). */
+    fun addonOf(plugin: String?): String? =
+        plugin?.let { Regex("^plugin://([^/?#]+)").find(it.trim())?.groupValues?.get(1) }
+
+    /** Whether [link] is on the site Kodi's [addon] plays. */
+    fun sameService(link: String, addon: String?): Boolean {
+        val hosts = ADDON_HOSTS[addon] ?: return false
+        val host = try { java.net.URI(link.trim()).host?.lowercase() } catch (e: Exception) { null } ?: return false
+        return hosts.any { host == it || host.endsWith(".$it") }
+    }
+
+
     /** [type]: the Kodi item's media type ("movie", "episode"), if it gave one. */
     fun webLink(plugin: String?, type: String? = null): String? {
         if (plugin.isNullOrBlank() || !plugin.startsWith("plugin://")) return null
