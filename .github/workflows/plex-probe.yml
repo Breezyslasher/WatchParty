@@ -1,0 +1,29 @@
+name: Plex link probe
+
+# Manually run: do JustWatch's Plex links (watch.plex.tv/…?utm_content=<id>)
+# carry the ratingKey Plex's free catalogue plays by (tools/probe/plex_vod.py)?
+# An anonymous Plex token only; no account or secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      links:
+        description: 'Plex links, separated by spaces'
+        required: false
+        default: 'https://watch.plex.tv/show/forensic-files/season/1/episode/1?autoplay=1&utm_content=5d9c0c4a02391c001f5addaa https://watch.plex.tv/show/forensic-files/season/1/episode/2?autoplay=1&utm_content=5d9c0c4a02391c001f5add9b https://watch.plex.tv/show/forensic-files-ii/season/1/episode/1?autoplay=1&utm_content=5e5855ac1aa025003fbeec8f'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - name: Probe
+        env:
+          LINKS: ${{ inputs.links }}
+        run: |
+          read -ra list <<< "$LINKS"
+          python3 tools/probe/plex_vod.py "${list[@]}"
