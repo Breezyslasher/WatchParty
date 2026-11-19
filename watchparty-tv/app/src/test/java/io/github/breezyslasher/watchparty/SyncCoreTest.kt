@@ -111,6 +111,16 @@ class SyncCoreTest {
         assertEquals(emptyList<Action>(), core.tick(room(), local(118.0), t + 8_000, 1018.0))
     }
 
+    @Test fun ourSeekLandingLateAfterTheRoomMovedOnIsNotAUserSeek() {
+        // the room seeked, then paused elsewhere before the app said it had got there (e2e, 2026-11-19)
+        val (core, t) = opened()
+        assertEquals(listOf<Action>(Action.SeekTo(110_000)), core.tick(room(), local(70.0), t, 1010.0))
+        core.tick(room(), local(71.0), t + 1_000, 1011.0)   // not there yet
+        // the room pauses at 150; the app says 112 (our seek landed, played a second): no "seek 112"
+        val actions = core.tick(room(pos = 150.0, paused = true, setAt = 1012.0), local(112.0), t + 2_000, 1012.0)
+        assertTrue(actions.toString(), actions.none { it is Action.Send })
+    }
+
     @Test fun aUserSeekRightAfterOurCorrectionIsSent() {
         // Tubi: skipping ahead 4 s after a catch-up seek was seeked back
         val (core, t) = opened()

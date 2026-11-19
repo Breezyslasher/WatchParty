@@ -147,3 +147,21 @@ test('a user seek soon after opening is sent once the title has started', () => 
   assert.deepEqual(core.tick(room(), local(107), 7000, 1007), []);
   assert.deepEqual(core.tick(room(), local(2182), 8000, 1008), [{ type: 'send', cmd: 'seek', positionSec: 2182 }]);
 });
+
+test('our own seek landing late, after the room moved on, is not a user seek', () => {
+  // the room seeked to 60, then paused at 70 before the tab said it was at 60 (e2e, 2026-11-19)
+  const item = { file: 'L', link: 'L', label: 'T', service: 'disneyplus', identity: null };
+  const room = (pos, paused, setAt) => ({ seq: 1, item, positionSec: pos, paused, speed: 1, setAtSec: setAt, setByMe: false, members: [] });
+  const local = (sec, play = PLAYING) => ({ service: 'disneyplus', play, positionMs: sec * 1000, title: 'T' });
+  const core = new SyncCore();
+  core.tick(room(0, false, 0), { service: null, play: OTHER, positionMs: -1, title: '' }, 0, 0);
+  for (let t = 1; t <= 25; t++) core.tick(room(0, false, 0), local(t), t * 1000, t);
+  assert.deepEqual(core.tick(room(60, false, 26), local(26), 26000, 26), [{ type: 'seek', ms: 60000 }]);
+  core.tick(room(60, false, 26), local(27), 27000, 27);   // the tab hasn't said yet
+  // the room pauses at 70; the tab now says 61 (landed, played a second): pause and go to 70, no "seek 61"
+  const acts = core.tick(room(70, true, 28), local(61), 28000, 28);
+  assert.ok(!acts.some(a => a.type === 'send'), JSON.stringify(acts));
+  // a real skip by the user later still counts
+  for (let t = 29; t <= 40; t++) core.tick(room(70, true, 28), local(70, PAUSED), t * 1000, t);
+  assert.deepEqual(core.tick(room(70, true, 28), local(200, PAUSED), 41000, 41), [{ type: 'send', cmd: 'seek', positionSec: 200 }]);
+});

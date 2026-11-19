@@ -236,7 +236,7 @@ await roomPage.click('.grid .poster');
 await until('title page details', () => roomPage.isVisible('.rating:has-text("7.3")'));
 ok(true, 'the title page shows the rating, facts and genres');
 if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '4-title-movie.png'), fullPage: true });
-await roomPage.click('button:has-text("Watch")');
+await roomPage.click('#content button.primary:text-is("Watch")');
 const movie = 'https://www.disneyplus.com/play/f51dce23-7d8f-490a-9f0c-be1b5432c2a9';
 await until('room has the movie', () => state && state.item && state.item.file === movie);
 ok(state.item.label === 'Thunderbolts*', `Watch started "${state.item.label}" as ${state.item.file}`);
@@ -303,6 +303,33 @@ await until('title page again', () => roomPage.isVisible('h1:has-text("Andor")')
 await roomPage.goBack();
 await until('back on Browse', () => roomPage.isVisible('#query'));
 ok(true, "the browser's Back returns from a title page to Browse");
+
+// 9. the Room screen's controls run the room (as the remote's do)
+await roomPage.click('.nav:has-text("Room")');
+await until('controls', () => roomPage.isVisible('#playPause'));
+if (state.paused) await other.command('play', 30);
+await until('room playing', () => state && !state.paused);
+await roomPage.click('#playPause');
+await until('the controls paused the room', () => state && state.paused);
+ok(true, 'the Room screen\'s Pause paused the room');
+await roomPage.fill('#jumpTo', '1:00');
+await roomPage.click('#go');
+await until('Go to 1:00', () => state && Math.abs(state.positionSec - 60) < 1);
+ok(true, 'Go to 1:00 moved the room');
+if (SHOTS) await roomPage.screenshot({ path: path.join(SHOTS, '7-room-controls.png') });
+
+// 10. Remote only: runs the room, opens nothing here
+await roomPage.click('.chip:has-text("Remote only")');
+const tabsBefore = context.pages().length;
+const remoteLink = 'https://www.netflix.com/watch/80057281';
+await other.command('open', 0, { file: remoteLink, label: 'Stranger Things', title: 'Stranger Things', ids: { android: 'com.netflix.ninja' } });
+await sleep(4000);
+ok(context.pages().length === tabsBefore && !context.pages().some(p => p.url() === remoteLink), 'Remote only: a new title opened no tab here');
+await until('status says remote only', () => roomPage.isVisible('.status:has-text("remote only")'));
+ok(true, 'the status line says remote only');
+await roomPage.click('.chip:has-text("Watch here")');
+await until('Watch here opens it', () => context.pages().some(p => p.url() === remoteLink));
+ok(true, 'back to Watch here, it opens the room\'s title');
 
 polling = false;
 await other.leave();

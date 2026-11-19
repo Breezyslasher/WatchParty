@@ -10,7 +10,7 @@ import { RelayClient, RelayError, normalizeBase } from './relay.js';
 import { serviceOf, roomItem, browserLink, preferAddon } from './links.js';
 import { JustWatch } from './justwatch.js';
 import { el, label, toast } from './ui.js';
-import { roomScreen, browseScreen, titleScreen, serviceName } from './screens.js';
+import { roomScreen, browseScreen, titleScreen, serviceName, controlsPanel, roomNow } from './screens.js';
 import { regularEpisode, isHboMax } from './hbomax.js';
 
 const $ = id => document.getElementById(id);
@@ -28,6 +28,9 @@ let status = 'Not in a room';
 let statusWarn = false;
 let note = '';
 let noteUntil = 0;   // a note shows for a few seconds, then the room's state
+/** Remote only: this browser runs the room (Browse, the controls) and plays nothing
+ *  itself: no tab opened or followed, never on the title (the Android app's mode). */
+let remoteOnly = false;
 /** What this browser started, by link: title, sub, service, image (for the Room screen). */
 const playing = new Map();
 /** Kodi items found on a streaming site here: their file → { service, link, name }. */
@@ -66,11 +69,24 @@ const app = {
   },
   go: s => go(s),
   openTitle: t => openTitle(t),
+  serverNowSec: () => (client ? client.serverNowSec() : 0),
+  /** A command from the controls: the room, and so everyone (this tab too, unless Remote only), follows. */
+  async send(cmd, positionSec = roomNow(lastRoom, app.serverNowSec())) {
+    if (!client) return;
+    try {
+      lastRoom = await client.command(cmd, positionSec);
+      render(lastRoom, NONE);
+    } catch (e) {
+      toast(e.status === 403 ? 'Controls are locked by the host' : `Couldn't send it: ${e.message}`);
+    }
+  },
 };
 
 // ── layout: the rail and the screens ─────────────────────────────────────
 
 const screens = { room: roomScreen(app), browse: browseScreen(app) };
+const controls = controlsPanel(app, 'Every TV, phone, browser and Kodi in the room follows.');
+screens.room.view.insertBefore(controls.view, screens.room.view.children[1]);   // under Now playing, above Browse
 let current = 'room';
 const pages = [];   // title pages opened from Browse (Back returns through them)
 
@@ -81,7 +97,12 @@ const form = el('div', {}, label('Join a room'),
   field('Relay', 'relay', 'relay.example.com'), field('Room code', 'room', '', true), field('Your name', 'name', 'Laptop'));
 const roomCode = el('div', { class: 'roomCode' });
 const members = el('div', { class: 'members' });
-const info = el('div', { hidden: true }, label('In room'), roomCode, members);
+// this browser: watch here, or only run the room (Browse and the controls)
+const watchHere = el('button', { class: 'chip', onclick: () => setRemoteOnly(false) }, 'Watch here');
+const remoteChip = el('button', { class: 'chip', onclick: () => setRemoteOnly(true) }, 'Remote only');
+const modeNote = el('div', { class: 'keep' });
+const info = el('div', { hidden: true }, label('In room'), roomCode, members,
+  label('This browser'), el('div', { class: 'chipRow' }, watchHere, remoteChip), modeNote);
 const joinButton = el('button', { class: 'primary', id: 'join', onclick: toggleJoin }, 'Join room');
 const statusLine = el('div', { class: 'status' }, status);
 $('rail').append(
@@ -96,6 +117,17 @@ $('rail').append(
   statusLine,
   el('div', { class: 'keep' }, 'Keep this tab open while you watch: it keeps this browser in sync.'));
 for (const id of ['relay', 'room', 'name']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') toggleJoin(); });
+
+function setRemoteOnly(on, save = true) {
+  remoteOnly = on;
+  watchHere.classList.toggle('on', !on);
+  remoteChip.classList.toggle('on', on);
+  modeNote.textContent = on ? "Runs the room; plays nothing here." : 'Opens and follows the room\'s title in a tab.';
+  if (save) chrome.storage.local.set({ remoteOnly: on });
+  // back to watching: start over, so the room's title opens here
+  if (!on && joined) core = new SyncCore();
+}
+setRemoteOnly(false, false);
 
 function show(view, focus) {
   const content = $('content');
@@ -130,7 +162,8 @@ window.addEventListener('popstate', () => {
   show(top ? top.view : screens[current].view, null);
 });
 
-chrome.storage.local.get(['relay', 'room', 'name', 'country']).then(saved => {
+chrome.storage.local.get(['relay', 'room', 'name', 'country', 'remoteOnly']).then(saved => {
+  setRemoteOnly(!!saved.remoteOnly, false);
   $('relay').value = saved.relay || '';
   $('room').value = saved.room || '';
   $('name').value = saved.name || '';
@@ -159,6 +192,8 @@ window.addEventListener('pagehide', () => {
 
 const ticker = new Worker('ticker.js');
 ticker.onmessage = () => step();
+// the controls' clock runs between polls (while this page is in view)
+setInterval(() => { if (joined && lastRoom) controls.tick(lastRoom); }, 250);
 
 // ── joining ──────────────────────────────────────────────────────────────
 
@@ -245,6 +280,15 @@ async function step() {
   if (!joined || busy) return;
   busy = true;
   try {
+    if (remoteOnly) {
+      // never on the title: the room neither waits for us nor counts our drift, and we follow nothing
+      const room = await client.poll({ positionSec: 0, paused: true, file: '', caching: false, onItem: false, corrections: 0 });
+      if (!joined) return;
+      lastRoom = room;
+      statusWarn = false;
+      render(room, NONE);
+      return;
+    }
     const previous = lastRoom;
     const local = await localState();
     const room = await client.poll({
@@ -390,12 +434,14 @@ function render(room, local) {
       el('div', { class: 'drift mono' }, m.driftSec == null ? '—' : `${m.driftSec >= 0 ? '+' : ''}${m.driftSec.toFixed(1)}s`))));
   }
   screens.room.tick(room);
+  controls.tick(room);
   if (!joined || !room) return;
   if (statusWarn) return;
   const item = room.item;
   const here = local.service && item && local.service === item.service
     ? ({ PLAYING: 'playing here', PAUSED: 'paused here', BUFFERING: 'loading here', OTHER: 'opening here' })[local.play] : '';
-  setStatus((Date.now() < noteUntil ? note : '') || `In room ${client.room}` + (here ? ` · ${here}` : ''));
+  setStatus((Date.now() < noteUntil ? note : '') || `In room ${client.room}` +
+    (remoteOnly ? ' · remote only' : here ? ` · ${here}` : ''));
 }
 
 function setNote(text) {

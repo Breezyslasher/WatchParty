@@ -63,7 +63,13 @@ beside it.
 3. Everyone's TV, phone or browser opens the title. In the browser it opens in
    its own tab (the "player tab") and follows the room: play, pause and seek
    on any device and the browser follows; pause or seek in the browser and
-   everyone follows. **Room** shows what's playing.
+   everyone follows. **Room** shows what's playing, with the room's controls
+   (the remote's): the clock, play / pause, skip back or forward 10 / 30 s,
+   go to a time, and stop for everyone.
+4. **This browser** (in the rail, once in a room): **Watch here** opens and
+   follows the room's title in a tab; **Remote only** just runs the room —
+   Browse and the controls — and plays nothing here, like the Android app's
+   Remote only (e.g. a laptop running the party for the TVs).
 
 Keep the Watch Party page open while watching: it keeps the browser in sync.
 The browser's Back goes back from a title page, like the remote's Back.

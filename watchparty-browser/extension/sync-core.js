@@ -24,6 +24,10 @@ export const CORRECTION_COOLDOWN_MS = 4000;
 export const OPEN_GRACE_MS = 20000;
 export const STARTED_MS = 3000;
 export const USER_SEEK_JUMP_SEC = 4;
+/** A jump within this of where our last catch-up seek was going is that seek landing. */
+export const SEEK_MATCH_SEC = 5;
+/** …if it comes this soon after we sent it (a tab can be slow to report its new spot). */
+export const SEEK_LANDS_WITHIN_MS = 10000;
 
 /** Where playback should be at serverNowSec. */
 export function expectedSec(room, serverNowSec) {
@@ -43,6 +47,8 @@ export class SyncCore {
     this.playingSinceMs = -1;   // when the opened title was first seen playing
     this.suppressUntilMs = 0;
     this.lastCorrectionMs = 0;
+    /** Our last catch-up seek: where it was going, when, and whether the room was playing. */
+    this.seekTarget = null;
     this.notPlayableFile = null;
     this.last = null;
     this.lastAtMs = 0;
@@ -148,8 +154,14 @@ export class SyncCore {
         const elapsed = (nowMs - this.lastAtMs) / 1000;
         const predicted = prev.positionMs / 1000 + (wasPlaying ? elapsed : 0);
         const expected = expectedSec(room, serverNowSec);
-        // a jump that also moved us away from the room = the user seeked
-        if (Math.abs(localSec - predicted) > USER_SEEK_JUMP_SEC && Math.abs(localSec - expected) > this.drift) {
+        // a jump that also moved us away from the room = the user seeked; not our
+        // own catch-up seek landing late, after the room moved on (it seeked to 60,
+        // then paused at 70 before the tab said it was at 60: e2e, 2026-11-19)
+        const t = this.seekTarget;
+        const ours = t && nowMs - t.atMs < SEEK_LANDS_WITHIN_MS &&
+          Math.abs(localSec - (t.sec + (t.playing ? (nowMs - t.atMs) / 1000 : 0))) < SEEK_MATCH_SEC;
+        if (ours && Math.abs(localSec - predicted) > USER_SEEK_JUMP_SEC) this.seekTarget = null;   // it landed
+        if (!ours && Math.abs(localSec - predicted) > USER_SEEK_JUMP_SEC && Math.abs(localSec - expected) > this.drift) {
           actions.push({ type: 'send', cmd: 'seek', positionSec: localSec });
           this.suppressUntilMs = nowMs + SUPPRESS_MS;
           this.remember(local, nowMs);
@@ -172,6 +184,7 @@ export class SyncCore {
       const expected = expectedSec(room, serverNowSec);
       if (Math.abs(localSec - expected) > this.drift && nowMs - this.lastCorrectionMs > CORRECTION_COOLDOWN_MS) {
         actions.push({ type: 'seek', ms: Math.round(expected * 1000) });
+        this.seekTarget = { sec: expected, atMs: nowMs, playing: !room.paused };
         this.lastCorrectionMs = nowMs;
         this.suppressUntilMs = nowMs + SUPPRESS_MS;
         this.corrections++;

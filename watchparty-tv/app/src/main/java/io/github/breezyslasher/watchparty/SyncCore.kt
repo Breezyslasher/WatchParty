@@ -153,6 +153,8 @@ class SyncCore(
         const val OPEN_GRACE_MS = 20_000L       // let a launched app start up
         const val STARTED_MS = 3_000L           // playing this long = it has started
         const val USER_SEEK_JUMP_SEC = 4.0      // local jump that counts as a seek
+        const val SEEK_MATCH_SEC = 5.0          // a jump this near our last seek's target is it landing…
+        const val SEEK_LANDS_WITHIN_MS = 10_000L // …this soon after we sent it
         const val SEEK_LANDS_MS = 2_500L        // a correction is judged this long after
         /** Waits after 1, 2, 3+ corrections in a row that didn't land. */
         val RETRY_BACKOFF_MS = longArrayOf(10_000L, 20_000L, 30_000L)
@@ -166,6 +168,10 @@ class SyncCore(
     private var playingSinceMs = -1L
     private var suppressUntilMs = 0L
     private var lastCorrectionMs = 0L
+    /** Our last catch-up seek: where it was going (-1: none), when, and whether the room was playing. */
+    private var seekTargetSec = -1.0
+    private var seekAtMs = 0L
+    private var seekPlaying = false
     /** Distance from the room when the last correction was sent; -1: none to judge. */
     private var correctionGapSec = -1.0
     /** Corrections in a row that didn't land (the app refused the seek). */
@@ -361,8 +367,13 @@ class SyncCore(
                 val elapsed = (nowMs - lastAtMs) / 1000.0
                 val predicted = prev.positionMs / 1000.0 + (if (wasPlaying) elapsed else 0.0)
                 val expected = room.expectedSec(serverNowSec)
-                // a jump that also moved us away from the room = the user seeked
-                if (Math.abs(localSec - predicted) > USER_SEEK_JUMP_SEC &&
+                // a jump that also moved us away from the room = the user seeked; not our
+                // own catch-up seek landing late, after the room moved on (the room seeked,
+                // then paused elsewhere before the app said it had got there: e2e, 2026-11-19)
+                val ours = seekTargetSec >= 0 && nowMs - seekAtMs < SEEK_LANDS_WITHIN_MS &&
+                    Math.abs(localSec - (seekTargetSec + if (seekPlaying) (nowMs - seekAtMs) / 1000.0 else 0.0)) < SEEK_MATCH_SEC
+                if (ours && Math.abs(localSec - predicted) > USER_SEEK_JUMP_SEC) seekTargetSec = -1.0   // it landed
+                if (!ours && Math.abs(localSec - predicted) > USER_SEEK_JUMP_SEC &&
                     Math.abs(localSec - expected) > driftThresholdSec
                 ) {
                     actions += Action.Send("seek", localSec)
@@ -413,6 +424,9 @@ class SyncCore(
                 else RETRY_BACKOFF_MS[minOf(refusedSeeks, RETRY_BACKOFF_MS.size) - 1]
             if (gap > driftThresholdSec && nowMs - lastCorrectionMs > wait) {
                 actions += Action.SeekTo((expected * 1000).toLong(), pauseAfter = room.paused)
+                seekTargetSec = expected
+                seekAtMs = nowMs
+                seekPlaying = !room.paused
                 lastCorrectionMs = nowMs
                 correctionGapSec = gap
                 suppressUntilMs = nowMs + SUPPRESS_MS
