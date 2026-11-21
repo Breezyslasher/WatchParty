@@ -49,6 +49,17 @@ class AddonLinksTest {
             AddonLinks.webLink("plugin://plugin.video.appletv/?action=play&item_id=umc.cmc.s80mx1ic96pu6ewupz8pfasf&item_type=Episode"))
     }
 
+    /** Fawesome by node id: any name after it gives the title's page (the page probe, 2026-11-21). */
+    @Test fun fawesomeByNodeId() {
+        assertEquals("https://fawesome.tv/movies/10809157/watch",
+            AddonLinks.webLink("plugin://plugin.video.fawesome/?action=play&nid=10809157", "movie"))
+        assertEquals("https://fawesome.tv/tv-shows/10241098/watch",
+            AddonLinks.webLink("plugin://plugin.video.fawesome/?action=play&nid=10241098", "episode"))
+        assertNull(AddonLinks.webLink("plugin://plugin.video.fawesome/?action=open&url=shows.php"))
+        assertNull(AddonLinks.webLink("plugin://plugin.video.fawesome/?action=play&nid=abc"))
+        assertEquals(true, AddonLinks.sameService("https://fawesome.tv/movies/10809157/the-little-shop-of-horrors", "plugin.video.fawesome"))
+    }
+
     @Test fun leavesOtherPathsAlone() {
         for (plugin in listOf(
             "plugin://slyguy.max/?_=play&edit_id=0fc1d4b1-0f6a-4b5b-9c39-6a6e2ee44b3f",

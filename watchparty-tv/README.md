@@ -202,8 +202,12 @@ same title from its own source:
   link of the same title and opens it in the service's app
   (`AddonLinks.kt`): Netflix (CastagnaIT's addon), YouTube, SlyGuy's Disney+,
   Hulu and Paramount+, Sandmann79's Prime Video, Paco8's SkyOTT (Peacock),
-  and the Apple TV, Tubi and Crunchyroll addons. Formats read from each
-  addon's source. Paramount+ and Apple TV need no title name: Paramount+'s
+  and the Apple TV, Tubi and Crunchyroll addons, and Breezyslasher's Starz,
+  Plex On Demand and Fawesome addons. Formats read from each
+  addon's source. Fawesome (0.17.24): `?action=play&nid=<id>` →
+  `fawesome.tv/movies/<id>/watch` (a movie) or `/tv-shows/<id>/watch`; any
+  name after the id gives the title's page, the id alone an empty shell
+  (page probe, 2026-11-21). Paramount+ and Apple TV need no title name: Paramount+'s
   own links are `/movies/video/<id>/` and `/shows/video/<id>/`, and
   `tv.apple.com/movie|episode/<id>` redirects to the full link, which
   Android follows before opening the app (`tools/probe/nameless_links.py`,

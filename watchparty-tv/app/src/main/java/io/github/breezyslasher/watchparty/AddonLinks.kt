@@ -40,6 +40,13 @@ import java.net.URLDecoder
  *    has to be right (the other one is a 404). SyncService follows that
  *    redirect before launching (MediaLink.isBareApple).
  *
+ *  - plugin.video.fawesome (Breezyslasher's, Kodi-Addons branch plugin.video.fawesome):
+ *    ?action=play&nid=<node id> → fawesome.tv/movies/<id>/watch (a movie) or
+ *    /tv-shows/<id>/watch (anything else): JustWatch's links are
+ *    /movies/<id>/<name> and /tv-shows/<id>/s01-e01-<name>, and any name gives
+ *    the title's page; the number alone gives an empty page shell (the page
+ *    probe, 2026-11-21).
+ *
  * Not converted: HBO Max and Discovery+ (edit ids, which no public page
  * gives: HBO Max's public /video/watch/ pages are an error page, the HBO Max
  * probe, 2026-11-16). Those still play through the title's identity (Bridge).
@@ -68,6 +75,7 @@ object AddonLinks {
         "plugin.video.starz" to listOf("starz.com"),
         "plugin.video.plutotv" to listOf("pluto.tv"),
         "plugin.video.plexondemand" to listOf("watch.plex.tv"),
+        "plugin.video.fawesome" to listOf("fawesome.tv"),
     )
 
     /** The addon in a plugin:// path ("plugin://slyguy.hulu/?…" → "slyguy.hulu"). */
@@ -151,6 +159,9 @@ object AddonLinks {
                     else -> null
                 }
             }
+            "plugin.video.fawesome" ->
+                args["nid"]?.takeIf { args["action"] == "play" && it.isNotEmpty() && it.all(Char::isDigit) }
+                    ?.let { "https://fawesome.tv/${if (type == "movie") "movies" else "tv-shows"}/$it/watch" }
             "plugin.video.crunchyroll" -> {
                 if (path.firstOrNull() != "video") return null
                 val episode = when (path.size) {

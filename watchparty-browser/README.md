@@ -119,7 +119,8 @@ The browser's Back goes back from a title page, like the remote's Back.
   If that API isn't there, the `<video>` is used.
 
 Sites: Netflix, Disney+, HBO Max, Prime Video, Hulu, Peacock, Paramount+,
-Apple TV, YouTube, Crunchyroll, Tubi, Pluto TV, Starz, Plex, Discovery+.
+Apple TV, YouTube, Crunchyroll, Tubi, Pluto TV, Starz, Plex, Discovery+,
+Fawesome (0.7.1; its player not yet tried with the extension).
 A link to another site still opens, but can't be synced.
 
 **Kodi members** (the bridge, as in the Android app — see its README's *Kodi

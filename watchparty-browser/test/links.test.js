@@ -1,7 +1,7 @@
 // The Android app's MediaLink rules (MediaLinkTest's cases) and the browser's own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, serviceOf, cleanTitle, roomItem, androidPackage, browserLink, addonOf, sameService, preferAddon } from '../extension/links.js';
+import { normalize, serviceOf, cleanTitle, roomItem, androidPackage, browserLink, addonOf, sameService, preferAddon, pluginLink } from '../extension/links.js';
 
 test('links become the forms the Android app shares', () => {
   const cases = [
@@ -87,4 +87,10 @@ test("a Kodi addon's own service comes first in the fallback", () => {
   // Plex's free catalogue, not its live TV
   assert.equal(sameService('https://watch.plex.tv/show/forensic-files/season/1/episode/1?utm_content=5d9c0c4a02391c001f5addaa', 'plugin.video.plexondemand'), true);
   assert.equal(sameService('https://watch.plex.tv/live-tv/channel/forensic-files', 'plugin.video.plexondemand'), false);
+  // Fawesome (Breezyslasher's addon): JustWatch's links, by node id
+  assert.equal(serviceOf('https://fawesome.tv/movies/10809157/the-little-shop-of-horrors'), 'fawesome');
+  assert.equal(sameService('https://fawesome.tv/tv-shows/10241098/s01-e01-the-disappearance-of-helle-crafts-forensic-files', 'plugin.video.fawesome'), true);
+  assert.equal(pluginLink('plugin://plugin.video.fawesome/?action=play&nid=10809157', 'movie'), 'https://fawesome.tv/movies/10809157/watch');
+  assert.equal(pluginLink('plugin://plugin.video.fawesome/?action=play&nid=10241098', 'episode'), 'https://fawesome.tv/tv-shows/10241098/watch');
+  assert.equal(pluginLink('plugin://plugin.video.fawesome/?action=open&url=shows.php'), null);
 });
