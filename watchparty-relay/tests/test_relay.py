@@ -379,7 +379,7 @@ class EmbeddedRelayTest(unittest.TestCase):
         base = f'http://127.0.0.1:{self.port}'
         with urllib.request.urlopen(f'{base}/status.json') as resp:
             data = json.load(resp)
-        self.assertEqual([r['room'] for r in data['rooms']], ['T··T'])
+        self.assertEqual([r['room'] for r in data['rooms']], ['····'])
         names = sorted(m['name'] for m in data['rooms'][0]['members'])
         self.assertEqual(names, ['guest', 'host'])
         with urllib.request.urlopen(f'{base}/status') as resp:
@@ -484,8 +484,9 @@ class StandaloneRelayTest(unittest.TestCase):
         with urllib.request.urlopen(url) as resp:
             data = json.load(resp)
         rooms = {r['room'] for r in data['rooms']}
-        self.assertIn('D··H', rooms)
-        self.assertNotIn('DASH', rooms)
+        # nothing of the code shows: not even its first and last characters
+        self.assertIn('····', rooms)
+        self.assertFalse(any('D' in r or 'H' in r for r in rooms))
 
     def test_status_page_serves(self):
         url = f'http://127.0.0.1:{self.PORT}/status'
@@ -740,3 +741,136 @@ class FixedModeTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def post(port, path, body, client=None, raw=None, headers=None):
+    """(status, reply) of a POST; [client] poses as a client behind a proxy
+    on this machine (X-Forwarded-For): requests from this machine itself
+    aren't limited."""
+    data = raw if raw is not None else json.dumps(body).encode()
+    req = urllib.request.Request(f'http://127.0.0.1:{port}{path}', data=data, method='POST',
+                                 headers=dict({'Content-Type': 'application/json'}, **(headers or {})))
+    if client:
+        req.add_header('X-Forwarded-For', client)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status, json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b'{}')
+
+
+class AbuseTest(unittest.TestCase):
+    """The audit of 2026-11-22: guessing codes, joining without end, bad
+    bodies, NaN, malformed items, the dashboard's escaping."""
+
+    def setUp(self):
+        self.server = RelayServer(port=0, room_code='ABCDEF')
+        self.port = self.server._httpd.server_address[1]
+        self.server.start()
+        self.addCleanup(self.server.stop)
+
+    def test_guessing_codes_is_cut_off(self):
+        import relay
+        for i in range(relay.BAD_CODE_LIMIT):
+            status, reply = post(self.port, '/join', {'room': f'GUESS{i}', 'name': 'x'}, client='203.0.113.5')
+            self.assertEqual(status, 403)
+        # now even the right code is refused for that client…
+        status, reply = post(self.port, '/join', {'room': 'ABCDEF', 'name': 'x'}, client='203.0.113.5')
+        self.assertEqual(status, 429)
+        self.assertIn('too many wrong room codes', reply['error'])
+        # …but not for anyone else, nor this machine
+        self.assertEqual(post(self.port, '/join', {'room': 'ABCDEF', 'name': 'y'}, client='203.0.113.6')[0], 200)
+        self.assertEqual(post(self.port, '/join', {'room': 'ABCDEF', 'name': 'z'})[0], 200)
+
+    def test_joins_are_limited(self):
+        import relay
+        for i in range(relay.JOIN_LIMIT):
+            self.assertEqual(post(self.port, '/join', {'room': 'ABCDEF', 'name': 'm'}, client='198.51.100.7')[0], 200)
+        status, reply = post(self.port, '/join', {'room': 'ABCDEF', 'name': 'm'}, client='198.51.100.7')
+        self.assertEqual(status, 429)
+
+    def test_forwarded_address_only_from_a_proxy(self):
+        # Cloudflare's header wins; X-Forwarded-For's last entry is the proxy's own
+        import relay
+        handler = relay._Handler.__new__(relay._Handler)
+        handler.headers = {'X-Forwarded-For': '1.1.1.1, 9.9.9.9'}
+        handler.client_address = ('127.0.0.1', 1)
+        self.assertEqual(handler.client_ip(), '9.9.9.9')
+        handler.headers = {'CF-Connecting-IP': '8.8.8.8', 'X-Forwarded-For': '9.9.9.9'}
+        self.assertEqual(handler.client_ip(), '8.8.8.8')
+        handler.headers = {}
+        self.assertIsNone(handler.client_ip())   # this machine: not limited
+        handler.client_address = ('8.8.4.4', 1)
+        handler.headers = {'X-Forwarded-For': '9.9.9.9'}   # not a proxy: ignored
+        self.assertEqual(handler.client_ip(), '8.8.4.4')
+
+    def test_bad_bodies_are_answered(self):
+        self.assertEqual(post(self.port, '/join', None, raw=b'[1, 2]')[0], 400)
+        self.assertEqual(post(self.port, '/join', None, raw=b'"text"')[0], 400)
+        self.assertEqual(post(self.port, '/join', None, raw=b'{not json')[0], 400)
+        import socket
+        with socket.create_connection(('127.0.0.1', self.port), timeout=5) as sock:
+            sock.sendall(b'POST /join HTTP/1.1\r\nHost: x\r\nContent-Length: abc\r\n\r\n')
+            self.assertIn(b' 400 ', sock.recv(4096).split(b'\r\n')[0] + b' ')
+        # a command whose fields have the wrong types
+        _, joined = post(self.port, '/join', {'room': 'ABCDEF', 'name': 'm'})
+        member = joined['member_id']
+        for payload in ({'cmd': 'open', 'item': 'not an item'}, {'cmd': 'modes', 'item': [1]},
+                        {'cmd': 'seek', 'position': 'later'}, {'cmd': 'seek', 'position': float('nan')}):
+            status, _ = post(self.port, '/command', dict(payload, room='ABCDEF', member_id=member))
+            self.assertEqual(status, 400, payload)
+
+    def test_nan_never_reaches_json(self):
+        _, joined = post(self.port, '/join', {'room': 'ABCDEF', 'name': 'm'})
+        member = joined['member_id']
+        for value in (float('nan'), float('inf'), '1e999'):
+            status, _ = post(self.port, '/poll', {'room': 'ABCDEF', 'member_id': member,
+                                                  'position': value, 'paused': False},
+                             raw=json.dumps({'room': 'ABCDEF', 'member_id': member,
+                                             'position': value, 'paused': False}).encode())
+            self.assertEqual(status, 200)
+        with urllib.request.urlopen(f'http://127.0.0.1:{self.port}/status.json') as resp:
+            text = resp.read().decode()
+        self.assertNotIn('NaN', text)
+        self.assertNotIn('Infinity', text)
+
+    def test_malformed_item_fields_are_dropped(self):
+        _, joined = post(self.port, '/join', {'room': 'ABCDEF', 'name': 'm'})
+        item = {'file': 'https://example.com/a', 'label': 'A', 'season': 'S01', 'episode': '2',
+                'year': '"><img src=x onerror=alert(1)>', 'ids': [], 'title': {'x': 1},
+                'artist': ['a', 3], 'duration': 'long', 'playlist_pos': True}
+        status, reply = post(self.port, '/command', {'room': 'ABCDEF', 'member_id': joined['member_id'],
+                                                     'cmd': 'open', 'item': item})
+        self.assertEqual(status, 200)
+        stored = reply['state']['item']
+        self.assertEqual(stored['episode'], 2)
+        self.assertEqual(stored['artist'], ['a'])
+        for key in ('season', 'year', 'ids', 'title', 'duration', 'playlist_pos'):
+            self.assertNotIn(key, stored)
+
+    def test_dashboard_escapes_quotes(self):
+        import relay
+        self.assertIn("replace(/\"/g,'&quot;')", relay.DASH_HTML)
+        self.assertIn("esc(n.season)", relay.DASH_HTML)
+        self.assertIn("esc(n.year)", relay.DASH_HTML)
+
+
+class RoomCreationLimitTest(CapacityTest):
+    PORT = 28771
+
+    # CapacityTest's own tests aren't run again here
+    test_max_rooms_is_a_setting = None
+    test_max_rooms_from_the_environment = None
+    test_many_members_joining_at_once = None
+
+    def test_one_client_cant_fill_the_relay(self):
+        import relay_standalone
+        self._start()
+        for i in range(relay_standalone.ROOMS_PER_CLIENT):
+            self.assertEqual(post(self.PORT, '/join', {'room': f'ROOM{i}', 'name': 'x'}, client='203.0.113.20')[0], 200)
+        status, reply = post(self.PORT, '/join', {'room': 'ONEMORE', 'name': 'x'}, client='203.0.113.20')
+        self.assertEqual(status, 429)
+        self.assertIn('too many new rooms', reply['error'])
+        # an existing room still takes them; others still create rooms
+        self.assertEqual(post(self.PORT, '/join', {'room': 'ROOM0', 'name': 'y'}, client='203.0.113.20')[0], 200)
+        self.assertEqual(post(self.PORT, '/join', {'room': 'OTHER', 'name': 'z'}, client='203.0.113.21')[0], 200)

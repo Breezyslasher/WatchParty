@@ -35,7 +35,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # relay.py
-from relay import RoomState, _ClosingServer, _Handler  # noqa: E402
+from relay import LIMIT_WINDOW, RateLimiter, RoomState, _ClosingServer, _Handler  # noqa: E402
 
 
 ROOM_CODE_RE = re.compile(r'^[A-Z0-9]{3,12}$')
@@ -44,6 +44,10 @@ ROOM_CODE_RE = re.compile(r'^[A-Z0-9]{3,12}$')
 # 1000 members in rooms of 3 and of 7, polling once a second, with about a
 # quarter of one core). --max-rooms / WATCHPARTY_MAX_ROOMS changes it.
 DEFAULT_MAX_ROOMS = 1000
+# New rooms one client (by address) may create per LIMIT_WINDOW in open
+# mode, so one client can't fill --max-rooms and lock everyone else out
+# (nor try codes by creating rooms).
+ROOMS_PER_CLIENT = 10
 EMPTY_ROOM_TTL = 300.0   # seconds an empty room lingers before pruning
 PRUNE_INTERVAL = 60.0
 
@@ -65,6 +69,7 @@ class RoomRegistry:
         self._saved_fingerprint = None
         self.state_path = state_path
         self.open_mode = not fixed_codes
+        self._creations = RateLimiter(ROOMS_PER_CLIENT, LIMIT_WINDOW)
         for code in fixed_codes or []:
             self._rooms[code] = RoomState(code)
         if state_path:
@@ -113,8 +118,10 @@ class RoomRegistry:
         except Exception as e:
             print(f"[relay] could not write state file: {e}", flush=True)
 
-    def lookup(self, code):
-        """Return a RoomState, or an error string explaining the refusal."""
+    def lookup(self, code, client=None):
+        """Return a RoomState, or an error string explaining the refusal.
+        [client]: who asks (an address; None for this machine), for the
+        limit on new rooms."""
         code = code.strip().upper()
         with self._lock:
             room = self._rooms.get(code)
@@ -127,6 +134,8 @@ class RoomRegistry:
                 return 'room code must be 3-12 letters or digits'
             if len(self._rooms) >= self.max_rooms:
                 return 'relay is full (too many rooms)'
+            if client and not self._creations.hit(client):
+                return 'too many new rooms from this address, try again later'
             room = RoomState(code)
             self._rooms[code] = room
             print(f"[relay] room {code} created "
@@ -201,7 +210,7 @@ def main():
         in ('1', 'true', 'yes')
 
     handler = type('RegistryHandler', (_Handler,), {
-        'lookup_room': lambda self, code: registry.lookup(code),
+        'lookup_room': lambda self, code: registry.lookup(code, self.client_ip()),
         'iter_rooms': lambda self: registry.rooms(),
         'show_codes': show_codes,
     })

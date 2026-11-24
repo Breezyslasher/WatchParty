@@ -46,7 +46,8 @@ everyone joins with the `https://` address.
 - **Open mode** (default): any room code creates a room on first join —
   SyncLounge-style. Rooms empty for 5 minutes are pruned. At most 1000
   rooms at a time (`--max-rooms N` or `WATCHPARTY_MAX_ROOMS`); past that
-  new rooms get "relay is full".
+  new rooms get "relay is full". One client (by address) creates at most
+  10 new rooms per 10 minutes, so nobody can fill the relay alone.
 - **Fixed mode** (`--room CODE`, repeatable, or `WATCHPARTY_ROOMS=A,B`):
   only the listed rooms exist; everything else is rejected.
 - **Persistence**: with `--state-file PATH` (or `WATCHPARTY_STATE`), room
@@ -109,8 +110,19 @@ whoever started the item and served from there, so it shows even when the
 artwork lives on a media server the viewer cannot reach — and it keeps its
 own shape, square for music covers, tall for posters.
 
-Room codes are masked by default since they double as the access token —
-set `WATCHPARTY_SHOW_CODES=1` to show them in full on a private deployment.
+Room codes are hidden by default since they double as the access token
+(nothing of them shows: not even their first and last characters) — set
+`WATCHPARTY_SHOW_CODES=1` to show them in full on a private deployment.
+
+Guessing codes is cut off: a client that sends 20 wrong room codes in 10
+minutes is refused (HTTP 429) until they age out, and one client joins at
+most 30 times per 10 minutes. A connection silent for 60 s is dropped, and
+one address holds at most 32 connections at once. Behind a reverse proxy or
+tunnel on the same machine or LAN, the client's address is taken from
+`CF-Connecting-IP`, `X-Real-IP` or the last `X-Forwarded-For` entry (the one
+your proxy adds); requests from the relay's own machine without one aren't
+limited (the hosting Kodi). Malformed requests get a 400, and item fields of
+the wrong type (`"season": "S01"`) are dropped rather than passed on.
 Media-server credentials are stripped from every URL the dashboard and
 `/status.json` publish, so a token never reaches the page.
 
